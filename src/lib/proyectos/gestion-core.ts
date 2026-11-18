@@ -158,6 +158,13 @@ export const generaCuotas = (etapa: string): boolean => (ETAPAS_CON_CUOTAS as re
 export const cuotaPrevista = (etapa: string, fechaEvento: Date | null): boolean => !generaCuotas(etapa) || !fechaEvento;
 
 /**
+ * Si la cuota es previsión. Una cuota que ya fue firme no vuelve a serlo: un retroceso de etapa o una fecha borrada no le
+ * cambia el vencimiento ni la saca de «Cobros vencidos», y al volver a confirmar no nace otra vez (MIA-089 · V1;
+ * provisional a confirmar por el dueño). PURA.
+ */
+export const previstaDeLaCuota = (prevista: boolean, previa?: { prevista: boolean }): boolean => prevista && (!previa || previa.prevista);
+
+/**
  * De cuándo es la cuota. Una fecha corregida a mano no se pisa. El anticipo del cliente vence el día que se confirma, no el
  * día que entró el lead (naceria vencido), y después queda fijo. PURA.
  */
@@ -374,6 +381,10 @@ export function proyeccionDeCaja(d: {
   }
   return salida;
 }
+
+/** Lo que pesa un proyecto en el pipeline: su venta y, sin ítems todavía, lo estimado. Una sola regla para el tablero y Dirección. PURA. */
+export const ventaOEstimado = (venta: number, estimado: number | null, moneda: string, tc: Readonly<Record<string, number>>): number =>
+  venta > 0 ? venta : estimado ? aPesos(estimado, moneda, tc) : 0;
 
 export const PROBABILIDAD_PROPUESTA = 0.4;
 

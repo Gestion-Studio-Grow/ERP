@@ -11,6 +11,7 @@ import { MEDIOS, MEDIO_LABEL } from "@/lib/proyectos/core";
 import { plataEn } from "@/lib/proyectos/gestion-core";
 import { campo } from "../_vista";
 import { useToastSiHay } from "../../ToastProvider";
+import { nuevaClave } from "../[id]/_cliente";
 
 type Salida = { ok: boolean; error?: string; [k: string]: unknown } | void;
 type Accion = (fd: FormData) => Promise<Salida>;
@@ -49,16 +50,27 @@ const Fallo = ({ texto }: { texto: string | null }) => (texto ? <p role="alert" 
 
 // ── Formularios ─────────────────────────────────────────────────────────────
 
-export function FormAccion({ accion, children, boton, className, limpiar = true }: { accion: Accion; children?: ReactNode; boton: string; className?: string; limpiar?: boolean }) {
+/**
+ * Con `claveDeEnvio`, cada envío lleva `claveEnvio`: la misma hasta que el servidor contesta, así un doble clic o un
+ * reintento después de un corte graban una sola vez (MIA-089 · V7); con respuesta, el próximo envío lleva otra.
+ */
+export function FormAccion({ accion, children, boton, className, limpiar = true, claveDeEnvio }: { accion: Accion; children?: ReactNode; boton: string; className?: string; limpiar?: boolean; claveDeEnvio?: boolean }) {
   const { error, ocupado, correr } = useAccion();
+  const clave = useRef<string | null>(null);
+  const conClave: Accion = async (fd) => {
+    const r = await accion(fd);
+    clave.current = null;
+    return r;
+  };
   return (
     <form
       className={cn("grid gap-2", className)}
-      onSubmit={alEnviar((fd, form) =>
-        correr(accion, fd, () => {
+      onSubmit={alEnviar((fd, form) => {
+        if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
+        return correr(claveDeEnvio ? conClave : accion, fd, () => {
           if (limpiar) form.reset();
-        }),
-      )}
+        });
+      })}
     >
       {children}
       <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 justify-self-start")}>{ocupado ? "Guardando…" : boton}</button>

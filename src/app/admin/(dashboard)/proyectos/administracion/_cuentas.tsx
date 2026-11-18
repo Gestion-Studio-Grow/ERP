@@ -3,7 +3,7 @@ import { cn } from "@/components/ui";
 import { fechaCorta, fechaParaInput, pesos } from "@/lib/proyectos/core";
 import { aPesos, codigoProyecto, diasDeAtraso, estadoCuota, plataEn } from "@/lib/proyectos/gestion-core";
 import { FILTROS_CUOTA, pasaFiltro, type FiltroCuota } from "@/lib/proyectos/empresa-core";
-import { proveedoresActivos, type CuotaDelNegocio, type SinCalendarioDelNegocio } from "@/lib/proyectos/empresa.server";
+import { proveedoresActivos, type CuotaDelNegocio, type GastoSinPagar, type SinCalendarioDelNegocio } from "@/lib/proyectos/empresa.server";
 import type { PagadoDeCuota } from "@/lib/proyectos/cobranza-core";
 import { anularCuotaEmpresa, crearPagoEmpresa } from "@/lib/proyectos/acciones-empresa";
 import { quitarMovimiento } from "@/lib/proyectos/acciones-ficha";
@@ -48,7 +48,7 @@ const fijaDerecha = "sm:sticky sm:right-0 sm:bg-surface-raised max-sm:col-span-2
 const celda = "max-sm:py-1 max-sm:pr-0 max-sm:before:block max-sm:before:text-xs max-sm:before:text-muted max-sm:before:content-[attr(data-label)]";
 const renglon = "max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-3 max-sm:py-2";
 
-export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = false, cuotas, sinCalendario = [], tc, tenantId, editaEmpresa, editaPagos, veClientes = false }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; vista?: string; guardada?: boolean; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean; veClientes?: boolean }) {
+export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = false, cuotas, sinCalendario = [], gastosSinPagar = [], tc, tenantId, editaEmpresa, editaPagos, veClientes = false }: { tipo: "COBRO" | "PAGO"; estado?: string; q?: string; vista?: string; guardada?: boolean; cuotas: readonly (CuotaDelNegocio & { pendiente?: number; cobrado?: number; pagado?: PagadoDeCuota | null })[]; sinCalendario?: readonly SinCalendarioDelNegocio[]; gastosSinPagar?: readonly GastoSinPagar[]; tc: Readonly<Record<string, number>>; tenantId: string; editaEmpresa: boolean; editaPagos: boolean; veClientes?: boolean }) {
   // La vista guardada (O46): sus filtros son el punto de partida; el estado elegido arriba manda sobre el de la vista.
   const lista: ListaId = tipo === "COBRO" ? "a-cobrar" : "a-pagar";
   const a = await actorActual();
@@ -66,6 +66,8 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
   const cantColumnas = ve.size;
   // Lo aprobado que ninguna cuota espera: pendiente y sin fecha, así que sólo en «Pendientes» y «Todos».
   const faltantes = tipo === "COBRO" && (filtro === "pendientes" || filtro === "todos") ? sinCalendario.filter((f) => !busqueda || coincideSinCalendario(f, busqueda)) : [];
+  // MIA-089 · V6: los gastos directos sin pagar (sin cuota) también están en «A pagar»: cada uno con su renglón.
+  const gastos = tipo === "PAGO" && (filtro === "pendientes" || filtro === "todos") ? gastosSinPagar.filter((g) => !busqueda || `${g.descripcion} ${g.proyecto.nombre} ${g.supplier?.name ?? ""}`.toLowerCase().includes(busqueda.toLowerCase())) : [];
   const proveedores = tipo === "PAGO" && editaEmpresa ? await proveedoresActivos(tenantId) : [];
   const conVista = actual.id === vistas[0].id ? "" : `&vista=${encodeURIComponent(actual.id)}`;
   const enlace = (f: FiltroCuota) => `/admin/proyectos/administracion?tab=${tab}&estado=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}${conVista}`;
@@ -97,7 +99,7 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
         </form>
       </div>
 
-      {filas.length === 0 && faltantes.length === 0 ? (
+      {filas.length === 0 && faltantes.length === 0 && gastos.length === 0 ? (
         <p className={cn(tarjeta, "text-sm text-muted")}>{busqueda ? "Nada coincide con esa búsqueda." : tipo === "COBRO" ? "No hay cobros en este filtro." : "No hay pagos en este filtro."}</p>
       ) : (
         <div className={cn(tarjeta, "sm:overflow-x-auto")}>
@@ -210,6 +212,31 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
                   </td>
                 </tr>
               ))}
+              {gastos.map((g) => (
+                <tr key={`gasto-${g.id}`} className={cn("border-t border-line align-top", renglon)}>
+                  <td data-label="Vence" className={cn("py-2 pr-3 text-muted", celda)}>Sin fecha</td>
+                  {ve.has("evento") && (
+                    <td data-label="Evento" className={cn("py-2 pr-3", celda)}>
+                      <Link href={`/admin/proyectos/${g.proyecto.id}`} className="inline-flex min-h-11 items-center underline">{codigoProyecto(g.proyecto.numero, g.proyecto.createdAt)} {g.proyecto.nombre}</Link>
+                    </td>
+                  )}
+                  {ve.has("contraparte") && <td data-label="Proveedor" className={cn("py-2 pr-3", celda)}>{g.supplier?.name ?? "—"}</td>}
+                  {ve.has("concepto") && (
+                    <td data-label="Concepto" className={cn("py-2 pr-3", celda)}>
+                      {g.descripcion}
+                      <span className="block max-w-56 text-xs text-muted">Gasto cargado sin pagar, sin cuota.</span>
+                    </td>
+                  )}
+                  {ve.has("monto") && <td data-label="Monto" className={cn("whitespace-nowrap py-2 pr-3 font-medium tabular-nums text-strong sm:text-right", celda)}>{pesos(g.total)}</td>}
+                  {ve.has("enPesos") && <td data-label="En pesos" className={cn("whitespace-nowrap py-2 pr-3 tabular-nums text-muted sm:text-right", celda)}>{pesos(g.total)}</td>}
+                  {ve.has("factura") && <td data-label="Factura" className={cn("py-2 pr-3 text-muted", celda)}>—</td>}
+                  {ve.has("estado") && <td data-label="Estado" className={cn("whitespace-nowrap py-2 pr-3", celda)}>Pendiente</td>}
+                  {ve.has("comentario") && <td data-label="Comentario" className={cn("py-2 pr-3 text-muted", celda)}>—</td>}
+                  <td className={cn("py-2 sm:pl-3", fijaDerecha)}>
+                    <Link href={`/admin/proyectos/${g.proyecto.id}?tab=finanzas`} className="flex min-h-11 items-center whitespace-nowrap text-sm underline">Pagar en la ficha</Link>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
           {filas.length > MAX_FILAS && <p className="mt-2 text-sm text-muted">Se muestran las primeras {MAX_FILAS} de {filas.length}: usá el buscador para acotar.</p>}
@@ -271,7 +298,7 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
         <section className={tarjeta}>
           <h2 className="mb-2 font-semibold text-strong">{tipo === "COBRO" ? "Nuevo cobro de la empresa" : "Nuevo pago de la empresa"}</h2>
           <p className="mb-3 text-sm text-muted">{tipo === "COBRO" ? "Lo que no es de ningún evento: un alquiler de equipos, una asesoría." : "Lo que no es de ningún evento: alquiler, servicios, un honorario."}</p>
-          <FormAccion accion={crearPagoEmpresa} boton={tipo === "COBRO" ? "Sumar cobro" : "Sumar pago"} className="sm:grid-cols-2 lg:grid-cols-3">
+          <FormAccion accion={crearPagoEmpresa} claveDeEnvio boton={tipo === "COBRO" ? "Sumar cobro" : "Sumar pago"} className="sm:grid-cols-2 lg:grid-cols-3">
             <input type="hidden" name="tipo" value={tipo} />
             <label className={etiqueta}>Concepto<input name="concepto" required maxLength={200} className={campo} /></label>
             {tipo === "PAGO" && (

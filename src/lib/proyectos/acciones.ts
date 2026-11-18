@@ -19,13 +19,14 @@ import { clientePuedeResponder, fechaCorta, leerNumero, MEDIO_LABEL, pesos, esEt
 import { bloqueoDeEliminar, computar, costosVigentes, COSTO_LABEL, disenoInicial, normalizarDiseno, TIPOS_STAND, type ClaveCosto, type DisenoStand } from "./stand";
 import { configProyectos, veLaPlata } from "./datos.server";
 import { asentarEnCajaTx, rechazoDePeriodo, transaccionQueAsienta } from "./periodo-cerrado.server";
-import { cobranzasDelNegocio, tiposDeCambio, trabarCobranza } from "./cobranza.server";
+import { cobranzasDelNegocio, tiposDeCambio, estaPerdido, trabarCobranza } from "./cobranza.server";
 import { pasaElTope, type Cobranza } from "./cobranza-core";
 import { avisoTopeCobro } from "./avisos-cuota";
 import { actorActual, avisar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import type { ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { claveDeEnvio } from "./pago-columnas";
+import { PERDIDO_NO_COBRA } from "./ficha-core";
 import { esClaveRepetida, faltaLaMigracion } from "./rendiciones-core";
 import { etapa2ActivaPara } from "./etapa2.server";
 import { MENSAJE_APAGADO } from "./etapa2-core";
@@ -218,12 +219,14 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ li
   const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   // El cobro y su asiento en el libro de caja van juntos: o entran los dos o ninguno. Serializable y por `asentarEnCajaTx`
   // (O40): con el día de caja cerrado o el mes congelado no se asienta, ni en carrera con el cierre.
-  const grabar = (conClave: boolean) => transaccionQueAsienta(async (tx): Promise<{ id: string; repetido?: true } | { porCobrar: number; cob: Cobranza } | { ajeno: true } | { otroMonto: number } | { anulado: number } | { parecido: Date } | "repetido"> => {
+  const grabar = (conClave: boolean) => transaccionQueAsienta(async (tx): Promise<{ id: string; repetido?: true } | { porCobrar: number; cob: Cobranza } | { ajeno: true } | { otroMonto: number } | { anulado: number } | { parecido: Date } | "repetido" | "perdido"> => {
     // Tope: con presupuesto aprobado no entra más de lo que falta cobrar. En fila con «Marcar cobrado» y las cuotas
     // cargadas a mano del mismo proyecto, y contado adentro de la transacción (dos cobros a la vez no pasan los dos).
     await trabarCobranza(tx, tenantId, proyectoId);
     // Con el candado tomado: el segundo envío ve el «Envío» del primero, ya confirmado.
     if (envio && (await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: "ProyectoPago", campo: "Envío", antes: envio }, select: { id: true } }))) return "repetido";
+    // Un perdido no cobra (MIA-089 · V2), leído con el candado: en fila con «Marcar perdido».
+    if (await estaPerdido(tx, tenantId, proyectoId)) return "perdido";
     // El mismo envío otra vez (doble clic, reintento después de un corte): ya está grabado, se devuelve ése. Después
     // del candado, así dos envíos iguales a la vez pasan de a uno y el segundo encuentra al primero.
     if (conClave && clave) {
@@ -281,6 +284,7 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ li
     throw err;
   }
   if (pago === "repetido") return { ok: true, listo: "Ese cobro ya estaba registrado: no se asentó dos veces." };
+  if (pago === "perdido") return { ok: false, error: PERDIDO_NO_COBRA };
   if ("ajeno" in pago) return { ok: false, error: "Este formulario ya se usó para otro cobro. Recargá la página." };
   if ("anulado" in pago) {
     refrescar(proyectoId);
@@ -344,9 +348,15 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
   const medio = txt(formData.get("medio")) as MedioPago;
   if (pagado && !MEDIOS.includes(medio)) return { ok: false, error: "Elegí cómo se pagó." };
   const proveedor = txt(formData.get("proveedor")).slice(0, 120);
-  let gasto: { id: string };
+  const envio = claveDeEnvio(formData.get("claveEnvio"));
+  let gasto: { id: string } | null;
   try {
     gasto = await transaccionQueAsienta(async (tx) => {
+    // El mismo envío (doble clic, reintento): en fila por su clave y, si ya se grabó, no se carga otro (MIA-089 · V7).
+    if (envio) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`envio-gasto:${tenantId}:${envio}`}))`;
+      if (await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: "ProyectoGasto", campo: "Envío", antes: envio }, select: { id: true } })) return null;
+    }
     // El proveedor se escribe como se lo conoce: si ya está, es ése; si no, queda sumado.
     const existente = proveedor
       ? await tx.supplier.findFirst({ where: { tenantId, name: { equals: proveedor, mode: "insensitive" } }, select: { id: true, name: true } })
@@ -369,6 +379,7 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
       select: { id: true, neto: true, iva: true, descripcion: true },
     });
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoGasto", entidadId: creado.id, campo: "Costo real", despues: `${descripcion} · ${pesos(neto)}${pagado ? " · pagado" : ""}`, autor: user.name });
+    if (envio) await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoGasto", entidadId: creado.id, campo: "Envío", antes: envio, despues: creado.id, autor: user.name });
     if (pagado) await asentarPagoDeGastoTx(tx, tenantId, creado, p.numero, medio, elegido?.name ?? null);
     return creado;
     });
@@ -377,6 +388,7 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
     if (cerrado) return { ok: false, error: cerrado };
     throw err;
   }
+  if (!gasto) return { ok: true };
   await auditAdmin({ action: "proyecto.gasto", entity: "ProyectoGasto", entityId: gasto.id, changes: { neto, iva, pagado } });
   refrescar(proyectoId);
   revalidatePath(`${RAIZ}/proveedores`);

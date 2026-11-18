@@ -14,7 +14,7 @@ import { useToastSiHay } from "../../ToastProvider";
 const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 
 /** Clave aleatoria URL-safe (32 caracteres) para un envío. */
-function nuevaClave(): string {
+export function nuevaClave(): string {
   const b = new Uint8Array(16);
   crypto.getRandomValues(b);
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");

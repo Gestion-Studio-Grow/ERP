@@ -17,7 +17,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
-import { venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { venceDeLaCuota, previstaDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
@@ -255,8 +255,15 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
   // «Marcar cobrado», cobros, cuotas a mano). La ficha se lee y el plan se calcula ADENTRO del candado: el último en
   // entrar calcula con la ficha vigente y nadie revive una cuota que la ficha nueva ya no tiene. Ningún llamador lo
   // invoca con el candado tomado en otra transacción (todos después de cerrar la suya), así que no se espera a sí mismo.
-  const cerro = await tenantTransaction(
-    async (tx) => {
+  const cerro = await tenantTransaction((tx) => regenerarCuotasTx(tx, tenantId, proyectoId), { tenantId, timeoutMs: 15_000 });
+  if (!cerro) logger.warn("proyectos", "el plan de cobros no cerró: se marcaron cuotas mientras se ajustaba", { tenantId, proyectoId });
+}
+
+/**
+ * `regenerarCuotas` adentro de una transacción ya abierta (toma el candado de la cobranza): así un cambio de etapa y sus
+ * cuotas van juntos o no va ninguno (MIA-089 · V1). Devuelve `false` si el plan no cerró en tres vueltas.
+ */
+export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string): Promise<boolean> {
       await trabarCobranza(tx, tenantId, proyectoId);
       const [p, viva, config, tc] = await Promise.all([
         tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
@@ -291,10 +298,6 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
         if (!(await aplicarPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista, tc))) return true;
       }
       return false;
-    },
-    { tenantId, timeoutMs: 15_000 },
-  );
-  if (!cerro) logger.warn("proyectos", "el plan de cobros no cerró: se marcaron cuotas mientras se ajustaba", { tenantId, proyectoId });
 }
 
 /**
@@ -321,13 +324,15 @@ async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proye
     const previa = porClave.get(c.clave);
     if (previa?.pagadoEl) continue;
     const saldada = cubiertas.has(c.clave) && !!previa;
+    // Una cuota que ya fue firme no vuelve a ser previsión (MIA-089 · V1): ir y volver de etapa no le toca nada.
+    const laPrevista = previstaDeLaCuota(prevista, previa);
     const datos = {
-      prevista,
+      prevista: laPrevista,
       tipo: c.tipo,
       concepto: c.concepto,
       monto: c.monto,
       moneda: c.moneda,
-      venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista, hoy, previa }),
+      venceEl: venceDeLaCuota({ clave: c.clave, plan: c.venceEl, prevista: laPrevista, hoy, previa }),
       supplierId: c.supplierId,
       anuladoEl: null,
       ...(saldada && { pagadoEl: hoy, pagadoPor: SALDADA_CON_PARTES }),

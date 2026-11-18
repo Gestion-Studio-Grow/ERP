@@ -85,7 +85,7 @@ async function preparar(t: import("node:test").TestContext) {
   const gestion = await import("./gestion.server");
   const { cobranzasDelNegocio, tiposDeCambio } = await import("./cobranza.server");
   const { configProyectos, reporteProyectos } = await import("./datos.server");
-  const { recuadrosDeCuotas } = await import("./empresa.server");
+  const { recuadrosDeCuotas, proyectosConNumeros, cashflowDeEmpresa } = await import("./empresa.server");
   const form = (c: Record<string, string>) => {
     const fd = new FormData();
     for (const [k, v] of Object.entries(c)) fd.set(k, v);
@@ -123,8 +123,11 @@ async function preparar(t: import("node:test").TestContext) {
     });
   const administracion = () => enSesion(() => recuadrosDeCuotas(a.id));
   const rentabilidad = async (proyectoId: string) => (await enSesion(() => reporteProyectos())).find((p) => p.id === proyectoId)!;
+  const direccion = async (proyectoId: string) => (await enSesion(() => proyectosConNumeros(a.id))).find((p) => p.id === proyectoId)!;
+  /** Egresos a proveedores del mes en curso en el cashflow de la empresa (incluye lo vencido). */
+  const cashflowProveedores = async () => (await enSesion(() => cashflowDeEmpresa(a.id))).proyeccion[0]!.proveedores;
   const claveCobranza = (proyectoId: string) => `cobranza-proyecto:${a.id}:${proyectoId}`;
-  return { base, duenio, a, acciones, ficha, empresa, gestion, form, enSesion, proyecto, anticipo, foto, etapa, mover, marcar, cobrar, porCobrar, administracion, rentabilidad, claveCobranza };
+  return { base, duenio, a, acciones, ficha, empresa, gestion, form, enSesion, proyecto, anticipo, foto, etapa, mover, marcar, cobrar, porCobrar, administracion, rentabilidad, direccion, cashflowProveedores, claveCobranza };
 }
 
 test("V1 · Confirmado → Lead → Confirmado sin cobros: la seña firme y vencida (26/10) conserva vencimiento, monto y estado, y «Cobros vencidos» no baja", async (t) => {
@@ -179,6 +182,9 @@ test("V2 · perdido con la seña cobrada: nada por cobrar en la fuente única, A
   const fila = await p.rentabilidad(id);
   assert.equal(fila.porCobrar, 0, "Rentabilidad: nada por cobrar del perdido");
   assert.equal(fila.cobrado, 605, "lo cobrado sigue a la vista como cobrado");
+  const dir = await p.direccion(id);
+  assert.equal(dir.vencido, 0, "Dirección: un perdido no tiene cobros vencidos (la cuota a mano vencida no cuenta)");
+  assert.equal(dir.cobrado, 605, "Dirección: el mismo cobrado que Rentabilidad");
   const pagos = await p.duenio.proyectoPago.count({ where: { proyectoId: id } });
   assert.equal((await p.cobrar(id, 50)).ok, false, "registrarCobro rechaza un perdido");
   assert.equal((await p.marcar(manual.id)).ok, false, "marcarCuota rechaza un perdido");
@@ -196,25 +202,28 @@ test("V3 · perdido en Producción y reabierto soltando la tarjeta en Confirmado
   assert.equal(await p.foto(id), antes);
 });
 
-test("V4 · carreras: perder contra cobrar y retroceder contra marcar, en los dos órdenes, con el candado de la cobranza", async (t) => {
+// Cinco corridas por orden (plan GSG-MIA-089 · V4).
+const ORDENES = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
+
+test("V4 · carreras: perder contra cobrar y retroceder contra marcar, en los dos órdenes (5 veces cada uno), con el candado de la cobranza", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  for (const orden of [0, 1]) {
+  for (const orden of ORDENES) {
     const id = await p.proyecto();
     const perder = () => p.mover(id, "PERDIDO", "carrera");
     const cobro = () => p.cobrar(id, 100);
     await enFila(p.base, p.claveCobranza(id), orden ? [cobro, perder] : [perder, cobro]);
-    const e = await p.etapa(id);
-    const despues = e.perdidoEl ? await p.duenio.proyectoPago.count({ where: { proyectoId: id, createdAt: { gt: e.perdidoEl } } }) : 0;
+    const e: { etapa: string; perdidoEl: Date | null } = await p.etapa(id);
+    const despues: number = e.perdidoEl ? await p.duenio.proyectoPago.count({ where: { proyectoId: id, createdAt: { gt: e.perdidoEl } } }) : 0;
     assert.equal(despues, 0, `orden ${orden}: ningún cobro entró a un perdido`);
   }
-  for (const orden of [0, 1]) {
+  for (const orden of ORDENES) {
     const id = await p.proyecto();
     const s = await p.anticipo(id);
     const atras = () => p.mover(id, "PEDIDO");
     const marca = () => p.marcar(s.id);
     await enFila(p.base, p.claveCobranza(id), orden ? [marca, atras] : [atras, marca]);
-    const e = await p.etapa(id);
+    const e: { etapa: string; perdidoEl: Date | null } = await p.etapa(id);
     const cobrada = await p.anticipo(id);
     if (orden === 1) assert.equal(e.etapa, "APROBADO", "con la seña cobrada no se volvió a Lead");
     if (cobrada.pagadoEl) assert.equal(cobrada.prevista, false, "una cuota cobrada nunca queda prevista");
@@ -230,17 +239,20 @@ test("V6 · gasto directo sin pagar en un proyecto sin cuotas: «A pagar» de Ad
   if (!p) return;
   const id = await p.proyecto("PEDIDO");
   const antes = (await p.administracion()).resumen.aPagar;
+  const cajaAntes = await p.cashflowProveedores();
   assert.equal((await p.enSesion(() => p.acciones.registrarGasto(p.form({ proyectoId: id, descripcion: "Flete", neto: "1000", iva: "210" })))).ok, true);
   const g = await p.duenio.proyectoGasto.findFirstOrThrow({ where: { proyectoId: id }, select: { id: true } });
   assert.equal((await p.rentabilidad(id)).real.porPagar, 1210, "a mano: 1.000 + 210");
   assert.equal((await p.administracion()).resumen.aPagar - antes, 1210, "Administración suma el gasto sin pagar");
+  assert.equal(Math.round((await p.cashflowProveedores()) - cajaAntes), 1210, "el cashflow lo saca de la caja este mes");
   assert.equal((await p.enSesion(() => p.acciones.pagarGasto(p.form({ id: g.id, medio: "TRANSFERENCIA" })))).ok, true);
   assert.equal((await p.rentabilidad(id)).real.porPagar, 0);
   assert.equal((await p.administracion()).resumen.aPagar, antes);
+  assert.equal(await p.cashflowProveedores(), cajaAntes, "pagado, sale de la proyección (ya está en la caja)");
   assert.equal(await p.duenio.cashMovement.count({ where: { proyectoGastoId: g.id } }), 1, "un solo egreso en caja");
 });
 
-test("V7 · el mismo envío dos veces y diez a la vez deja una sola cuota (empresa y movimiento manual); dos envíos distintos iguales, dos", async (t) => {
+test("V7 · el mismo envío dos veces y diez a la vez deja una sola fila (cuota de empresa, movimiento manual, gasto pagado con su egreso); dos envíos distintos iguales, dos", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const id = await p.proyecto("PEDIDO");
@@ -262,6 +274,22 @@ test("V7 · el mismo envío dos veces y diez a la vez deja una sola cuota (empre
     await alta(otra);
     assert.equal(await p.duenio.proyectoCuota.count({ where: { tenantId: p.a.id, concepto: `${nombre === "empresa" ? "Alquiler" : "Flete"} otr${nombre[0]}` } }), 2, `${nombre}: dos envíos distintos e iguales en contenido → 2 cuotas`);
   }
+  // registrarGasto «ya pagado»: crea el gasto Y el egreso de caja. Un envío repetido no carga ni asienta dos veces.
+  const gasto = (clave: string, desc: string) => p.enSesion(() => p.acciones.registrarGasto(p.form({ proyectoId: id, descripcion: desc, neto: "300", pagado: "on", medio: "TRANSFERENCIA", claveEnvio: clave })));
+  const gastos = (desc: string) => p.duenio.proyectoGasto.findMany({ where: { proyectoId: id, descripcion: desc }, select: { id: true } });
+  const egresos = async (desc: string) => p.duenio.cashMovement.count({ where: { proyectoGastoId: { in: (await gastos(desc)).map((g) => g.id) } } });
+  const clave2 = "gasto-dos".padEnd(20, "x");
+  assert.equal((await gasto(clave2, "Gasto dos")).ok, true);
+  assert.equal((await gasto(clave2, "Gasto dos")).ok, true, "gasto: el reintento contesta bien");
+  assert.equal((await gastos("Gasto dos")).length, 1, "gasto: 2 envíos iguales seguidos → 1 gasto");
+  assert.equal(await egresos("Gasto dos"), 1, "gasto: 1 egreso de caja");
+  const clave10 = "gasto-diez".padEnd(20, "y");
+  await Promise.all(Array.from({ length: 10 }, () => gasto(clave10, "Gasto diez")));
+  assert.equal((await gastos("Gasto diez")).length, 1, "gasto: 10 envíos iguales a la vez → 1 gasto");
+  assert.equal(await egresos("Gasto diez"), 1, "gasto: 1 egreso de caja");
+  await gasto("gasto-otro".padEnd(20, "1"), "Gasto otro");
+  await gasto("gasto-otro".padEnd(20, "2"), "Gasto otro");
+  assert.equal((await gastos("Gasto otro")).length, 2, "gasto: dos envíos distintos e iguales en contenido → 2 gastos");
 });
 
 test("V8a · cambiar el tipo de cambio no cambia un peso de lo ya cobrado ni de las cuotas pagadas", async (t) => {

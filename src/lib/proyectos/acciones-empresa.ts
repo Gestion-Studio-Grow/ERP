@@ -15,6 +15,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { leerNumero, MEDIOS, metodoDeCaja, redondear, type MedioPago } from "./core";
 import { aPesos, extrasDelPeriodo, leerExtracto, MONEDAS } from "./gestion-core";
 import { actorActual, avisar, exigirEditar, puede, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
+import { claveDeEnvio } from "./pago-columnas";
+import { envioYaGrabado } from "./cobranza.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { actorDelMotor, faltaLaMigracion, rendicionDelMotor, SIN_MIGRACION } from "./rendiciones-core";
@@ -60,11 +62,14 @@ export async function crearPagoEmpresa(formData: FormData): Promise<Resultado> {
   const supplierId = tipo === "PAGO" ? txt(formData.get("supplierId")) || null : null;
   if (supplierId && !(await prisma.supplier.findFirst({ where: { id: supplierId, tenantId: a.tenantId }, select: { id: true } }))) return { ok: false, error: "Ese proveedor no existe." };
   const mon = moneda(formData.get("moneda"));
+  const clave = claveDeEnvio(formData.get("claveEnvio"));
   await tenantTransaction(async (tx) => {
+    if (await envioYaGrabado(tx, a.tenantId, clave)) return;
     const c = await tx.proyectoCuota.create({
       data: { tenantId: a.tenantId, proyectoId: null, supplierId, tipo, concepto, monto, moneda: mon, venceEl, factura: txt(formData.get("factura")).slice(0, 60) || null },
       select: { id: true },
     });
+    if (clave) await registrarCambio(tx, { tenantId: a.tenantId, entidad: "ProyectoCuota", entidadId: c.id, campo: "Envío", antes: clave, despues: c.id, autor: a.nombre });
     await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuota", entidadId: c.id, campo: tipo === "COBRO" ? "alta de cobro de empresa" : "alta de pago de empresa", despues: `${concepto} · ${mon} ${monto}`, autor: a.nombre });
   });
   refrescar();

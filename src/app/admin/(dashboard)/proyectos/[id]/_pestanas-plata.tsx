@@ -345,7 +345,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
           <div className="grid gap-3 border-t border-line pt-3">
             <details>
               <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-strong">Movimiento manual</summary>
-              <FormAccion accion={crearMovimientoManual} limpiar className="grid gap-2 pt-2 sm:grid-cols-3">
+              <FormAccion accion={crearMovimientoManual} limpiar claveDeEnvio className="grid gap-2 pt-2 sm:grid-cols-3">
                 <input type="hidden" name="proyectoId" value={p.id} />
                 <select name="tipo" aria-label="Tipo" defaultValue="COBRO" className={campo}>
                   <option value="COBRO">Cobro</option>

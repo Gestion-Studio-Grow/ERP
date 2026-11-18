@@ -28,6 +28,7 @@ import {
   cambioDeVenta,
   costoSinProveedor,
   cuotaPrevista,
+  previstaDeLaCuota, ventaOEstimado,
   venceDeLaCuota,
   enMonedaDeVenta,
   appEnLaBarra,
@@ -394,4 +395,19 @@ test("Rendí: matriz de rendiciones (plan MIA §2)", async () => {
   assert.equal(puedeReintegrarRendicion("ADMINISTRACION", "a1", "c2"), true);
   assert.deepEqual(permisoDe("ADMINISTRACION", "rendiciones", []), { ver: true, editar: true });
   assert.deepEqual(permisoDe("COMERCIAL", "rendiciones", []), { ver: true, editar: false });
+});
+
+test("MIA-089 · V1: una cuota que ya fue firme no vuelve a ser previsión; una nueva o prevista sigue la etapa", () => {
+  assert.equal(previstaDeLaCuota(true), true, "nueva en un lead: previsión");
+  assert.equal(previstaDeLaCuota(true, { prevista: true }), true, "previsión que sigue en un lead");
+  assert.equal(previstaDeLaCuota(true, { prevista: false }), false, "firme y el proyecto vuelve a lead: sigue firme");
+  assert.equal(previstaDeLaCuota(false, { prevista: true }), false, "se confirma: firme");
+  assert.equal(previstaDeLaCuota(false), false);
+});
+
+test("MIA-089 · T: el pipeline pesa la venta y, sin ítems, lo estimado (la misma regla en el tablero y en Dirección)", () => {
+  assert.equal(ventaOEstimado(1210, 1_000_000, "ARS", {}), 1210, "con ítems manda la venta");
+  assert.equal(ventaOEstimado(0, 1_000_000, "ARS", {}), 1_000_000, "un lead sin ítems pesa lo estimado: era la diferencia de 1.000.000");
+  assert.equal(ventaOEstimado(0, 1000, "USD", { USD: 1250 }), 1_250_000, "en dólares, al cambio");
+  assert.equal(ventaOEstimado(0, null, "ARS", {}), 0);
 });

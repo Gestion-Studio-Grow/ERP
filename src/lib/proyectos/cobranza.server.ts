@@ -17,6 +17,7 @@ export async function tiposDeCambio(tenantId: string, db: Db = prisma): Promise<
 /** Lo que hay que leer de un proyecto para su cobranza: su moneda, el último presupuesto aprobado y los cobros no anulados. */
 export const SELECT_COBRANZA = {
   moneda: true,
+  perdidoEl: true,
   presupuestos: {
     where: { estado: "APROBADO" },
     orderBy: { version: "desc" as const },
@@ -60,10 +61,23 @@ export function cobranzaDe(
     moneda: string;
     presupuestos: { ivaPct: number; tcVenta: number | null; items: { cantidad: number; costo: number; precio: number; moneda: string; recargoPct: number | null }[] }[];
     pagos: { id: string; monto: number }[];
+    perdidoEl?: Date | null;
   },
   tc: Readonly<Record<string, number>>,
   recargoGeneral: number,
   enlaces: ReadonlyMap<string, EnlaceDeCobro> = new Map(),
+): Cobranza {
+  const c = cobranzaSinPerder(p, tc, recargoGeneral, enlaces);
+  // Un proyecto perdido no tiene nada por cobrar (pregunta 2 = A, provisional a confirmar por el dueño): lo cobrado sigue
+  // como cobrado y devolverlo es otra operación. En la fuente única: ficha, Administración, Rentabilidad y Dirección.
+  return p.perdidoEl ? { ...c, porCobrar: 0 } : c;
+}
+
+function cobranzaSinPerder(
+  p: Parameters<typeof cobranzaDe>[0],
+  tc: Readonly<Record<string, number>>,
+  recargoGeneral: number,
+  enlaces: ReadonlyMap<string, EnlaceDeCobro>,
 ): Cobranza {
   const aprobado = p.presupuestos[0];
   const cobros = p.pagos.map((x) => ({ monto: x.monto, original: enlaces.get(x.id)?.original ?? null, cuotaId: enlaces.get(x.id)?.cuotaId ?? null }));
@@ -95,6 +109,27 @@ export async function cobranzaConCuotas(db: Db, tenantId: string, proyectoId: st
   const cuotas = await db.proyectoCuota.findMany({ where: { tenantId, proyectoId, anuladoEl: null, tipo: "COBRO" }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, prevista: true } });
   const cob = (await cobranzasDelNegocio(tenantId, tc, recargoGeneral, [proyectoId], db)).get(proyectoId) ?? cobranza(0, []);
   return { cuotas, cob };
+}
+
+/**
+ * El mismo envío de un alta de cuota (doble clic, reintento): con el candado de su clave, si el historial ya tiene su
+ * «Envío», se contesta como hecho y no se graba otra (MIA-089 · V7, sin migración: como `registrarCobro`). Sin clave
+ * válida, `null`: el alta se graba como siempre.
+ */
+export async function envioYaGrabado(tx: Db, tenantId: string, clave: string | null): Promise<boolean> {
+  if (!clave) return false;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`envio-cuota:${tenantId}:${clave}`}))`;
+  return !!(await tx.proyectoCambio.findFirst({ where: { tenantId, entidad: "ProyectoCuota", campo: "Envío", antes: clave }, select: { id: true } }));
+}
+
+/**
+ * Si el proyecto está perdido, leído para la transacción que va a cobrar o marcar (MIA-089 · V2). `FOR UPDATE`: en
+ * Serializable la foto de la transacción es de ANTES de esperar el candado; leer la fila con candado hace que un «Marcar
+ * perdido» confirmado en el medio aborte por conflicto (40001) y `tenantTransaction` reintente con la foto nueva.
+ */
+export async function estaPerdido(tx: Db, tenantId: string, proyectoId: string): Promise<boolean> {
+  const filas = await tx.$queryRaw<{ perdido: boolean }[]>`SELECT ("perdidoEl" IS NOT NULL) AS perdido FROM "Proyecto" WHERE id = ${proyectoId} AND "tenantId" = ${tenantId} FOR UPDATE`;
+  return filas[0]?.perdido === true;
 }
 
 /**

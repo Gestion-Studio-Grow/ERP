@@ -5,6 +5,8 @@ import { ETAPAS, leerNumero, redondear } from "./core";
 import { claveFoto, costoTotalItem, ventaTotalItem, type CuotaLeida, type FotoItem, type LineaCashflow } from "./gestion-core";
 
 export const PERDIDO = "PERDIDO";
+/** Lo que contesta el servidor si se intenta cobrar o marcar una cuota de un proyecto perdido (MIA-089 · V2). */
+export const PERDIDO_NO_COBRA = "Este proyecto está perdido: no se le registran cobros ni se marcan cuotas. Si se retoma, reabrilo primero.";
 
 /** Un lead sigue abierto hasta que el cliente confirma o se pierde. */
 export const ETAPAS_DE_LEAD = ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"] as const;
