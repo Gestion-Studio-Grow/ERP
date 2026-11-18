@@ -43,8 +43,11 @@ export async function sembrarGestion(prisma: PrismaClient, tenantId: string, rec
   const usuario = (local: string) => prisma.user.findFirst({ where: { tenantId, email: { startsWith: `${local}@` } }, select: { id: true } });
   const dueno = await usuario("admin");
   const diseno = await usuario("diseno");
+  // E3 (MIA-093): el mail sin tildes ni eñes («dueno@», no «dueño@»): el campo es type="email" y el navegador no los acepta,
+  // así que esas fichas no se podían guardar desde la pantalla. Sólo para lo que se siembre de acá en adelante.
+  const local = (nombre: string) => nombre.split(" ")[0].normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   const persona = (nombre: string, puesto: string, rol: string, sueldoBase: number, facturaA: string, userId?: string | null) =>
-    prisma.proyectoPersona.create({ data: { tenantId, nombre, puesto, rol, sueldoBase, facturaA, userId: userId ?? null, email: `${nombre.split(" ")[0].toLowerCase()}@mia-producciones.demo` } });
+    prisma.proyectoPersona.create({ data: { tenantId, nombre, puesto, rol, sueldoBase, facturaA, userId: userId ?? null, email: `${local(nombre)}@mia-producciones.demo` } });
   const dir = await persona("Dueño de MIA", "Dirección general", "DIRECCION", 6_500_000, "MIA Producciones", dueno?.id);
   const dis = await persona("Equipo de diseño", "Diseño 3D", "DISENO", 2_800_000, "Monotributo", diseno?.id);
   const pro = await persona("Paula Ibáñez", "Productora ejecutiva", "PRODUCCION", 3_400_000, "Monotributo", (await usuario("produccion"))?.id);

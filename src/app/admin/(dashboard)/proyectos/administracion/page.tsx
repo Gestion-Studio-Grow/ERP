@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { KpiTile, Pestanas } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
@@ -71,6 +72,16 @@ export default async function Administracion({ searchParams }: { searchParams: P
             </>
           )}
         </div>
+      )}
+      {/* N8b (MIA-084, provisional a confirmar): los gastos cargados sin pagar no son cuotas, así que no suman a «A pagar»;
+          en Rentabilidad sí entran a «Por pagar a proveedores». Van en su propio renglón, con nombre, y llevan a Proveedores. */}
+      {datos && datos.gastosSinPagar.total > 0 && !columnasOcultas(a).includes("costoTotal") && (
+        <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-line bg-surface-raised p-3 text-sm">
+          <span className="font-medium text-strong">Gastos cargados sin pagar</span>
+          <span className="font-semibold tabular-nums text-strong">{pesos(datos.gastosSinPagar.total)}</span>
+          <span className="text-muted">{datos.gastosSinPagar.cantidad === 1 ? "1 gasto sin cuota: no suma" : `${datos.gastosSinPagar.cantidad} gastos sin cuota: no suman`} a «A pagar», sí a «Por pagar a proveedores» de Rentabilidad.</span>
+          {puede(a, "proveedores", "ver") && <Link href="/admin/proyectos/proveedores#por-pagar" className="font-medium text-strong underline underline-offset-2">Verlos en Proveedores</Link>}
+        </p>
       )}
       {datos && faltaCambio(datos.tc, datos.cuotas.filter((c) => !c.pagadoEl)) && (
         <p role="alert" className="mb-4 rounded-lg border border-line bg-surface-raised p-3 text-sm text-danger">Hay importes en dólares sin tipo de cambio: no suman a estos totales hasta que lo cargues en Monedas y gastos fijos.</p>

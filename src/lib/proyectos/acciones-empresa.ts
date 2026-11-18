@@ -77,7 +77,7 @@ export async function cuentasParaMarcar(): Promise<{ id: string; nombre: string;
   return prisma.proyectoCuentaBanco.findMany({ where: { tenantId: a.tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true } });
 }
 
-/** Aborta la transacción de marcar: el mensaje es para la persona. */
+/** Aborta la transacción de marcar una cuota o de pagar una liquidación: el mensaje es para la persona. */
 class NoSeMarca extends Error {}
 
 /** Marca pagada una cuota de la empresa y asienta el movimiento. El `where` con `pagadoEl: null` es lo que frena el doble clic. */
@@ -491,10 +491,13 @@ export async function publicarBorradores(formData: FormData): Promise<Resultado<
 /**
  * Rendí: pagar una liquidación publicada. PAGADA + un egreso por el total (clave única `proyectoLiquidacionId`: dos clics
  * = un egreso) + las rendiciones que reclamó pasan a reintegradas. Dirección o Administración; nadie se paga lo propio.
+ * N1 (MIA-084): pide la cuenta que se mueve, o «ninguna», igual que una cuota, y baja su saldo en la misma transacción
+ * que el asiento: si una de las dos falla (día cerrado, cuenta en otra moneda), no queda ninguna.
  */
 /** Aborta la transacción del pago: los reintegros reclamados no coinciden con los del total. */
 class Descuadre extends Error {}
 const DESCUADRE = "Los reintegros de esta liquidación no cuadran con su total: no se pagó nada. Avisá a Dirección para revisarla.";
+const SIN_CUENTA = "Elegí de qué cuenta sale el pago, o «Ninguna cuenta del banco» si no sale de ninguna. Si no ves la lista de cuentas, recargá la página.";
 
 export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
   const a = await actorActual();
@@ -502,6 +505,7 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
   const medioPedido = txt(formData.get("medio")) || "TRANSFERENCIA";
   if (!MEDIOS.includes(medioPedido as MedioPago)) return { ok: false, error: "Elegí cómo se pagó." };
   const medio = medioPedido as MedioPago;
+  let deCuenta = ""; // « · Banco …» para el historial y la auditoría; vacío si el pago no movió ninguna cuenta
   try {
     const l = await prisma.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId }, select: { id: true, periodo: true, total: true, estado: true, personaId: true, persona: { select: { nombre: true, userId: true } } } });
     if (!l) return { ok: false, error: "Esa liquidación no existe." };
@@ -510,8 +514,12 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
     if (!puedeReintegrarRendicion(a.rol, actorId, l.personaId) || !puede(a, "liquidaciones", "editar")) return { ok: false, error: "Sólo Dirección o Administración, con permiso para editar liquidaciones, las pagan." };
     if (l.estado === "PAGADA") return { ok: false, error: "Esta liquidación ya está pagada." };
     if (l.estado !== "PUBLICADA") return { ok: false, error: "Primero publicala: se paga lo que la persona ya vio." };
+    // Con cuentas en pesos cargadas (las que ofrece la pantalla), el silencio no vale «ninguna»: así el sueldo por banco no
+    // queda fuera del saldo sin que nadie lo elija.
+    if (!txt(formData.get("cuenta")) && (await prisma.proyectoCuentaBanco.count({ where: { tenantId: a.tenantId, moneda: "ARS" } })) > 0) return { ok: false, error: SIN_CUENTA };
     const ahora = new Date();
     const hecho = await transaccionQueAsienta(async (tx) => {
+      deCuenta = ""; // una vuelta reintentada por Serializable empieza de cero
       // El claim: dos clics o dos pestañas pagan una sola vez.
       const r = await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "PUBLICADA" }, data: { estado: "PAGADA", pagadaEl: ahora, pagadaPor: a.nombre } });
       if (r.count === 0) return false;
@@ -520,35 +528,44 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
       const incluidas = await tx.proyectoRendicion.findMany({ where: { tenantId: a.tenantId, liquidacionId: id, estado: "aprobada" }, select: { id: true, gastoId: true, personaId: true, medio: true, anticipoId: true, montoCentavos: true, estado: true, eventos: true } });
       if (!reintegrosCuadran(leerExtras(fila.extras), incluidas)) throw new Descuadre();
       if (l.total > 0) {
+        const total = redondear(l.total);
+        const cuenta = await cuentaParaCuota(a.tenantId, formData, { tipo: "PAGO", monto: total, moneda: "ARS", importeEnPesos: total }, tx, "la liquidación");
+        if (typeof cuenta === "string") throw new NoSeMarca(cuenta);
         const session = await tx.cashSession.findFirst({ where: { tenantId: a.tenantId, status: "OPEN" }, select: { id: true } });
         await asentarEnCajaTx(tx, "pago", {
           tenantId: a.tenantId,
           sessionId: session?.id ?? null,
           type: "EGRESO",
           method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
-          amount: redondear(l.total),
+          amount: total,
           reason: `Liquidación ${etiquetaMes(l.periodo)} · ${l.persona.nombre}${medio === "CHEQUE" ? " · Cheque" : ""}`,
           proyectoLiquidacionId: id,
           createdBy: marcaDeGastoProyecto(`liquidacion-${id}`),
         });
+        // Después del asiento: si el día está cerrado, `asentarEnCajaTx` ya abortó y el saldo no se tocó.
+        if (cuenta) {
+          await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId: a.tenantId }, data: { saldo: { increment: cuenta.movido } } });
+          deCuenta = ` · ${cuenta.nombre}`;
+        }
       }
       for (const f of incluidas) {
         const res = aplicarAccion(rendicionDelMotor(f), "reintegrar", { fecha: ahora.toISOString(), actorId, rolActor: a.rol as RolActor, comentario: `Con la liquidación de ${etiquetaMes(l.periodo)}` });
         if (!res.ok) throw new Error(res.motivo);
         await tx.proyectoRendicion.updateMany({ where: { id: f.id, tenantId: a.tenantId, liquidacionId: id, estado: "aprobada" }, data: { estado: "reintegrada", reintegradoEl: ahora, eventos: res.rendicion.eventos as unknown as Prisma.InputJsonValue } });
       }
-      await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `pago ${l.periodo} de ${l.persona.nombre}`, antes: "publicada", despues: `pagada · ${medio} · $ ${l.total}`, autor: a.nombre });
+      await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `pago ${l.periodo} de ${l.persona.nombre}`, antes: "publicada", despues: `pagada · ${medio} · $ ${l.total}${deCuenta}`, autor: a.nombre });
       if (l.persona.userId) await avisar(tx, { tenantId: a.tenantId, destinatarios: [l.persona.userId], tipo: "liquidacion", texto: `Te pagamos la liquidación de ${etiquetaMes(l.periodo)}.`, enlace: `/admin/proyectos/mi-liquidacion?periodo=${l.periodo}` });
       return true;
     });
     if (!hecho) return { ok: false, error: "Esta liquidación ya está pagada." };
   } catch (e) {
     if (e instanceof Descuadre) return { ok: false, error: DESCUADRE };
+    if (e instanceof NoSeMarca) return { ok: false, error: e.message };
     if (e instanceof PeriodoCerradoError) return { ok: false, error: e.message };
     if (faltaLaMigracion(e)) return { ok: false, error: SIN_MIGRACION };
     throw e;
   }
-  await auditAdmin({ action: "proyecto.liquidacion.pagar", entity: "ProyectoLiquidacion", entityId: id, changes: { medio } });
+  await auditAdmin({ action: "proyecto.liquidacion.pagar", entity: "ProyectoLiquidacion", entityId: id, changes: { medio, cuenta: deCuenta.slice(3) || "ninguna" } });
   revalidatePath(ADMIN);
   revalidatePath("/admin/proyectos/mi-liquidacion");
   return { ok: true };
