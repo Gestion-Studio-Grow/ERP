@@ -219,6 +219,10 @@ export async function guardarPersona(formData: FormData): Promise<Resultado> {
   // primer paso para cambiarse el rol (que la línea del rol propio frena) sin pasar por Dirección.
   const cambiaLaCuentaPropia = (previa?.userId === a.user.id) !== (userId === a.user.id);
   if (a.rol !== "DIRECCION" && cambiaLaCuentaPropia) return { ok: false, error: "No podés desvincular tu cuenta ni pasarla a otra ficha: que lo haga Dirección." };
+  // H3 (GSG-MIA-104, opción A, provisional a confirmar por el dueño): el rol de una ficha lo cambia sólo Dirección, como la
+  // matriz (PRY-100). Vincular una cuenta a una ficha, o sacársela, le da o le saca ese rol a la cuenta: también Dirección.
+  if (a.rol !== "DIRECCION" && previa && previa.rol !== rol) return { ok: false, error: "El rol de una persona lo cambia Dirección." };
+  if (a.rol !== "DIRECCION" && (previa?.userId ?? null) !== userId) return { ok: false, error: "La cuenta del ERP de una persona la vincula o desvincula Dirección." };
   // H1 y H2 (par B de GSG-MIA-091): una cuenta OWNER sin ficha activa es Dirección (`rolDelActor`). Vincularle una ficha o
   // sacársela cambia quién es Dirección: como dar o sacar ese rol, sólo Dirección.
   if (a.rol !== "DIRECCION" && (previa?.userId ?? null) !== userId && (await esCuentaDuenia(tenantId, [previa?.userId ?? null, userId]))) {
