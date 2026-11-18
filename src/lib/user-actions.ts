@@ -11,6 +11,8 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
+import type { SessionUser } from "@/lib/session";
+import { agenteDelUsuario } from "@/lib/cuadrilla/consola-core";
 import { auditAdmin } from "@/lib/audit-core";
 import { tenantTransaction } from "@/lib/rls";
 import { isDemoSandbox, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
@@ -37,6 +39,29 @@ function backWith(status: string): never {
   redirect(`${USERS_PATH}?status=${encodeURIComponent(status)}`);
 }
 
+// C1(f) de GSG-MIA-076 (GSG-MIA-078, seguridad): el usuario de un agente de la Cuadrilla NUNCA administra Usuarios
+// (claves, bajas, altas, fichas, permisos), aunque su rol sea OWNER (cargado antes del techo o a mano en la base).
+// Se mira en el servidor, en cada acción que escribe; la consola lo muestra como alerta (`accesos.ts`).
+// Sin la tabla de la Cuadrilla en la base (Gate 2) no hay agentes: nadie es agente.
+async function esUsuarioDeAgente(tenantId: string, userId: string): Promise<boolean> {
+  try {
+    return !!(await tenantTransaction((tx) => agenteDelUsuario(tx, tenantId, userId), { tenantId }));
+  } catch (e) {
+    if (esTablaAusente(e)) return false;
+    throw e;
+  }
+}
+
+/** `users:manage` y, además, no ser el usuario de un agente. Null = es de un agente: la acción se rechaza sin escribir. */
+async function requireGestionDeUsuarios(): Promise<{ actor: SessionUser; tenantId: string } | null> {
+  const actor = await requireCapability("users:manage");
+  const tenantId = await getCurrentTenantId();
+  if (await esUsuarioDeAgente(tenantId, actor.id)) return null;
+  return { actor, tenantId };
+}
+
+const NO_ES_DE_UNA_PERSONA = "error_agente";
+
 export async function getUsers() {
   await requireCapability("users:manage");
   const tenantId = await getCurrentTenantId();
@@ -58,8 +83,9 @@ export async function getUsers() {
 }
 
 export async function createUser(formData: FormData) {
-  const actor = await requireCapability("users:manage");
-  const tenantId = await getCurrentTenantId();
+  const g = await requireGestionDeUsuarios();
+  if (!g) backWith(NO_ES_DE_UNA_PERSONA);
+  const { actor, tenantId } = g;
 
   // Qué se acepta lo decide `validarAltaDeUsuario` (alta-usuario.ts, probada): nombre, email,
   // contraseña y, sobre todo, el rol — sólo los que la pantalla ofrece en ESTE negocio. Sin
@@ -120,8 +146,9 @@ export async function getFichasDeProfesional() {
 // Vincula (o desvincula, con la ficha vacía) un usuario Profesional con su ficha: sin esto entra a
 // una agenda vacía. La regla vive en vinculo-profesional.ts (probada).
 export async function vincularProfesional(formData: FormData) {
-  await requireCapability("users:manage");
-  const tenantId = await getCurrentTenantId();
+  const g = await requireGestionDeUsuarios();
+  if (!g) backWith(NO_ES_DE_UNA_PERSONA);
+  const { tenantId } = g;
   const userId = String(formData.get("userId") || "");
   const fichaId = String(formData.get("professionalId") || "");
   const usuario = await prisma.user.findFirst({ where: { id: userId, tenantId }, select: { id: true, role: true } });
@@ -142,8 +169,9 @@ export async function vincularProfesional(formData: FormData) {
 }
 
 export async function setUserActive(formData: FormData) {
-  const actor = await requireCapability("users:manage");
-  const tenantId = await getCurrentTenantId();
+  const g = await requireGestionDeUsuarios();
+  if (!g) backWith(NO_ES_DE_UNA_PERSONA);
+  const { actor, tenantId } = g;
   const userId = String(formData.get("userId") || "");
   const active = String(formData.get("active")) === "true";
 
@@ -181,8 +209,9 @@ export async function setUserActive(formData: FormData) {
 }
 
 export async function resetUserPassword(formData: FormData) {
-  const actor = await requireCapability("users:manage");
-  const tenantId = await getCurrentTenantId();
+  const g = await requireGestionDeUsuarios();
+  if (!g) backWith(NO_ES_DE_UNA_PERSONA);
+  const { actor, tenantId } = g;
   const userId = String(formData.get("userId") || "");
   const password = String(formData.get("password") || "");
 
@@ -217,9 +246,10 @@ export async function resetUserPassword(formData: FormData) {
 export type ResultadoPermiso = { ok: true; allowed: boolean; excepcion: boolean } | { ok: false; error: string };
 
 export async function setUserPermission(formData: FormData): Promise<ResultadoPermiso> {
-  const actor = await requireCapability("users:manage");
+  const g = await requireGestionDeUsuarios();
+  if (!g) return { ok: false, error: "Sos el usuario de un agente de la Cuadrilla: los permisos los cambia una persona." };
+  const { actor, tenantId } = g;
   if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
-  const tenantId = await getCurrentTenantId();
   const userId = String(formData.get("userId") || "");
   const capability = String(formData.get("capability") || "");
   const allowed = leerAllowed(formData.get("allowed"));
