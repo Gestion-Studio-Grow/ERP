@@ -891,9 +891,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     // salieron del de afuera).
     await trabarCobranza(tx, tenantId, proyectoId);
     if (envio && (await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: esCobro ? "ProyectoPago" : "ProyectoGasto", campo: "Envío", antes: envio }, select: { id: true } }))) return "repetido";
-    // MIA-089 · V2: un perdido no marca cuotas de cobro; una de pago a proveedor sí (decisión 2 = A, provisional a
-    // confirmar por el dueño). En fila con «Marcar perdido».
-    if (!perdidoAdmite(c.tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido";
+    if (!perdidoAdmite(c.tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido"; // MIA-089 · V2: un perdido no marca cuotas de cobro; una de pago a proveedor sí (decisión 2 = A, provisional a confirmar por el dueño). En fila con «Marcar perdido».
     const ahora = esCobro ? await pendienteDeLaCuota(tenantId, proyectoId, id, tc, margenPct, tx) : { pendiente: await pendienteDelPago(tenantId, c, tc, tx), cob: null };
     if (ahora === null) return false;
     faltaAhora = ahora.pendiente;
@@ -1010,10 +1008,10 @@ export async function crearMovimientoManual(formData: FormData): Promise<Resulta
     if (config) {
       // Un cobro a mano en un perdido, no (MIA-089 · V2; decisión 2 = A, provisional a confirmar por el dueño): el mismo
       // cartel que «Registrar cobro». Un pago a proveedor sí se carga. Leído con el candado, en fila con «Marcar perdido».
-      await trabarCobranza(tx, tenantId, proyectoId);
-      if (!perdidoAdmite(tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido" as const;
       // Tope: una cuota de cobro es plata ESPERADA. Con presupuesto aprobado, lo esperado (las cuotas pendientes más
       // ésta) no pasa de lo que falta cobrar. En fila con los otros cobros del proyecto y contado adentro.
+      await trabarCobranza(tx, tenantId, proyectoId);
+      if (!perdidoAdmite(tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido" as const;
       const { cuotas, cob } = await cobranzaConCuotas(tx, tenantId, proyectoId, tc, config.margenPct);
       const { lugar, esperado } = lugarParaCobroManual(cuotas, tc, cob);
       if (aPesos(monto, moneda, tc) > lugar + 0.01) return { porCobrar: cob.porCobrar, esperado, lugar, cob };
