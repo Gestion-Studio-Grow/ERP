@@ -50,13 +50,16 @@ export function fueraDelTecho(persona: { role: string; rolProyectos: string | nu
  * muestra para que una persona lo iguale con alguien del puesto. Null si no pasa el techo.
  */
 export function alertaDelTecho(agente: { role: string; rolProyectos: string | null }): string | null {
-  const pasa = ROLES_FUERA_DEL_TECHO.includes(agente.role)
-    ? nombreDelRol(agente.role)
-    : agente.rolProyectos && ROLES_DE_PROYECTOS_FUERA_DEL_TECHO.includes(agente.rolProyectos)
-      ? "Dirección en Proyectos"
-      : null;
-  if (!pasa) return null;
-  return `Su usuario es ${pasa}, y un agente nunca lo es: no entra al panel (tampoco a Usuarios) y no se puede reanudar a ningún agente. Igualalo con alguien del puesto.`;
+  // OWNER: lo frenan la guardia (`session.ts`) y G5 (`exigirSinAgenteDuenio`), y el aviso lo dice.
+  if (ROLES_FUERA_DEL_TECHO.includes(agente.role)) {
+    return `Su usuario es ${nombreDelRol(agente.role)}, y un agente nunca lo es: no entra al panel (tampoco a Usuarios) y no se puede reanudar a ningún agente. Igualalo con alguien del puesto.`;
+  }
+  // Dirección en Proyectos: la guardia y G5 sólo miran OWNER (E1 de GSG-MIA-080). El aviso no promete un freno que
+  // no existe; extenderlos a Dirección cambia el alcance y lo decide el dueño.
+  if (agente.rolProyectos && ROLES_DE_PROYECTOS_FUERA_DEL_TECHO.includes(agente.rolProyectos)) {
+    return "Su usuario es Dirección en Proyectos, y un agente nunca lo es. Para este caso no hay freno: entra al panel con lo que Dirección puede en Proyectos y los agentes se pueden reanudar. Igualalo con alguien del puesto cuanto antes.";
+  }
+  return null;
 }
 
 /** De la matriz de la persona, lo que se copia: sólo las casillas que se dan por usuario. */
