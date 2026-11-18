@@ -227,6 +227,80 @@ test("V3 · perdido en Producción y reabierto soltando la tarjeta en Confirmado
   assert.equal(await p.foto(id), antes);
 });
 
+test("A2 (DIR-007, MIA-094) · invariante de saldos: después de cada operación la ficha, Administración, Rentabilidad y Dirección dan el mismo cobrado, por cobrar y por pagar; mover de etapa no corre vencimientos", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const id = await p.proyecto();
+  // Un ítem con proveedor y costo: el plan suma cuotas de pago a proveedor.
+  const prov = await p.duenio.supplier.create({ data: { tenantId: p.a.id, name: `Proveedor A2 ${id.slice(-6)}` }, select: { id: true } });
+  const pres = await p.duenio.proyectoPresupuesto.findFirstOrThrow({ where: { proyectoId: id }, select: { id: true } });
+  await p.duenio.proyectoItem.create({ data: { tenantId: p.a.id, presupuestoId: pres.id, rubro: "Carpintería", descripcion: "Madera", cantidad: 1, costo: 400, precio: 0, supplierId: prov.id } });
+  await p.enSesion(() => p.gestion.regenerarCuotas(p.a.id, id));
+  const datos = await import("./datos.server");
+  const fichaSrv = await import("./ficha.server");
+  const { cobranzasDelNegocio, tiposDeCambio } = await import("./cobranza.server");
+  const leer = async () => {
+    const ficha = await p.enSesion(async () => {
+      const f = await datos.fichaProyecto(id);
+      const a = await p.gestion.actorActual();
+      const cab = await fichaSrv.cabeceraFicha(a, id);
+      const vista = fichaSrv.vistaDe(a);
+      const res = await fichaSrv.datosResumen(a, cab!, vista);
+      const fin = await fichaSrv.datosFinanzas(a, cab!, vista);
+      return { cobrado: f!.cobrado, saldo: f!.saldo, aCobrar: res.finanzas!.aCobrar, aPagar: res.finanzas!.aPagar, saldoFinanzas: fin.saldo };
+    });
+    const fuente = await p.enSesion(async () => {
+      const [config, tc] = await Promise.all([datos.configProyectos(p.a.id), tiposDeCambio(p.a.id)]);
+      return (await cobranzasDelNegocio(p.a.id, tc, config.margenPct, [id])).get(id)!;
+    });
+    const adm = await p.administracion();
+    const delProyecto = adm.cuotas.filter((c) => c.proyectoId === id);
+    const admCobrar = delProyecto.filter((c) => c.tipo === "COBRO").reduce((x, c) => x + c.pendiente, 0) + adm.sinCalendario.filter((f) => f.proyectoId === id).reduce((x, f) => x + f.pesos, 0);
+    const admPagar = delProyecto.filter((c) => c.tipo !== "COBRO").reduce((x, c) => x + c.pendiente, 0) + adm.gastosSinPagar.filter((g) => g.proyecto.id === id).reduce((x, g) => x + g.total, 0);
+    const fila = await p.rentabilidad(id);
+    const dir = await p.direccion(id);
+    return { fuente, ficha, admCobrar: Math.round(admCobrar * 100) / 100, admPagar: Math.round(admPagar * 100) / 100, fila, dir };
+  };
+  const igualdad = async (paso: string) => {
+    const l = await leer();
+    const cobrado = [l.fuente.cobrado, l.ficha.cobrado, l.fila.cobrado, l.dir.cobrado];
+    assert.ok(cobrado.every((x) => x === cobrado[0]), `${paso} · cobrado (fuente, ficha, Rentabilidad, Dirección): ${cobrado}`);
+    const porCobrar = [l.fuente.porCobrar, l.ficha.aCobrar, l.admCobrar, l.fila.porCobrar];
+    assert.ok(porCobrar.every((x) => x === porCobrar[0]), `${paso} · por cobrar (fuente, ficha, Administración, Rentabilidad): ${porCobrar}`);
+    const saldo = [l.fuente.saldo, l.ficha.saldo, l.ficha.saldoFinanzas, l.fila.saldo];
+    assert.ok(saldo.every((x) => x === saldo[0]), `${paso} · saldo (fuente, Estado financiero, Finanzas, Rentabilidad): ${saldo}`);
+    const porPagar = [l.ficha.aPagar, l.admPagar, l.fila.real.porPagar];
+    assert.ok(porPagar.every((x) => x === porPagar[0]), `${paso} · por pagar (ficha, Administración, Rentabilidad): ${porPagar}`);
+    return l;
+  };
+  const vencimientos = async () => new Map((await p.duenio.proyectoCuota.findMany({ where: { proyectoId: id, anuladoEl: null }, select: { id: true, venceEl: true } })).map((c) => [c.id, c.venceEl.getTime()]));
+  const sinCorrer = async (antes: Map<string, number>, paso: string) => {
+    const despues = await vencimientos();
+    for (const [cuota, vence] of antes) if (despues.has(cuota)) assert.equal(despues.get(cuota), vence, `${paso}: la cuota ${cuota} no cambia de vencimiento`);
+  };
+
+  const l0 = await igualdad("alta");
+  assert.ok(l0.fila.real.porPagar > 0 && l0.fuente.porCobrar > 0, `el caso tiene algo por cobrar y por pagar: ${l0.fuente.porCobrar} · ${l0.fila.real.porPagar}`);
+  assert.equal((await p.cobrar(id, 300)).ok, true);
+  await igualdad("cobrar 300");
+  const pago = await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: id, tipo: "PAGO", anuladoEl: null, pagadoEl: null }, orderBy: { venceEl: "asc" }, select: { id: true } });
+  assert.equal((await p.marcar(pago.id)).ok, true);
+  await igualdad("pagar una cuota a proveedor");
+  assert.equal((await p.enSesion(() => p.acciones.registrarGasto(p.form({ proyectoId: id, descripcion: "Flete A2", neto: "100", iva: "21" })))).ok, true);
+  await igualdad("cargar un gasto sin pagar");
+  let antes = await vencimientos();
+  assert.equal((await p.mover(id, "PRODUCCION")).ok, true);
+  await sinCorrer(antes, "mover a Producción");
+  await igualdad("mover a Producción");
+  antes = await vencimientos();
+  assert.equal((await p.mover(id, "PERDIDO", "Se cayó la feria")).ok, true);
+  const perdido = await igualdad("perder");
+  assert.equal(perdido.fuente.porCobrar, 0, "perdido: nada por cobrar");
+  assert.equal((await p.mover(id, "APROBADO")).ok, true);
+  await sinCorrer(antes, "perder y reabrir");
+  await igualdad("reabrir");
+});
+
 // Cinco corridas por orden (plan GSG-MIA-089 · V4).
 const ORDENES = [0, 1, 0, 1, 0, 1, 0, 1, 0, 1];
 
