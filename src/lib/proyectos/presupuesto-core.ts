@@ -3,6 +3,7 @@
  * adicionales (O09, O11). PURO: sin Prisma, testeable sin base. La plata de los adicionales va en centavos enteros.
  */
 import type { CuotaPlaneada } from "./gestion-core";
+import { centavosDe, porcentajeDe, redondearAlPeso } from "@/lib/dinero/redondeo";
 
 const DIA = 86_400_000;
 
@@ -60,11 +61,11 @@ export const anticipoDeLaLinea = (deLaLinea: number | null | undefined, delProve
 
 /** Partir un importe en centavos: anticipo redondeado, saldo = el resto (la suma da exacto). */
 export function partir(totalCentavos: number, pct: number): { anticipo: number; saldo: number } {
-  const anticipo = Math.round((totalCentavos * pct) / 100);
+  const anticipo = porcentajeDe(totalCentavos, pct, "peso"); // centavos enteros: «al peso» = a la unidad
   return { anticipo, saldo: totalCentavos - anticipo };
 }
 
-export const aCentavos = (pesos: number): number => Math.round(pesos * 100);
+export const aCentavos = (pesos: number): number => centavosDe(pesos);
 export const aPesos = (centavos: number): number => centavos / 100;
 
 // ── Adicionales ───────────────────────────────────────────────────────────────
@@ -101,12 +102,12 @@ export interface Adicional {
 }
 
 /** Subtotal de la línea en centavos: cantidad (o puestos × horas × días) × unitario. */
-export const subtotalCentavos = (l: LineaAdicional, unitario: number): number => Math.round(cantidadDeLaLinea(l.cantidad, l) * unitario);
+export const subtotalCentavos = (l: LineaAdicional, unitario: number): number => redondearAlPeso(cantidadDeLaLinea(l.cantidad, l) * unitario); // centavos enteros
 
 export function totalesDelAdicional(a: Pick<Adicional, "ivaPct" | "lineas">): { costo: number; precio: number; iva: number; precioConIva: number } {
   const costo = a.lineas.reduce((s, l) => s + subtotalCentavos(l, l.costoCentavos), 0);
   const precio = a.lineas.reduce((s, l) => s + subtotalCentavos(l, l.precioCentavos), 0);
-  const iva = Math.round((precio * a.ivaPct) / 100);
+  const iva = porcentajeDe(precio, a.ivaPct, "peso");
   return { costo, precio, iva, precioConIva: precio + iva };
 }
 

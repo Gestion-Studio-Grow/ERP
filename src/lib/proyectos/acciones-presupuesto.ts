@@ -11,7 +11,6 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { sePuedeEditar } from "./core";
-import { configProyectos } from "./datos.server";
 import { numeroDe } from "./ficha-core";
 import type { ModuloGestion } from "./gestion-core";
 import { actorActual, proyectoVisible, puede, regenerarCuotas, registrarCambio, type Actor } from "./gestion.server";
@@ -185,18 +184,19 @@ export async function crearAdicional(formData: FormData): Promise<ResultadoPresu
   return mal("No se pudo numerar el adicional: probá de nuevo.");
 }
 
-async function adicionalEditable(id: string, modulos: readonly ModuloGestion[]) {
+/** La puerta la escribe cada acción (con `entrar` y sus módulos): así la lee `matriz-permisos.test.ts`. */
+async function adicionalEditable(id: string, puerta: (proyectoId: string) => Promise<Actor | string>) {
   const tenantId = await getCurrentTenantId();
   const ad = await prisma.proyectoAdicional.findFirst({ where: { id, tenantId }, select: { id: true, proyectoId: true, numero: true, estado: true, nombre: true } }).catch(() => null);
   if (!ad) return "Ese adicional no existe.";
-  const a = await entrar(modulos, ad.proyectoId);
+  const a = await puerta(ad.proyectoId);
   if (typeof a === "string") return a;
   return { a, ad, tenantId };
 }
 
 /** Una línea del adicional. Cambiar precios borra la aprobación interna: lo aprobado tiene que ser lo que se envía. */
 export async function agregarLineaAdicional(formData: FormData): Promise<ResultadoPresupuesto> {
-  const r = await adicionalEditable(txt(formData.get("adicionalId")), ["cotizaciones"]);
+  const r = await adicionalEditable(txt(formData.get("adicionalId")), (p) => entrar(["cotizaciones"], p));
   if (typeof r === "string") return mal(r);
   const { a, ad, tenantId } = r;
   if (ad.estado !== "BORRADOR") return mal("Este adicional ya se envió.");
@@ -232,7 +232,7 @@ export async function agregarLineaAdicional(formData: FormData): Promise<Resulta
 }
 
 export async function borrarLineaAdicional(formData: FormData): Promise<ResultadoPresupuesto> {
-  const r = await adicionalEditable(txt(formData.get("adicionalId")), ["cotizaciones"]);
+  const r = await adicionalEditable(txt(formData.get("adicionalId")), (p) => entrar(["cotizaciones"], p));
   if (typeof r === "string") return mal(r);
   const { a, ad, tenantId } = r;
   if (ad.estado !== "BORRADOR") return mal("Este adicional ya se envió.");
@@ -252,7 +252,7 @@ export async function borrarLineaAdicional(formData: FormData): Promise<Resultad
 
 /** O09: sólo Dirección, y alguien que no esté en el equipo del proyecto. Queda quién y cuándo. */
 export async function aprobarAdicionalInterno(formData: FormData): Promise<ResultadoPresupuesto> {
-  const r = await adicionalEditable(txt(formData.get("adicionalId")), ["cotizaciones"]);
+  const r = await adicionalEditable(txt(formData.get("adicionalId")), (p) => entrar(["cotizaciones"], p));
   if (typeof r === "string") return mal(r);
   const { a, ad, tenantId } = r;
   const enElEquipo = !!a.personaId && (await prisma.proyectoEquipo.count({ where: { tenantId, proyectoId: ad.proyectoId, personaId: a.personaId } })) > 0;
@@ -274,7 +274,7 @@ export async function aprobarAdicionalInterno(formData: FormData): Promise<Resul
 
 /** Sin aprobación interna no sale (O09). */
 export async function enviarAdicional(formData: FormData): Promise<ResultadoPresupuesto> {
-  const r = await adicionalEditable(txt(formData.get("adicionalId")), ["cotizaciones"]);
+  const r = await adicionalEditable(txt(formData.get("adicionalId")), (p) => entrar(["cotizaciones"], p));
   if (typeof r === "string") return mal(r);
   const { a, ad, tenantId } = r;
   const envio = await tenantTransaction(async (tx) => {
@@ -294,7 +294,7 @@ export async function enviarAdicional(formData: FormData): Promise<ResultadoPres
 
 /** La respuesta del cliente. Al aprobarse suma sus cuotas y sube el tope de cobro (O11); las del base no cambian. */
 export async function responderAdicional(formData: FormData): Promise<ResultadoPresupuesto> {
-  const r = await adicionalEditable(txt(formData.get("adicionalId")), ["cotizaciones"]);
+  const r = await adicionalEditable(txt(formData.get("adicionalId")), (p) => entrar(["cotizaciones"], p));
   if (typeof r === "string") return mal(r);
   const { a, ad, tenantId } = r;
   const aprueba = txt(formData.get("respuesta")) === "APROBADO";
@@ -313,9 +313,4 @@ export async function responderAdicional(formData: FormData): Promise<ResultadoP
   if (aprueba) await regenerar(tenantId, ad.proyectoId);
   refrescar(ad.proyectoId);
   return { ok: true, listo: aprueba ? `Listo: el adicional ${ad.numero} quedó aprobado y suma sus cuotas.` : "Listo: quedó rechazado." };
-}
-
-/** Para el formulario: el IVA por defecto del negocio, si el proyecto todavía no tiene base (no debería pasar). */
-export async function ivaDelNegocio(): Promise<number> {
-  return (await configProyectos(await getCurrentTenantId())).ivaPct;
 }
