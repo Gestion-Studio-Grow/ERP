@@ -22,7 +22,7 @@ export default async function ConfiguracionGestion({ searchParams }: { searchPar
   const porMail = new Set(prefs.filter((p) => p.porMail).map((p) => p.tipo));
 
   return (
-    <main className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-5">
+    <main className="mx-auto grid w-full max-w-3xl grid-cols-[minmax(0,1fr)] gap-4 px-4 py-5">
       <h1 className="text-2xl font-bold text-strong">Configuración</h1>
 
       <section className={tarjeta} aria-label="Avisos">
@@ -65,6 +65,7 @@ export default async function ConfiguracionGestion({ searchParams }: { searchPar
         <div className="flex flex-wrap gap-2">
           <Link href="/admin/cambiar-password" className={buttonClasses("outline", "md")}>Cambiar mi contraseña</Link>
           {veLaPlata(a.user) && <Link href="/admin/proyectos/config" className={cn(buttonClasses("ghost", "md"))}>Márgenes y condiciones de las propuestas</Link>}
+          {(a.rol === "DIRECCION" || a.rol === "ADMINISTRACION") && <Link href="/admin/proyectos/config/parametros" className={cn(buttonClasses("ghost", "md"))}>Parámetros del módulo</Link>}
         </div>
       </section>
     </main>
