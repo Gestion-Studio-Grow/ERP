@@ -952,7 +952,9 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   refrescar(proyectoId);
   revalidatePath(`${RAIZ}/administracion`);
   if (!esCobro) revalidatePath(`${RAIZ}/proveedores`);
-  return { ok: true, listo: parcial !== null ? listoParcial(importe, pendiente - parcial, c.moneda, esCobro) : listoMarcada(esCobro, importe, { monto: c.monto, cobra, moneda: c.moneda }) };
+  // Lo que falta después de ESTA parte sale de lo leído adentro, en fila (`faltaAhora`), no de lo leído afuera: con otra
+  // parte entrando a la vez, el de afuera es de antes de esa otra (MIA-119).
+  return { ok: true, listo: parcial !== null ? listoParcial(importe, faltaAhora - parcial, c.moneda, esCobro) : listoMarcada(esCobro, importe, { monto: c.monto, cobra, moneda: c.moneda }) };
 }
 
 /**

@@ -194,11 +194,19 @@ test("D2: nunca se paga de más; anular una parte reabre la cuota con lo que le 
  * invariante, en cualquier orden: entran `entran` partes, el resto se rechaza con el cartel de «entró otro pago» y lo que
  * le falta ahora, y ningún pedido termina en error (reintentos agotados incluidos: `enSesion` exige una respuesta).
  */
-function entranYElRestoSeRechaza(rs: readonly Res[], entran: number, faltaAhora: string): void {
+/**
+ * `carteles`: lo que le falta a la cuota después de cada parte que entra, a mano (1.000 − 400 = 600, 600 − 400 = 200).
+ * El cartel de cada ganador dice la deuda real después de SU pago, no la que vio antes de entrar en fila (MIA-119).
+ * Sin orden: quién entra primero lo decide el candado.
+ */
+function entranYElRestoSeRechaza(rs: readonly Res[], entran: number, faltaAhora: string, carteles: readonly string[]): void {
   const dice = JSON.stringify(rs);
   const adentro = rs.filter((r) => r.ok);
   assert.equal(adentro.length, entran, `entran exactamente ${entran}: ${dice}`);
   for (const r of adentro) assert.match(String(r.listo), /pagó una parte/, dice);
+  const dicen = adentro.map((r) => /le faltan \$\s?([\d.,]+)\.$/.exec(String(r.listo))?.[1] ?? String(r.listo));
+  const porNumero = (x: string) => Number(x.replace(/\./g, "").replace(",", "."));
+  assert.deepEqual([...dicen].sort((a, b) => porNumero(b) - porNumero(a)), [...carteles], `el cartel de cada ganador = la deuda real después de su pago: ${dice}`);
   for (const r of rs.filter((r) => !r.ok)) {
     assert.match(String(r.error), new RegExp(`^No se asentó nada: a esta cuota le faltaban \\$\\s?1\\.000 y ahora le faltan \\$\\s?${faltaAhora} \\(entró otro pago`), dice);
   }
@@ -212,7 +220,7 @@ test("D2 carrera: tres partes de 400 sobre 1.000 a la vez → entran dos y una s
   const banco = await p.cuenta(1_000);
   const parte = p.marcar(q, { monto: "400", cuenta: banco });
   const rs = await enFila(p.base, p.clave(id), [parte, parte, parte]);
-  entranYElRestoSeRechaza(rs, 2, "200");
+  entranYElRestoSeRechaza(rs, 2, "200", ["600", "200"]);
   assert.deepEqual(await p.pagos(id), { gastos: 2, pagado: 800, caja: 800 }, "ningún doble pago");
   assert.equal(await p.saldoCuenta(banco), 200, "el banco movió sólo las dos que entraron");
   assert.deepEqual((await p.administracion())[q], { falta: 200, marcada: false });
@@ -236,7 +244,7 @@ test("D2 carrera de 8: ocho partes de 150 sobre 1.000 a la vez, cinco veces → 
     const banco = await p.cuenta(1_000);
     const parte = p.marcar(q, { monto: "150", cuenta: banco });
     const rs = await enFila(p.base, p.clave(id), Array.from({ length: 8 }, () => parte));
-    entranYElRestoSeRechaza(rs, 6, "100");
+    entranYElRestoSeRechaza(rs, 6, "100", ["850", "700", "550", "400", "250", "100"]);
     assert.deepEqual(await p.pagos(id), { gastos: 6, pagado: 900, caja: 900 }, `vuelta ${vuelta}: ningún doble pago`);
     assert.equal(await p.saldoCuenta(banco), 100, `vuelta ${vuelta}: el banco movió sólo las seis que entraron`);
     assert.deepEqual((await p.administracion())[q], { falta: 100, marcada: false }, `vuelta ${vuelta}`);
