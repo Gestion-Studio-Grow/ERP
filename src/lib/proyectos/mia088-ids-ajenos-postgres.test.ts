@@ -8,6 +8,8 @@
 //    negocio la fila no existe.
 //  · 0 filas cambian en A y en B.
 //  · Lo propio sigue diciendo su estado (una cuota propia anulada: «ya estaba anulado»).
+// Se suma (P4: «y en toda acción con id que el diff toque»): las 7 de `acciones-rendiciones.ts` y `guardarPersona`, con la
+// rendición, el anticipo, el proyecto y la persona de B. Ésas ya contestaban igual antes del arreglo: quedan de guardia.
 // ============================================================================
 
 import { test } from "node:test";
@@ -16,7 +18,10 @@ import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-ser
 import { apuntarLaAppA, baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
 
 const INVENTADO = "cinventado0000000000000000";
+const FOTO = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAEBAQ==";
 const AFIRMA_UN_ESTADO = /ya (estaba|está|no|se)|no está|sólo se borra|anulad|pagad|conciliad|dad[oa] de baja/i;
+/** Para rendiciones y fichas: el estado de la fila («aprobada», «cerrado»…). «No está en el equipo» es la respuesta de siempre a un id que no existe. */
+const ESTADO_DE_LA_FILA = /ya (estaba|está)|anulad|pagad|conciliad|aprobad|rechazad|devuelt|reintegrad|cerrad|dad[oa] de baja/i;
 
 test("ADM-143 · las acciones de Administración con id: un id de otro negocio contesta igual que uno inventado, sin afirmar estados y sin escribir", async (t) => {
   const base = await baseEfimeraParaElTest(t);
@@ -30,6 +35,8 @@ test("ADM-143 · las acciones de Administración con id: un id de otro negocio c
     await duenio.tenant.update({ where: { id: n.id }, data: { modules: [...new Set([...t0.modules, "proyectos"])] } });
   }
   const emp = await import("./acciones-empresa");
+  const ren = await import("./acciones-rendiciones");
+  const { guardarPersona } = await import("./acciones-gestion");
 
   const mirar = <R>(tenantId: string, fn: (tx: Parameters<Parameters<typeof duenio.$transaction>[0]>[0]) => Promise<R>) =>
     duenio.$transaction(async (tx) => {
@@ -54,6 +61,16 @@ test("ADM-143 · las acciones de Administración con id: un id de otro negocio c
       const fijoBaja = await tx.proyectoGastoFijo.create({ data: { tenantId, nombre: `Viejo ${n}`, monto: 50, activo: false } });
       const persona = await tx.proyectoPersona.create({ data: { tenantId, nombre: `Armador ${n}`, rol: "PRODUCCION" } });
       const liq = (periodo: string, estado: string) => tx.proyectoLiquidacion.create({ data: { tenantId, personaId: persona.id, periodo, total: 1000, estado } });
+      const cliente = await tx.client.findFirstOrThrow({ select: { id: true } });
+      const proyecto = await tx.proyecto.create({ data: { tenantId, numero: 1, clientId: cliente.id, nombre: `Stand ${n}`, servicio: "ARQUITECTURA", etapa: "APROBADO" } });
+      await tx.proyectoEquipo.create({ data: { tenantId, proyectoId: proyecto.id, personaId: persona.id } });
+      const rendicion = async (estado: string) => {
+        const g = await tx.proyectoGasto.create({ data: { tenantId, proyectoId: proyecto.id, descripcion: `Gasto ${estado} ${n}`, neto: 100 } });
+        return (await tx.proyectoRendicion.create({ data: { tenantId, proyectoId: proyecto.id, gastoId: g.id, personaId: persona.id, medio: "PROPIO", montoCentavos: 10000, estado } })).id;
+      };
+      const rendiciones = { enviada: await rendicion("enviada"), aprobada: await rendicion("aprobada"), reintegrada: await rendicion("reintegrada"), rechazada: await rendicion("rechazada") };
+      const anticipo = (estado: string) => tx.proyectoAnticipo.create({ data: { tenantId, personaId: persona.id, proyectoId: proyecto.id, montoCentavos: 50000, estado } });
+      const anticipos = { entregado: (await anticipo("ENTREGADO")).id, cerrado: (await anticipo("CERRADO")).id };
       return {
         prov: prov.id,
         cuotas: { pendiente: pendiente.id, pagada: pagada.id, anulada: anulada.id, conciliada: conciliada.id },
@@ -61,6 +78,10 @@ test("ADM-143 · las acciones de Administración con id: un id de otro negocio c
         movs: { suelto: movSuelto.id, conciliado: movConciliado.id },
         fijos: { activo: fijoActivo.id, baja: fijoBaja.id },
         liqs: { borrador: (await liq("2026-08", "BORRADOR")).id, publicada: (await liq("2026-09", "PUBLICADA")).id, pagada: (await liq("2026-10", "PAGADA")).id },
+        persona: persona.id,
+        proyecto: proyecto.id,
+        rendiciones,
+        anticipos,
       };
     });
   const deA = await sembrar(a.id, "A");
@@ -75,6 +96,11 @@ test("ADM-143 · las acciones de Administración con id: un id de otro negocio c
           await tx.proyectoMovBanco.findMany({ orderBy: { id: "asc" } }),
           await tx.proyectoGastoFijo.findMany({ orderBy: { id: "asc" } }),
           await tx.proyectoLiquidacion.findMany({ orderBy: { id: "asc" } }),
+          await tx.proyectoRendicion.findMany({ orderBy: { id: "asc" } }),
+          await tx.proyectoAnticipo.findMany({ orderBy: { id: "asc" } }),
+          await tx.proyectoGasto.findMany({ orderBy: { id: "asc" } }),
+          await tx.proyectoPersona.findMany({ orderBy: { id: "asc" } }),
+          await tx.proyectoEquipo.count(),
           await tx.cashMovement.count(),
           await tx.proyectoCambio.count(),
         ]),
@@ -89,7 +115,7 @@ test("ADM-143 · las acciones de Administración con id: un id de otro negocio c
   const comoA = (fn: () => Promise<unknown>) => ejecutarAccion({ negocio: a, usuario: { id: a.duenia.id } }, fn);
 
   // [acción, id de B (en cada estado), cómo se llama con un id]
-  type Caso = [string, string[], (id: string) => Promise<unknown>];
+  type Caso = [string, string[], (id: string) => Promise<unknown>, RegExp?];
   const cuotasB = Object.values(deB.cuotas);
   const casos: Caso[] = [
     ["crearPagoEmpresa (proveedor)", [deB.prov], (id) => emp.crearPagoEmpresa(form({ tipo: "PAGO", concepto: "Flete", monto: "100", venceEl: "2026-12-10", supplierId: id, moneda: "ARS" }))],
@@ -110,14 +136,24 @@ test("ADM-143 · las acciones de Administración con id: un id de otro negocio c
     ["borrarLiquidacion", Object.values(deB.liqs), (id) => emp.borrarLiquidacion(form({ id }))],
     ["editarExtrasLiquidacion", Object.values(deB.liqs), (id) => emp.editarExtrasLiquidacion({ id, base: "1", manuales: [] })],
     ["marcarLiquidacionVista", Object.values(deB.liqs), (id) => emp.marcarLiquidacionVista(id)],
+    // Las de `acciones-rendiciones.ts` y `guardarPersona` (el diff les puso la puerta de la matriz).
+    ["rendirGasto (proyecto ajeno)", [deB.proyecto], (id) => ren.rendirGasto(form({ proyectoId: id, clave: "eeeeeeee-ffff-4aaa-8bbb-000000000001", descripcion: "Taxi", monto: "300", medio: "PROPIO", fecha: "2026-11-05", foto: FOTO })), ESTADO_DE_LA_FILA],
+    ["aprobarRendicion", Object.values(deB.rendiciones), (id) => ren.aprobarRendicion(form({ id })), ESTADO_DE_LA_FILA],
+    ["devolverRendicion", Object.values(deB.rendiciones), (id) => ren.devolverRendicion(form({ id, comentario: "Falta el ticket" })), ESTADO_DE_LA_FILA],
+    ["rechazarRendicion", Object.values(deB.rendiciones), (id) => ren.rechazarRendicion(form({ id, comentario: "Duplicado" })), ESTADO_DE_LA_FILA],
+    ["reintegrarDirecto", Object.values(deB.rendiciones), (id) => ren.reintegrarDirecto(form({ id, medio: "EFECTIVO" })), ESTADO_DE_LA_FILA],
+    ["entregarAnticipo (persona ajena)", [deB.persona], (id) => ren.entregarAnticipo(form({ personaId: id, monto: "2.000", medio: "EFECTIVO", clave: "ffffffff-aaaa-4bbb-8ccc-000000000001" })), ESTADO_DE_LA_FILA],
+    ["entregarAnticipo (proyecto ajeno)", [deB.proyecto], (id) => ren.entregarAnticipo(form({ personaId: deA.persona, proyectoId: id, monto: "2.000", medio: "EFECTIVO", clave: "ffffffff-aaaa-4bbb-8ccc-000000000002" })), ESTADO_DE_LA_FILA],
+    ["cerrarAnticipo", Object.values(deB.anticipos), (id) => ren.cerrarAnticipo(form({ id, medio: "EFECTIVO" })), ESTADO_DE_LA_FILA],
+    ["guardarPersona", [deB.persona], (id) => guardarPersona(form({ id, nombre: "Pisado", rol: "PRODUCCION" })), ESTADO_DE_LA_FILA],
   ];
 
   const antes = await foto();
-  for (const [nombre, idsDeB, llamar] of casos) {
+  for (const [nombre, idsDeB, llamar, estado = AFIRMA_UN_ESTADO] of casos) {
     const inventado = await comoA(() => llamar(INVENTADO));
     assert.deepEqual(await foto(), antes, `${nombre}, id inventado: 0 cambios`);
     const valor = inventado.tipo === "respuesta" ? (inventado.valor as { error?: string } | undefined) : undefined;
-    if (valor?.error) assert.doesNotMatch(valor.error, AFIRMA_UN_ESTADO, `${nombre}: a un id que no existe no se le afirma un estado`);
+    if (valor?.error) assert.doesNotMatch(valor.error, estado, `${nombre}: a un id que no existe no se le afirma un estado`);
     for (const id of idsDeB) {
       const ajeno = await comoA(() => llamar(id));
       assert.deepEqual(ajeno, inventado, `${nombre}: el id de B (${id}) contesta igual que uno inventado`);
