@@ -274,12 +274,16 @@ export async function Adicionales({ a, vista, proyectoId, baseAprobada }: { a: A
 
 export async function PrevisionDePagos({ a, vista, proyectoId, lineas }: { a: Actor; vista: Vista; proyectoId: string; lineas: readonly Linea[] }) {
   if (!vista.costos || lineas.length === 0 || !(await hayM2())) return null;
-  const [detalles, cuotas, fichas, par] = await Promise.all([
+  const [detalles, cuotas, adicionales, par] = await Promise.all([
     detallesDeLineas(prisma, a.tenantId, lineas.map((l) => l.id)),
     prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId, tipo: "PAGO", anuladoEl: null, clave: { startsWith: `${proyectoId}:` } }, orderBy: { venceEl: "asc" }, select: { id: true, clave: true, concepto: true, monto: true, moneda: true, venceEl: true, pagadoEl: true } }),
-    prisma.proyectoProveedorFicha.findMany({ where: { tenantId: a.tenantId, supplierId: { in: lineas.flatMap((l) => (l.supplierId ? [l.supplierId] : [])) } }, select: { supplierId: true, anticipoPct: true } }),
+    adicionalesDelProyecto(prisma, a.tenantId, proyectoId),
     parametrosDelNegocio(a.tenantId),
   ]);
+  // Las líneas de los adicionales aprobados también tienen su anticipo y su saldo (claves `P:adic:<línea>:…`).
+  const deAdicionales = adicionales.filter((ad) => ad.estado === "APROBADO").flatMap((ad) => ad.lineas.map((l) => ({ ...l, adicional: `Adicional ${ad.numero} · ${ad.nombre}` })));
+  const proveedores = [...lineas.map((l) => l.supplierId), ...deAdicionales.map((l) => l.supplierId)].flatMap((s) => (s ? [s] : []));
+  const fichas = await prisma.proyectoProveedorFicha.findMany({ where: { tenantId: a.tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
   const estados = await estadosDePrevision(prisma, a.tenantId, cuotas.map((c) => c.id));
   const delProveedor = new Map(fichas.map((f) => [f.supplierId, f.anticipoPct]));
   const palabras = par["prevision.palabras"];
@@ -289,7 +293,7 @@ export async function PrevisionDePagos({ a, vista, proyectoId, lineas }: { a: Ac
     <section className={tarjeta} aria-label="Previsión de pagos">
       <h2 className="font-semibold text-strong">Previsión de pagos</h2>
       <p className="mb-3 text-sm text-muted">
-        Por línea de la versión aprobada: anticipo y saldo al proveedor, con fecha y monto sin IVA. Los estados «{palabras.valor.sinConfirmar}» y «{palabras.valor.confirmado}» los marca Administración
+        Por línea de la versión aprobada y de los adicionales aprobados: anticipo y saldo al proveedor, con fecha y monto sin IVA. Los estados «{palabras.valor.sinConfirmar}» y «{palabras.valor.confirmado}» los marca Administración
         <Provisional si={palabras.provisional} />.
       </p>
       <ul className="grid gap-3">
@@ -306,36 +310,7 @@ export async function PrevisionDePagos({ a, vista, proyectoId, lineas }: { a: Ac
                   {d?.anticipoPct == null && <span className="text-muted"> ({l.supplierId && delProveedor.has(l.supplierId) ? "del proveedor" : "por defecto"})</span>}
                 </span>
               </div>
-              {propias.length === 0 ? (
-                <p className="text-sm text-muted">Sin cuotas a proveedor (la línea no tiene costo o el proyecto todavía no tiene plan de cuotas).</p>
-              ) : (
-                <ul className="grid gap-2">
-                  {propias.map((c) => {
-                    const e = estados.get(c.id);
-                    return (
-                      <li key={c.id} className="grid gap-2 rounded-lg bg-surface px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                        <div className="min-w-0">
-                          <p className="text-strong">{c.concepto}</p>
-                          <p className="tabular-nums text-muted">
-                            {fechaCorta(c.venceEl)} · {plataEn(c.monto, c.moneda)} sin IVA{c.pagadoEl && " · pagada"}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge tone={e?.confirmado ? "success" : "neutral"}>{e?.confirmado ? palabras.valor.confirmado : palabras.valor.sinConfirmar}</Badge>
-                          {e?.marcadoNombre && <span className="text-xs text-muted">{e.marcadoNombre}, {fechaCorta(e.marcadoEl)}</span>}
-                          {marca && (
-                            <FormAccion accion={marcarPrevision}>
-                              <input type="hidden" name="cuotaId" value={c.id} />
-                              <input type="hidden" name="estado" value={e?.confirmado ? "sinConfirmar" : "confirmado"} />
-                              <SubmitButton className={buttonClasses("outline", "md")}>Marcar «{e?.confirmado ? palabras.valor.sinConfirmar : palabras.valor.confirmado}»</SubmitButton>
-                            </FormAccion>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+              <CuotasDeLaLinea cuotas={propias} estados={estados} palabras={palabras.valor} marca={marca} />
               {editaPct && (
                 <FormAccion accion={guardarAnticipoLinea} className="mt-2 flex flex-wrap items-end gap-2">
                   <input type="hidden" name="itemId" value={l.id} />
@@ -347,7 +322,59 @@ export async function PrevisionDePagos({ a, vista, proyectoId, lineas }: { a: Ac
             </li>
           );
         })}
+        {deAdicionales.map((l) => {
+          const pct = anticipoDeLaLinea(l.anticipoPct, l.supplierId ? delProveedor.get(l.supplierId) : undefined);
+          return (
+            <li key={l.id} className="rounded-xl border border-line p-3">
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="font-medium text-strong">
+                  {l.detalle} <span className="text-sm font-normal text-muted">({l.adicional})</span>
+                </h3>
+                <span className="text-sm text-body">
+                  Anticipo {pct} % · saldo {100 - pct} %
+                  {l.anticipoPct == null && <span className="text-muted"> ({l.supplierId && delProveedor.has(l.supplierId) ? "del proveedor" : "por defecto"})</span>}
+                </span>
+              </div>
+              <CuotasDeLaLinea cuotas={cuotas.filter((c) => c.clave?.startsWith(`${proyectoId}:adic:${l.id}:`))} estados={estados} palabras={palabras.valor} marca={marca} />
+            </li>
+          );
+        })}
       </ul>
     </section>
+  );
+}
+
+type CuotaDePago = { id: string; concepto: string; monto: Parameters<typeof plataEn>[0]; moneda: string; venceEl: Date; pagadoEl: Date | null };
+
+/** Anticipo y saldo de una línea, con su estado de previsión y, para Administración, el botón para cambiarlo. */
+function CuotasDeLaLinea({ cuotas, estados, palabras, marca }: { cuotas: CuotaDePago[]; estados: Awaited<ReturnType<typeof estadosDePrevision>>; palabras: Record<string, string>; marca: boolean }) {
+  if (cuotas.length === 0) return <p className="text-sm text-muted">Sin cuotas a proveedor (la línea no tiene costo o el proyecto todavía no tiene plan de cuotas).</p>;
+  return (
+    <ul className="grid gap-2">
+      {cuotas.map((c) => {
+        const e = estados.get(c.id);
+        return (
+          <li key={c.id} className="grid gap-2 rounded-lg bg-surface px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+            <div className="min-w-0">
+              <p className="text-strong">{c.concepto}</p>
+              <p className="tabular-nums text-muted">
+                {fechaCorta(c.venceEl)} · {plataEn(c.monto, c.moneda)} sin IVA{c.pagadoEl && " · pagada"}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={e?.confirmado ? "success" : "neutral"}>{e?.confirmado ? palabras.confirmado : palabras.sinConfirmar}</Badge>
+              {e?.marcadoNombre && <span className="text-xs text-muted">{e.marcadoNombre}, {fechaCorta(e.marcadoEl)}</span>}
+              {marca && (
+                <FormAccion accion={marcarPrevision}>
+                  <input type="hidden" name="cuotaId" value={c.id} />
+                  <input type="hidden" name="estado" value={e?.confirmado ? "sinConfirmar" : "confirmado"} />
+                  <SubmitButton className={buttonClasses("outline", "md")}>Marcar «{e?.confirmado ? palabras.sinConfirmar : palabras.confirmado}»</SubmitButton>
+                </FormAccion>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
