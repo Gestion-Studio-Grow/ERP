@@ -314,6 +314,10 @@ model Tenant {
   proyectoParametros         ProyectoParametro[]
   proyectoParametroHist      ProyectoParametroHistorial[]
   proyectoVistas             ProyectoVista[]
+  proyectoLineaDetalles      ProyectoLineaDetalle[] // M2 · MIA T06
+  proyectoAdicionales        ProyectoAdicional[]
+  proyectoAdicionalLineas    ProyectoAdicionalLinea[]
+  proyectoPrevisionEstados   ProyectoPrevisionEstado[]
   inmoPropiedades            InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                  InmoFoto[]
   serviceDetails             ServiceDetail[]
@@ -3610,6 +3614,7 @@ model Proyecto {
   updatedAt                DateTime               @updatedAt
   oportunidadesComerciales Oportunidad[] // CRM comercial (GSG-CRM-010): sólo relación, ninguna columna nueva
   asignacionesRecibidas    AsignacionRecibida[] // GSG-CRM-017: nació de una asignación del ARM (sólo relación)
+  adicionales              ProyectoAdicional[] // M2 · MIA T06
 
   @@unique([tenantId, numero])
   @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId), que no cruzan de negocio
@@ -3689,6 +3694,7 @@ model ProyectoItem {
   origen         String? // de qué stand salió: permite volver a pasar el cómputo sin duplicar
   posicion       Int                 @default(0)
   createdAt      DateTime            @default(now())
+  detalle        ProyectoLineaDetalle? // M2 · MIA T06: sector, categoría, personal y anticipo % de la línea
 
   @@index([tenantId, presupuestoId])
 }
@@ -4049,6 +4055,7 @@ model ProyectoCuota {
   clave          String? // de qué ítem y tramo salió: regenerar no duplica
   anuladoEl      DateTime?
   conciliaciones ProyectoMovBanco[]
+  previsionEstado ProyectoPrevisionEstado? // M2 · MIA T06: el estado que marca Administración
   createdAt      DateTime           @default(now())
 
   @@unique([tenantId, clave])
@@ -5310,4 +5317,100 @@ model AsignacionRecibida {
 
   @@unique([tenantId, origenTenantId, origenOportunidadId])
   @@unique([tenantId, proyectoId])
+}
+
+// ── M2 · MIA T06 (GSG-MIA-125): presupuesto, base aprobada, adicionales y previsión de pagos ──
+// Migración 20261119110000_mia_m2_presupuesto. Además de estas tablas crea el índice único PARCIAL
+// "ProyectoPresupuesto_una_base_aprobada" (tenantId, proyectoId) WHERE estado = 'APROBADO', que Prisma no sabe
+// declarar: una sola versión base aprobada por proyecto, garantizada por la base.
+
+/// Lo que la línea del presupuesto base tiene y el ítem no. 1 a 1 con el ítem; sin fila, la línea es la de siempre.
+model ProyectoLineaDetalle {
+  id          String       @id @default(cuid())
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  item        ProyectoItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId      String       @unique
+  /// De la lista del negocio (`costos.sectores`); fuera de la lista se rechaza.
+  sector      String?
+  /// De la lista del negocio (`costos.categorias`).
+  categoria   String?
+  /// Línea de personal: puestos × horas × días × valor (el valor es `item.costo`).
+  puestos     Int?
+  horas       Float?
+  dias        Int?
+  /// Anticipo al proveedor de esta línea (0 a 100); el saldo es el resto. Sin valor: el % del proveedor.
+  anticipoPct Float?
+  updatedAt   DateTime     @updatedAt
+
+  @@index([tenantId])
+}
+
+/// Un adicional es un presupuesto aparte: sus líneas, su aprobación interna y la del cliente.
+model ProyectoAdicional {
+  id                   String                   @id @default(cuid())
+  tenant               Tenant                   @relation(fields: [tenantId], references: [id])
+  tenantId             String
+  proyecto             Proyecto                 @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId           String
+  numero               Int
+  nombre               String
+  estado               String                   @default("BORRADOR") // BORRADOR · ENVIADO · APROBADO · RECHAZADO
+  ivaPct               Float                    @default(21)
+  creadoPor            String
+  aprobadoInternoPor   String?
+  aprobadoInternoPorId String?
+  aprobadoInternoEl    DateTime?
+  enviadoEl            DateTime?
+  respondidoEl         DateTime?
+  respondidoPor        String?
+  motivoRechazo        String?
+  lineas               ProyectoAdicionalLinea[]
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
+
+  @@unique([tenantId, proyectoId, numero])
+  @@index([tenantId, proyectoId])
+}
+
+/// Línea de un adicional. Plata en centavos enteros.
+model ProyectoAdicionalLinea {
+  id             String            @id @default(cuid())
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  adicional      ProyectoAdicional @relation(fields: [adicionalId], references: [id], onDelete: Cascade)
+  adicionalId    String
+  sector         String
+  categoria      String
+  detalle        String
+  supplierId     String?
+  proveedor      String?
+  cantidad       Float             @default(1)
+  puestos        Int?
+  horas          Float?
+  dias           Int?
+  /// Costo unitario (o valor de la hora en una línea de personal), en centavos.
+  costoCentavos  BigInt            @default(0)
+  /// Precio de venta de la línea sin IVA, en centavos.
+  precioCentavos BigInt            @default(0)
+  anticipoPct    Float?
+  posicion       Int               @default(0)
+  createdAt      DateTime          @default(now())
+
+  @@index([tenantId, adicionalId])
+}
+
+/// El estado que Administración marca en una cuota de pago de la previsión. Sin fila: el primer estado.
+model ProyectoPrevisionEstado {
+  id            String        @id @default(cuid())
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  cuota         ProyectoCuota @relation(fields: [cuotaId], references: [id], onDelete: Cascade)
+  cuotaId       String        @unique
+  confirmado    Boolean       @default(false)
+  marcadoPor    String
+  marcadoNombre String
+  marcadoEl     DateTime      @default(now())
+
+  @@index([tenantId])
 }
