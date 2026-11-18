@@ -19,6 +19,9 @@ import { ejecutarAccion, prepararAccionesDeServidor, type SalidaDeAccion } from 
 const laBase = baseEfimeraDelArchivo();
 const COOKIE_PASE = "admin_segundo_paso";
 const ROLES = ["ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION"] as const;
+/** Reloj fijo para el código de la app: 15 s dentro de un paso de 30 s, lejos del borde (18/11/2026 12:00:15 UTC). */
+const AHORA = Date.UTC(2026, 10, 18, 12, 0, 15);
+let ingresos = 0;
 
 interface Fixture {
   base: BaseEfimera;
@@ -69,7 +72,9 @@ async function entrar(f: Fixture, email: string): Promise<SalidaDeAccion<unknown
   fd.set("email", email);
   fd.set("password", CLAVE_DE_PRUEBA);
   fd.set("next", "/admin");
-  return ejecutarAccion({ negocio: f.base.a, headers: { "x-forwarded-for": `198.51.100.${Math.floor(Math.random() * 200) + 1}` } }, () => login(fd));
+  // Una IP de documentación distinta por ingreso, en orden fijo (el límite de intentos es por IP): la corrida se repite igual.
+  ingresos += 1;
+  return ejecutarAccion({ negocio: f.base.a, headers: { "x-forwarded-for": `198.51.100.${ingresos}` } }, () => login(fd));
 }
 
 const destino = (r: SalidaDeAccion<unknown>): string => (r.tipo === "redireccion" ? r.destino : `(${r.tipo})`);
@@ -99,6 +104,8 @@ test("E-4 · MIA Taller: con el código de la app entra, y con un código de res
   const f = await preparar(t);
   if (!f) return;
   await rubro(f.base, "taller-stands");
+  // El servidor lee la hora del reloj del sistema: se fija sólo Date (los timers siguen reales), así el test y el servidor ven el mismo paso.
+  t.mock.timers.enable({ apis: ["Date"], now: AHORA });
   const { confirmarSegundoPaso } = await import("@/app/admin/login/segundo-paso/acciones");
   const { datosDeActivacion } = await import("@/lib/proyectos/segundo-factor.server");
   const { codigoDelPaso, pasoDe } = await import("@/lib/proyectos/segundo-factor-core");
@@ -112,12 +119,12 @@ test("E-4 · MIA Taller: con el código de la app entra, y con un código de res
   assert.equal(act.tipo, "respuesta");
   const secreto = (act as { valor: { secreto: Buffer } }).valor.secreto;
   const mal = new FormData();
-  mal.set("codigo", "000000" === codigoDelPaso(secreto, pasoDe(Date.now())) ? "111111" : "000000");
+  mal.set("codigo", "000000" === codigoDelPaso(secreto, pasoDe(AHORA)) ? "111111" : "000000");
   const fallido = await ejecutarAccion({ negocio: a, cookies: pase }, () => confirmarSegundoPaso({}, mal));
   assert.equal(fallido.tipo, "respuesta");
   assert.equal(conSesion(f, fallido), false, "un código equivocado no da sesión");
   const bien = new FormData();
-  bien.set("codigo", codigoDelPaso(secreto, pasoDe(Date.now())));
+  bien.set("codigo", codigoDelPaso(secreto, pasoDe(AHORA)));
   bien.set("next", "/admin");
   const ok = await ejecutarAccion({ negocio: a, cookies: pase }, () => confirmarSegundoPaso({}, bien));
   assert.equal(conSesion(f, ok), true, `con el código entra (${destino(ok)})`);
