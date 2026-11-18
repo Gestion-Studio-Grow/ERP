@@ -8,7 +8,7 @@ import { anularComprobante, desenlazarCuota, enlazarCuota } from "@/lib/proyecto
 import { crearOrdenDesdeForm } from "@/lib/proyectos/acciones-orden-pago";
 import { fechaCorta, MEDIOS, MEDIO_LABEL, pesos } from "@/lib/proyectos/core";
 import { comprobanteParaVer, parametrosDeComprobantes, siHayM1 } from "@/lib/proyectos/comprobantes.server";
-import { tratamientoDelTipo, TRATAMIENTOS } from "@/lib/proyectos/comprobantes-core";
+import { textoDeCentavos, tratamientoDelTipo, TRATAMIENTOS } from "@/lib/proyectos/comprobantes-core";
 import { ESTADO_ORDEN_LABEL, numeroDeOrden, type EstadoOrden } from "@/lib/proyectos/orden-pago-core";
 import { filtroDeProyectos, exigirVer } from "@/lib/proyectos/gestion.server";
 import { FormAccion } from "../../../[id]/_cliente";
@@ -155,7 +155,7 @@ export default async function Comprobante({ params }: { params: Promise<{ id: st
           <FormAccion accion={crearOrdenDesdeForm} claveDeEnvio className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto] sm:items-end">
             <input type="hidden" name="supplierId" value={c.supplier.id} />
             <input type="hidden" name="comprobanteId" value={c.id} />
-            <label className={etiqueta}>Importe<input name="importe" required inputMode="decimal" defaultValue={(c.saldo / 100).toLocaleString("es-AR", { minimumFractionDigits: 2 })} className={campo} /></label>
+            <label className={etiqueta}>Importe<input name="importe" required inputMode="decimal" defaultValue={textoDeCentavos(c.saldo)} className={campo} /></label>
             <label className={etiqueta}>
               Cancela la cuota
               <select name="cuotaId" defaultValue="" className={campo}>

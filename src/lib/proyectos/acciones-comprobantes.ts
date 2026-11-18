@@ -9,6 +9,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
+import type { Prisma } from "@/generated/prisma/client";
 import { auditAdmin } from "@/lib/audit-core";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { esTablaInexistente } from "@/lib/rendiciones/pin-core";
@@ -63,6 +64,17 @@ async function conM1<T>(hacer: () => Promise<Resultado<T>>): Promise<Resultado<T
     if (esTablaInexistente(e)) return { ok: false, error: SIN_M1 };
     throw e;
   }
+}
+
+/**
+ * Candado sobre el comprobante, dentro de la transacción: imputar, enlazar, anular y crear la orden de pago
+ * (`crearOrdenPago`) lo toman antes de leer lo que van a controlar, así dos a la vez no deciden sobre la misma foto
+ * (certificación MIA-127, CERT-1 a CERT-3). Devuelve el comprobante tal como está después de esperar, o `null`.
+ */
+async function bloquearComprobante(tx: Prisma.TransactionClient, tenantId: string, id: string): Promise<{ anulado: boolean } | null> {
+  const filas = await tx.$queryRaw<{ anuladoEl: Date | null }[]>`
+    SELECT "anuladoEl" FROM "ProyectoComprobante" WHERE "tenantId" = ${tenantId} AND "id" = ${id} FOR UPDATE`;
+  return filas.length === 0 ? null : { anulado: filas[0].anuladoEl !== null };
 }
 
 /** «2026-11-19» → la fecha al mediodía de Argentina (no se corre de día con el huso). */
@@ -226,7 +238,7 @@ export async function imputarComprobante(d: { comprobanteId: string; lineas: Lin
   return conM1<object>(async () => {
     const c = await prisma.proyectoComprobante.findFirst({
       where: { tenantId, id: String(d.comprobanteId ?? "") },
-      select: { id: true, tipo: true, numero: true, netoCentavos: true, ivaCentavos: true, anuladoEl: true, lineas: { select: { proyectoId: true } } },
+      select: { id: true, tipo: true, numero: true, netoCentavos: true, ivaCentavos: true, anuladoEl: true },
     });
     if (!c) return { ok: false, error: "Ese comprobante no existe." };
     if (c.anuladoEl) return { ok: false, error: "Ese comprobante está anulado: no se imputa." };
@@ -252,13 +264,20 @@ export async function imputarComprobante(d: { comprobanteId: string; lineas: Lin
     for (const id of new Set(lineas.map((l) => l.proyectoId).filter((x): x is string => !!x))) {
       if (!(await proyectoVisible(a, id))) return { ok: false, error: "Uno de los proyectos no existe o no lo ves." };
     }
-    await tenantTransaction(async (tx) => {
+    // El reemplazo, con el comprobante tomado: otra imputación a la vez espera y borra estas líneas, no las suma (CERT-1).
+    const r = await tenantTransaction<{ error: string } | { antes: (string | null)[] }>(async (tx) => {
+      const actual = await bloquearComprobante(tx, tenantId, c.id);
+      if (!actual) return { error: "Ese comprobante no existe." };
+      if (actual.anulado) return { error: "Ese comprobante está anulado: no se imputa." };
+      const antes = await tx.proyectoComprobanteLinea.findMany({ where: { tenantId, comprobanteId: c.id }, select: { proyectoId: true } });
       await tx.proyectoComprobanteLinea.deleteMany({ where: { tenantId, comprobanteId: c.id } });
       await tx.proyectoComprobanteLinea.createMany({ data: lineas.map((l, i) => lineaParaGuardar(tenantId, c.id, l, i)) });
       await registrarCambio(tx, { tenantId, entidad: "ProyectoComprobante", entidadId: c.id, campo: "Imputación", despues: `${lineas.length} línea(s)`, autor: user.name });
+      return { antes: antes.map((l) => l.proyectoId) };
     });
+    if ("error" in r) return { ok: false, error: r.error };
     await auditAdmin({ action: "proyecto.comprobante.imputar", entity: "ProyectoComprobante", entityId: c.id, changes: { lineas: lineas.length } });
-    refrescar([...c.lineas.map((l) => l.proyectoId), ...lineas.map((l) => l.proyectoId)]);
+    refrescar([...r.antes, ...lineas.map((l) => l.proyectoId)]);
     return { ok: true };
   });
 }
@@ -278,7 +297,7 @@ export async function enlazarCuota(formData: FormData): Promise<Resultado> {
     const comprobanteId = txt(formData.get("comprobanteId"));
     const cuotaId = txt(formData.get("cuotaId"));
     const [c, q] = await Promise.all([
-      prisma.proyectoComprobante.findFirst({ where: { tenantId, id: comprobanteId }, select: { id: true, supplierId: true, moneda: true, totalCentavos: true, anuladoEl: true, cuotas: { select: { cuota: { select: { monto: true } } } } } }),
+      prisma.proyectoComprobante.findFirst({ where: { tenantId, id: comprobanteId }, select: { id: true, supplierId: true, moneda: true, totalCentavos: true, anuladoEl: true } }),
       prisma.proyectoCuota.findFirst({ where: { tenantId, id: cuotaId }, select: { id: true, tipo: true, monto: true, moneda: true, supplierId: true, proyectoId: true, pagadoEl: true, anuladoEl: true, concepto: true } }),
     ]);
     if (!c || c.anuladoEl) return { ok: false, error: "Ese comprobante no existe o está anulado." };
@@ -289,13 +308,19 @@ export async function enlazarCuota(formData: FormData): Promise<Resultado> {
     if (q.pagadoEl) return { ok: false, error: "Esa cuota ya está pagada." };
     const pendiente = await pendienteDelPago(tenantId, q, await tiposDeCambio(tenantId));
     if (pendiente < q.monto) return { ok: false, error: "Esa cuota ya tiene partes pagadas desde el calendario: terminala ahí, no con una orden de pago." };
-    const enlazado = c.cuotas.reduce((s, x) => s + centavosDe(x.cuota.monto), 0);
-    if (enlazado + centavosDe(q.monto) > Number(c.totalCentavos)) return { ok: false, error: "Las cuotas enlazadas pasarían el total del comprobante." };
     try {
-      await tenantTransaction(async (tx) => {
+      // La suma contra el total, con el comprobante tomado: el segundo enlace a la vez espera y ve el primero (CERT-3).
+      const error = await tenantTransaction(async (tx) => {
+        const actual = await bloquearComprobante(tx, tenantId, c.id);
+        if (!actual || actual.anulado) return "Ese comprobante no existe o está anulado.";
+        const ya = await tx.proyectoCuotaComprobante.findMany({ where: { tenantId, comprobanteId: c.id }, select: { cuota: { select: { monto: true } } } });
+        const enlazado = ya.reduce((s, x) => s + centavosDe(x.cuota.monto), 0);
+        if (enlazado + centavosDe(q.monto) > Number(c.totalCentavos)) return "Las cuotas enlazadas pasarían el total del comprobante.";
         await tx.proyectoCuotaComprobante.create({ data: { tenantId, cuotaId: q.id, comprobanteId: c.id, creadoPor: user.name } });
         await registrarCambio(tx, { tenantId, proyectoId: q.proyectoId, entidad: "ProyectoCuota", entidadId: q.id, campo: "Comprobante", despues: c.id, autor: user.name });
+        return null;
       });
+      if (error) return { ok: false, error };
     } catch (e) {
       if (esClaveRepetida(e)) return { ok: false, error: "Esa cuota ya está enlazada a un comprobante." };
       throw e;
@@ -336,16 +361,20 @@ export async function anularComprobante(formData: FormData): Promise<Resultado> 
     const id = txt(formData.get("id"));
     const c = await prisma.proyectoComprobante.findFirst({ where: { tenantId, id }, select: { id: true, lineas: { select: { proyectoId: true } } } });
     if (!c) return { ok: false, error: "Ese comprobante no existe." };
-    const vivas = await prisma.proyectoOrdenPagoLinea.count({ where: { tenantId, comprobanteId: id, orden: { estado: { not: "ANULADA" } } } });
-    if (vivas > 0) return { ok: false, error: "Ese comprobante está en una orden de pago viva: anulá la orden primero." };
-    const r = await tenantTransaction(async (tx) => {
-      const u = await tx.proyectoComprobante.updateMany({ where: { tenantId, id, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
-      if (u.count === 0) return false;
+    // Las órdenes vivas se cuentan con el comprobante tomado, el mismo candado que `crearOrdenPago`: si la orden llegó
+    // primero, acá se ve; si llegó primero la anulación, la orden ve el comprobante anulado y no entra (CERT-2).
+    const error = await tenantTransaction(async (tx) => {
+      const actual = await bloquearComprobante(tx, tenantId, id);
+      if (!actual) return "Ese comprobante no existe.";
+      if (actual.anulado) return "Ese comprobante ya estaba anulado.";
+      const vivas = await tx.proyectoOrdenPagoLinea.count({ where: { tenantId, comprobanteId: id, orden: { estado: { not: "ANULADA" } } } });
+      if (vivas > 0) return "Ese comprobante está en una orden de pago viva: anulá la orden primero.";
+      await tx.proyectoComprobante.updateMany({ where: { tenantId, id, anuladoEl: null }, data: { anuladoEl: new Date(), anuladoPor: user.name } });
       await tx.proyectoCuotaComprobante.deleteMany({ where: { tenantId, comprobanteId: id } });
       await registrarCambio(tx, { tenantId, entidad: "ProyectoComprobante", entidadId: id, campo: "Anulado", despues: user.name, autor: user.name });
-      return true;
+      return null;
     });
-    if (!r) return { ok: false, error: "Ese comprobante ya estaba anulado." };
+    if (error) return { ok: false, error };
     await auditAdmin({ action: "proyecto.comprobante.anular", entity: "ProyectoComprobante", entityId: id, changes: {} });
     refrescar(c.lineas.map((l) => l.proyectoId));
     return { ok: true };

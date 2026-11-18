@@ -7,7 +7,8 @@ import assert from "node:assert/strict";
 import { costoDeLinea, errorDeAdjunto, errorDeCarga, esVinculada, normalizarNumero, normalizarReferencia, tratamientoDelTipo } from "./comprobantes-core";
 import { errorDeImputacion, faltaImputar, imputadoPorProyecto, repartirIva, type LineaEntrada } from "./imputacion-core";
 import { errorDeAprobacion, errorDeOrden, numeroDeOrden, saldoDe, type ComprobanteParaOrden } from "./orden-pago-core";
-import { resultadoReal, type Totales } from "./core";
+import { pesos, resultadoReal, type Totales } from "./core";
+import { centavosDelTexto, textoDeCentavos } from "./comprobantes-core";
 
 const IVA_POR_DEFECTO = { A: "CREDITO", B: "COSTO", C: "COSTO", SIN_FACTURA: "COSTO" };
 
@@ -133,4 +134,19 @@ test("O30 · mes del parámetro: AAAA-MM válido o el mes corriente en Argentina
   assert.equal(mesDelParametro("2026-02"), "2026-02");
   assert.equal(mesDelParametro("2026-13", new Date("2026-11-01T02:00:00Z")), "2026-10");
   assert.equal(mesDelParametro(null, new Date("2026-11-18T12:00:00Z")), "2026-11");
+});
+
+test("V3-d · excepción 1: el importe de un campo (imputación y orden) vuelve igual al centavo con centavosDelTexto", () => {
+  // A mano: 1.210,00 · 0,01 · 0,00 · 710,00 · 1.234.567,89 · 12.345.678,99.
+  for (const c of [121000, 1, 0, 71000, 123456789, 1234567899]) assert.equal(centavosDelTexto(textoDeCentavos(c)), c, `ida y vuelta de ${c}`);
+  assert.equal(textoDeCentavos(121000), "1.210,00");
+});
+
+test("V3-b y V3-d · lo que se muestra pasa por pesos: «Falta imputar» y el proveedor con su moneda", () => {
+  const nb = String.fromCharCode(0xa0);
+  // A mano (tabla de la adenda 1 § A): «Falta imputar» de 71000 centavos; un centavo; la cuota en USD; el redondeo al centavo.
+  assert.equal(pesos(71000 / 100), `$${nb}710`);
+  assert.equal(pesos(1 / 100), `$${nb}0,01`);
+  assert.equal(pesos(150, "USD"), `US$${nb}150`);
+  assert.equal(pesos(1500.004), `$${nb}1.500`);
 });

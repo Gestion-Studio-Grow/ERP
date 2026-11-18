@@ -19,7 +19,7 @@ import { nombreDelComprobante } from "@/lib/factura-de-prueba";
 import type { Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
-import { CostosEnColumnas, FormGasto } from "./_gastos";
+import { FormGasto } from "./_gastos";
 import { CopiarLink } from "./_piezas";
 import { PlanillaVenta } from "./_planilla";
 import { Numero } from "./_pestanas-datos";
@@ -408,7 +408,6 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
             <div><dt className="text-muted">Ganancia real</dt><dd className="font-bold text-strong">{d.real.gananciaReal === null ? "—" : `${pesos(d.real.gananciaReal)} (${porcentaje(d.real.margenReal ?? 0)})`}</dd></div>
             <div><dt className="text-muted">Por pagar</dt><dd className="font-medium text-strong">{pesos(d.real.porPagar)}</dd></div>
           </dl>
-          <CostosEnColumnas original={d.totalesAprobada ? d.totalesAprobada.costo : null} real={d.real} />
           {/* Una rendición o un gasto aparte al mismo proveedor mientras quedan cuotas a proveedor por pagar: si pagó una de esas
               cuotas, está contado dos veces. No hay enlace que lo diga, así que no se resta solo: se avisa hasta cuánto. */}
           {d.enDuda > 0 && (

@@ -6,7 +6,8 @@ import { useMemo, useState, useTransition } from "react";
 import { buttonClasses, cn } from "@/components/ui";
 import { imputarComprobante, type LineaDelForm } from "@/lib/proyectos/acciones-comprobantes";
 import type { TratamientoIva } from "@/lib/proyectos/comprobantes-core";
-import { centavosDelTexto } from "@/lib/proyectos/comprobantes-core";
+import { centavosDelTexto, textoDeCentavos as aTexto } from "@/lib/proyectos/comprobantes-core";
+import { pesos } from "@/lib/proyectos/core";
 import { repartirIva } from "@/lib/proyectos/imputacion-core";
 import { campo, etiqueta } from "../../../_vista";
 
@@ -19,9 +20,6 @@ interface Fila {
   iva: string;
   tratamiento: TratamientoIva;
 }
-
-const aTexto = (c: number) => (c / 100).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const pesosDe = (c: number) => `$ ${aTexto(c)}`;
 
 export function EditorImputacion(props: {
   comprobanteId: string;
@@ -125,7 +123,7 @@ export function EditorImputacion(props: {
       </ol>
       {props.provisional && <p className="text-xs text-muted">El tratamiento del IVA por tipo de comprobante es provisional (a confirmar con el contador): queda marcado en cada línea que lo use.</p>}
       <p aria-live="polite" className={cn("text-base font-semibold", falta === 0 ? "text-strong" : "text-danger")}>
-        Falta imputar: {pesosDe(falta)}
+        Falta imputar: {pesos(falta / 100)}
       </p>
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={sumar} className={buttonClasses("outline", "md")}>Sumar línea</button>

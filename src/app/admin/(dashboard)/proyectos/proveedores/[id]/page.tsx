@@ -8,7 +8,7 @@ import { FormAccion } from "../../[id]/_cliente";
 import { cambiarEstadoProveedor } from "@/lib/proyectos/acciones-gestion";
 import { fechaCorta, MEDIOS, MEDIO_LABEL, pesos, totalDelGasto } from "@/lib/proyectos/core";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
-import { codigoProyecto, ESTADO_ITEM_LABEL, plataEn } from "@/lib/proyectos/gestion-core";
+import { codigoProyecto, ESTADO_ITEM_LABEL } from "@/lib/proyectos/gestion-core";
 import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { iniciales } from "@/lib/proyectos/gestion-lecturas-core";
 import { detalleDeProveedor } from "@/lib/proyectos/gestion-lecturas.server";
@@ -90,7 +90,7 @@ export default async function DetalleProveedor({ params }: { params: Promise<{ i
                     {c.concepto}
                     <span className="block text-xs text-muted">{c.proyecto?.nombre ?? "Empresa"} · vence {fechaCorta(c.venceEl)}</span>
                   </span>
-                  <strong className="whitespace-nowrap text-strong">{plataEn(c.falta, c.moneda)}{c.falta !== c.monto && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}</strong>
+                  <strong className="whitespace-nowrap text-strong">{pesos(c.falta, c.moneda)}{c.falta !== c.monto && <span className="block text-xs font-normal text-muted">de {pesos(c.monto, c.moneda)}</span>}</strong>
                 </li>
               ))}
             </ul>
@@ -136,7 +136,7 @@ export default async function DetalleProveedor({ params }: { params: Promise<{ i
                 </Link>
                 <span className="min-w-0 break-words text-strong">{h.descripcion}</span>
                 <span className="text-xs text-muted">Cant. {h.cantidad.toLocaleString("es-AR")}</span>
-                <span className="text-xs text-strong">{verCostos && h.precioUnitario !== null && h.moneda ? `${plataEn(h.precioUnitario, h.moneda)} c/u` : "Precio oculto"}</span>
+                <span className="text-xs text-strong">{verCostos && h.precioUnitario !== null && h.moneda ? `${pesos(h.precioUnitario, h.moneda)} c/u` : "Precio oculto"}</span>
                 <span className="text-xs text-muted">{ESTADO_ITEM_LABEL[h.estadoItem] ?? h.estadoItem}</span>
               </li>
             ))}

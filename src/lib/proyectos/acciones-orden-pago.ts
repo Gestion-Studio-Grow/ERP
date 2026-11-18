@@ -201,7 +201,7 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
       select: {
         id: true, numero: true, estado: true, totalCentavos: true, medio: true,
         supplier: { select: { name: true } },
-        lineas: { select: { cuotaId: true, comprobante: { select: { cargadoPorId: true } } } },
+        lineas: { select: { cuotaId: true, comprobanteId: true, comprobante: { select: { cargadoPorId: true } } } },
       },
     });
     if (!o) return { ok: false, error: "Esa orden de pago no existe." };
@@ -210,12 +210,21 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
     if (o.estado !== "PENDIENTE") return { ok: false, error: "Esa orden ya estaba pagada o anulada." };
     const medio = o.medio as MedioPago;
     const cuotaIds = [...new Set(o.lineas.map((l) => l.cuotaId).filter((x): x is string => !!x))];
+    const comprobanteIds = [...new Set(o.lineas.map((l) => l.comprobanteId))].sort();
     const r = await transaccionQueAsienta(async (tx) => {
+      // Un comprobante anulado no se paga (O27 · O33, CERT-2b). Se mira con el candado que toman la anulación y
+      // `crearOrdenPago`, en el mismo orden fijo.
+      if (comprobanteIds.length > 0) {
+        const filas = await tx.$queryRaw<{ anuladoEl: Date | null }[]>`
+          SELECT "anuladoEl" FROM "ProyectoComprobante" WHERE "tenantId" = ${tenantId} AND "id" IN (${Prisma.join(comprobanteIds)})
+          ORDER BY "id" FOR UPDATE`;
+        if (filas.some((f) => f.anuladoEl !== null)) return { pagada: false, anulado: true, proyectos: [] as (string | null)[] };
+      }
       const u = await tx.proyectoOrdenPago.updateMany({
         where: { tenantId, id, estado: "PENDIENTE" },
         data: { estado: "PAGADA", aprobadaPorId: user.id, aprobadaNombre: user.name, pagadaEl: new Date() },
       });
-      if (u.count === 0) return { pagada: false, proyectos: [] as (string | null)[] };
+      if (u.count === 0) return { pagada: false, anulado: false, proyectos: [] as (string | null)[] };
       const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
       await asentarEnCajaTx(tx, "pago", {
         tenantId,
@@ -243,8 +252,9 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
         }
       }
       await registrarCambio(tx, { tenantId, entidad: "ProyectoOrdenPago", entidadId: id, campo: "Orden de pago pagada", despues: MEDIO_LABEL[medio], autor: user.name });
-      return { pagada: true, proyectos };
+      return { pagada: true, anulado: false, proyectos };
     });
+    if (r.anulado) return { ok: false, error: "Uno de los comprobantes de esta orden está anulado: no se paga. Anulá la orden." };
     if (!r.pagada) return { ok: false, error: "Esa orden ya estaba pagada o anulada." };
     await auditAdmin({ action: "proyecto.orden-pago.pagar", entity: "ProyectoOrdenPago", entityId: id, changes: { medio } });
     refrescar(r.proyectos);

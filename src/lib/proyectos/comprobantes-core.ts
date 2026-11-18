@@ -20,6 +20,11 @@ export const TIPOS_ADJUNTO = ["application/pdf", "image/jpeg", "image/png", "ima
 
 /** Lo que entra por el formulario (texto argentino: «1.234,56»). */
 export const centavosDelTexto = (texto: string): number => centavosDe(leerNumero(texto));
+/**
+ * El valor de un campo de importe que se vuelve a leer con `centavosDelTexto` (excepción 1 de V3, adenda 1 § A): no es un
+ * importe que se muestra, por eso no pasa por `pesos`. Ida y vuelta exacta al centavo (test en t05-comprobantes-core).
+ */
+export const textoDeCentavos = (c: number): string => (c / 100).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 /** Centavos a pesos, para mostrar con `pesos()`. */
 export const aPesosDeCentavos = (c: number | bigint): number => Number(c) / 100;
 
