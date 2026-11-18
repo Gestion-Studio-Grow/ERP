@@ -36,7 +36,7 @@ async function trabados(c: pg.Client, clave: string): Promise<number> {
   return r.rows[0].n;
 }
 
-/** Corre `pedidos` a la vez, en fila detrás del candado `clave`; devuelve los resultados en el orden en que pasan. */
+/** Corre `pedidos` a la vez, en fila detrás del candado `clave`; devuelve los resultados en el orden en que se pidieron (no en el que entraron). */
 async function enFila<T>(base: BaseEfimera, clave: string, pedidos: readonly (() => Promise<T>)[]): Promise<T[]> {
   const c = new pg.Client({ connectionString: base.urlDuenio });
   await c.connect();
@@ -201,6 +201,9 @@ test("D2 carrera: tres partes de 400 sobre 1.000 a la vez → entran dos, nunca 
   const rechazos = rs.filter((r) => !r.ok);
   assert.equal(rechazos.length, 1, JSON.stringify(rs));
   assert.match(String(rechazos[0].error), /No se asentó nada.*ahora le faltan \$\s?200/, JSON.stringify(rs));
+  // Cada uno que entra dice lo que le falta DESPUÉS de su parte, leído adentro: 600 el primero, 200 el segundo (no 600 los dos).
+  const faltan = rs.filter((r) => r.ok).map((r) => Number(/le faltan \$\s?([\d.]+)/.exec(String((r as { listo?: string }).listo))?.[1]?.replace(/\./g, "")));
+  assert.deepEqual(faltan.sort((x, y) => x - y), [200, 600], JSON.stringify(rs));
   assert.deepEqual(await p.pagos(id), { gastos: 2, pagado: 800, caja: 800 });
   assert.deepEqual((await p.administracion())[q], { falta: 200, marcada: false });
 

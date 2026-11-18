@@ -923,7 +923,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   refrescar(proyectoId);
   revalidatePath(`${RAIZ}/administracion`);
   if (!esCobro) revalidatePath(`${RAIZ}/proveedores`);
-  return { ok: true, listo: parcial !== null ? listoParcial(importe, pendiente - parcial, c.moneda, esCobro) : listoMarcada(esCobro, importe, { monto: c.monto, cobra, moneda: c.moneda }) };
+  return { ok: true, listo: parcial !== null ? listoParcial(importe, faltaAhora - parcial, c.moneda, esCobro) : listoMarcada(esCobro, importe, { monto: c.monto, cobra, moneda: c.moneda }) };
 }
 
 /**
