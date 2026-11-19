@@ -25,6 +25,7 @@ import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_
 import { adicionalesDelProyecto, detallesDeLineas, diasDelPlan } from "./presupuesto-m2.server";
 import { cuotasDeAdicionales } from "./presupuesto-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { totalesCongelados } from "./precio-foto.server";
 
 export interface Actor {
   user: SessionUser;
@@ -296,10 +297,12 @@ export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: 
       if (!p || !viva) return true;
       const items = viva.items.map(aItemFicha);
       // MIA T06: el % de cada línea, los adicionales aprobados (sin M2, ninguno) y los días del catálogo (R8).
-      const [detalles, adicionales, dias] = await Promise.all([
+      const [detalles, adicionales, dias, congelados] = await Promise.all([
         detallesDeLineas(tx, tenantId, items.map((i) => i.id)),
         adicionalesDelProyecto(tx, tenantId, proyectoId),
         diasDelPlan(tenantId),
+        // MIA T07 · O16: aprobada con foto, el cobro del cliente sale del total congelado.
+        viva.estado === "APROBADO" ? totalesCongelados(tx, tenantId, [viva.id]) : new Map<string, number>(),
       ]);
       const proveedores = [...new Set([...items.map((i) => i.supplierId), ...adicionales.flatMap((a) => a.lineas.map((l) => l.supplierId))].filter((s): s is string => !!s))];
       const fichas = await tx.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
@@ -321,6 +324,7 @@ export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: 
               anticipoProveedor,
               anticipoLinea,
               dias,
+              ventaCongelada: congelados.get(viva.id) ?? null,
             }), ...cuotasDeAdicionales(adicionales, { proyectoId, nombre: p.nombre, fechaEvento: p.fechaEvento, creado: p.createdAt, anticipoClientePct: p.anticipoClientePct, dias, anticipoProveedor })]
           : [];
       const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
@@ -332,6 +336,15 @@ export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: 
       return false;
 }
 
+/** Las cuotas (de estas) atadas a un comprobante. Sin M1, ninguna: `to_regclass` no aborta la transacción (Gate 2). */
+async function cuotasEnlazadas(tx: Prisma.TransactionClient, tenantId: string, ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const hay = await tx.$queryRaw<{ ok: boolean }[]>`SELECT to_regclass('"ProyectoCuotaComprobante"') IS NOT NULL AS ok`;
+  if (!hay[0]?.ok) return new Set();
+  const filas = await tx.proyectoCuotaComprobante.findMany({ where: { tenantId, cuotaId: { in: [...ids] } }, select: { cuotaId: true } });
+  return new Set(filas.map((f) => f.cuotaId));
+}
+
 /**
  * Una pasada de `regenerarCuotas`: lee las cuotas, ajusta el plan a lo marcado y lo escribe.
  * Devuelve `true` si una cuota se marcó mientras tanto (el plan quedó calculado con lo viejo).
@@ -339,9 +352,14 @@ export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: 
 async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean, tc: Readonly<Record<string, number>>): Promise<boolean> {
   const actuales = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, tipo: true, moneda: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
   const marcadas = actuales.filter((c) => c.pagadoEl && !c.anuladoEl);
+  // MIA T07 (obs. de T05 sobre esta función): una cuota impaga ENLAZADA a un comprobante (M1) queda fija como lo pagado. Si el
+  // plan le cambiara el monto, las enlazadas pasarían el total del comprobante (la invariante de `enlazarCuota`); si la anulara,
+  // la factura quedaría atada a nada. La diferencia va a las otras cuotas del ítem (`ajustarAPagado`).
+  const enlazadas = await cuotasEnlazadas(tx, tenantId, actuales.filter((c) => !c.pagadoEl && !c.anuladoEl).map((c) => c.id));
+  const fijas = actuales.filter((c) => !c.anuladoEl && (c.pagadoEl || enlazadas.has(c.id)));
   // Lo pagado en parte (pago a proveedor) también es pagado: el plan nuevo no se lo vuelve a pedir (también si la cuota se va).
   const partes = await pagosParcialesDeCuotas(tenantId, actuales, tc, tx, true);
-  const ajustado = ajustarAPagado(planDeLaFicha, marcadas.map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
+  const ajustado = ajustarAPagado(planDeLaFicha, fijas.map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
   // En la moneda que el plan nuevo le da a cada ítem (el ítem pudo cambiar de pesos a dólares o al revés).
   const partesDelPlan = partesEnMonedaDelPlan(actuales, partes, ajustado, tc);
   const plan = descontarPartes(ajustado, partesDelPlan, new Set(marcadas.map((c) => c.clave ?? "")));
@@ -354,7 +372,7 @@ async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proye
   let choco = false;
   for (const c of plan) {
     const previa = porClave.get(c.clave);
-    if (previa?.pagadoEl) continue;
+    if (previa?.pagadoEl || (previa && enlazadas.has(previa.id))) continue;
     const saldada = cubiertas.has(c.clave) && !!previa;
     // Una cuota que ya fue firme no vuelve a ser previsión (MIA-089 · V1): ir y volver de etapa no le toca nada.
     const laPrevista = previstaDeLaCuota(prevista, previa);
@@ -377,7 +395,7 @@ async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proye
       if (saldada && r.count > 0) await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: previa.id, campo: `Pagado · ${c.concepto}`, antes: "Pendiente", despues: SALDADA_CON_PARTES, autor: "Sistema" });
     } else await tx.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
   }
-  const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl).map((c) => c.id);
+  const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl && !enlazadas.has(c.id)).map((c) => c.id);
   if (sobran.length > 0) {
     const r = await tx.proyectoCuota.updateMany({ where: { tenantId, id: { in: sobran }, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
     // Si una de las que sobran se marcó en el medio, el plan se calculó sin descontarla: otra pasada.

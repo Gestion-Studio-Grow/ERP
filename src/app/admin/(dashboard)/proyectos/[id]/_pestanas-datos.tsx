@@ -8,7 +8,7 @@ import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, ca
 import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, yaVencio, type MedioPago } from "@/lib/proyectos/core";
 import { avanceDeCobro, conteoPorEstado } from "@/lib/proyectos/ficha-core";
 import { ofreceNuevaVersion } from "@/lib/proyectos/presupuesto-vista-core";
-import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO, ventaEn } from "@/lib/proyectos/gestion-core";
+import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, TIPOS_EVENTO } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { prisma } from "@/lib/prisma";
 import { puede, type Actor } from "@/lib/proyectos/gestion.server";
@@ -16,6 +16,7 @@ import { campo, etiqueta, tarjeta } from "../_vista";
 import { cabezaMovil, celdaMovil, cssTarjetas, cuerpoMovil, etiquetasFicha, filaMovil, importe, importeDeVenta, tablaMovil } from "../_tabla";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
 import { CopiarLink } from "./_piezas";
+import { valorDelNegocio } from "@/lib/proyectos/parametros/leer.server";
 import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
 import { TablaFicha } from "./_tabla-ficha";
 
@@ -42,6 +43,8 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
   const conPortal = await etapa2ActivaPara(a.tenantId, "portal");
   const avance = avanceDeCobro(finanzas, !!p.perdidoEl);
   const libres = personas.filter((x) => !p.equipo.some((e) => e.personaId === x.id));
+  // MIA T07: las funciones del negocio (catálogo de parámetros): con ellas se cobra la comisión del precio por total.
+  const funciones = await valorDelNegocio(a.tenantId, "equipo.funciones");
   const clientes = vista.pipelineEdita ? await prisma.client.findMany({ where: { tenantId: a.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [];
 
   return (
@@ -145,7 +148,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
             <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-1 text-sm">
               <span className="min-w-0">
                 <span className="font-medium text-strong">{e.persona.nombre}</span>
-                <span className="block text-xs text-muted">{[e.funcion || e.persona.puesto, vista.costos && e.plus > 0 ? `plus ${pesos(e.plus)}` : null].filter(Boolean).join(" · ")}</span>
+                <span className="block text-xs text-muted">{[(e.funcion && funciones.find((f) => f.id === e.funcion)?.nombre) || e.funcion || e.persona.puesto, vista.costos && e.plus > 0 ? `plus ${pesos(e.plus)}` : null].filter(Boolean).join(" · ")}</span>
               </span>
               {vista.pipelineEdita && <BotonConConfirmacion accion={quitarEquipo} ocultos={{ id: e.id, proyectoId: p.id }} texto="Quitar" textoConfirma="Quitar" etiqueta={`Quitar a ${e.persona.nombre}`} />}
             </li>
@@ -161,7 +164,10 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
                 <option value="" disabled>Persona</option>
                 {libres.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
               </select>
-              <input name="funcion" maxLength={80} aria-label="Función" placeholder="Función" className={campo} />
+              <select name="funcion" aria-label="Función" defaultValue="" className={campo}>
+                <option value="">Sin función que cobre</option>
+                {funciones.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
+              </select>
               {vista.editaCostos && <input name="plus" inputMode="decimal" aria-label="Plus por evento" placeholder="Plus por evento" className={campo} />}
               <SubmitButton className={buttonClasses("outline", "md")}>Asignar</SubmitButton>
             </FormAccion>

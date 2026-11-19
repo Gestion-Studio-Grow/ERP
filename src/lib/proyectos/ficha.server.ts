@@ -19,6 +19,8 @@ import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, res
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
+import { modoDeLaPropuesta } from "./precio-proyecto.server";
+import { totalesDelNeto, type ModoPropuesta } from "./precio-proyecto-core";
 
 export interface TarjetaProyecto {
   id: string;
@@ -131,6 +133,15 @@ export async function cabeceraFicha(a: Actor, id: string) {
   // P-06: la cabecera y las finanzas cuentan la versión aprobada; la pestaña Ficha, el borrador que se está editando.
   const borradorSobreAprobada = !!viva && !!base && viva.id !== base.id;
   const itemsPlata = borradorSobreAprobada ? base.items.map(aItemFicha) : items;
+  // MIA T07 · O16/O17: cotizando por total, la venta es el total del tablero (o el congelado de la foto), no la suma de los ítems.
+  const versionPlata = borradorSobreAprobada ? base : viva;
+  const neto = versionPlata ? (await modoDeLaPropuesta(a.tenantId, versionPlata))?.neto ?? null : null;
+  const totales = totalesFicha(itemsPlata, tc, config.margenPct);
+  if (neto != null) {
+    totales.venta = neto;
+    totales.margen = redondear(neto - totales.costo);
+    totales.margenPct = neto > 0 ? redondear((totales.margen / neto) * 100) : 0;
+  }
   return {
     proyecto,
     viva,
@@ -140,7 +151,7 @@ export async function cabeceraFicha(a: Actor, id: string) {
     tc,
     negocio,
     codigo: codigoProyecto(proyecto.numero, proyecto.createdAt),
-    totales: totalesFicha(itemsPlata, tc, config.margenPct),
+    totales,
     totalesViva: totalesFicha(items, tc, config.margenPct),
     sinProveedor: costoSinProveedor(itemsPlata, tc),
     faltanCambio: monedasSinCambio(viva?.items ?? [], tc),
@@ -297,7 +308,17 @@ export async function papelDeLaPropuesta(token: string) {
   if (!/^[A-Za-z0-9_-]{20,}$/.test(token)) return null;
   const tenantId = await getCurrentTenantId();
   const version = await prisma.proyectoPresupuesto.findFirst({ where: { tenantId, token, estado: { not: "BORRADOR" } }, select: { id: true, proyectoId: true } });
-  return version ? armarPapel(tenantId, { tenantId, id: version.proyectoId }, version.id) : null;
+  if (!version) return null;
+  const [papel, modo] = await Promise.all([armarPapel(tenantId, { tenantId, id: version.proyectoId }, version.id), modoDeLaPropuesta(tenantId, version)]);
+  if (!papel) return null;
+  return modo ? papelPorTotal(papel, modo) : { ...papel, porTotal: null };
+}
+
+/** O17 (MIA T07): el PDF de un negocio que cotiza por total lleva el total congelado y, según el parámetro, sin precio por ítem. */
+function papelPorTotal<P extends NonNullable<Awaited<ReturnType<typeof armarPapel>>>>(papel: P, modo: ModoPropuesta) {
+  const t = modo.neto != null && papel.moneda === "ARS" ? totalesDelNeto(modo.neto, papel.ivaPct) : { neto: papel.neto, iva: papel.iva, total: papel.total };
+  const grupos = modo.sinPrecioPorItem ? papel.grupos.map((g) => ({ ...g, subtotal: null, lineas: g.lineas.map((l) => ({ ...l, importe: null })) })) : papel.grupos;
+  return { ...papel, ...t, grupos, porTotal: { conIva: modo.conIva } };
 }
 
 async function armarPapel(tenantId: string, cual: Prisma.ProyectoWhereInput, versionId?: string | null) {

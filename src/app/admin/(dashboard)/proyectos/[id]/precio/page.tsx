@@ -1,188 +1,114 @@
-// Vista previa del precio por total y de la rendición (GSG-MIA-056 · T04). NO GUARDA NADA: es una calculadora sobre
-// los motores puros `precio-core.ts` y `rendicion-core.ts`. Lee, del proyecto, sólo el costo de la versión aprobada y
-// los gastos cargados; todo lo demás se escribe en la página y viaja en la dirección (formulario GET).
-// Guardar el total, los porcentajes y la foto llega con M3 y M4 (T07); la liquidación, con M5 (T10).
+// El precio por total del proyecto (MIA T07 · O14, O15, O18, O50): el tablero con los parámetros del negocio, el total
+// escrito a mano, lo que espera a Dirección, el reparto del equipo y, aprobada la propuesta, la foto que no cambia.
+// La calculadora libre de T04 (no guarda nada) sigue en `calculadora/`.
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { buttonClasses, cn } from "@/components/ui";
-import { centavosDe, sumarAlCentavo } from "@/lib/dinero/redondeo";
+import { cn } from "@/components/ui";
 import { prisma } from "@/lib/prisma";
 import { requireApp } from "@/lib/require-app";
-import { leerNumero, pesos, porcentaje } from "@/lib/proyectos/core";
-import { datosDelNegocio } from "@/lib/proyectos/datos.server";
-import { monedasSinCambio } from "@/lib/proyectos/ficha-core";
-import { costoTotalItem } from "@/lib/proyectos/gestion-core";
-import { exigirVer, filtroDeProyectos, tiposDeCambio } from "@/lib/proyectos/gestion.server";
-import { calcularPrecio, PORCENTAJES_PLANTILLA, TOPE_PLANTILLA, type Centavos, type Precio, type PorcentajesPrecio } from "@/lib/proyectos/precio-core";
-import { calcularRendicion, DIFERENCIAS_CON_PLANILLA, MATRIZ_PLANTILLA, PARTICIPANTES, type MatrizReparto, type Participante, type Rendicion } from "@/lib/proyectos/rendicion-core";
+import { fechaCorta, pesos, porcentaje } from "@/lib/proyectos/core";
+import { exigirVer, filtroDeProyectos, puede } from "@/lib/proyectos/gestion.server";
+import { defDe, EMPRESA, type Clave } from "@/lib/proyectos/parametros/catalogo";
+import { contextoDelPrecio, estadoDelPrecio, type EstadoPrecio, type FotoPrecio } from "@/lib/proyectos/precio-proyecto.server";
+import { leerPorcentajes, REDONDEO, totalesDelNeto, type Tablero } from "@/lib/proyectos/precio-proyecto-core";
 import { campo, etiqueta, tarjeta } from "../../_vista";
+import { FormularioPrecio } from "./_formularios";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Precio y rendición · vista previa" };
+export const metadata = { title: "Precio del proyecto" };
 
-type Q = Record<string, string | undefined>;
-
-/** Las funciones de la planilla. La empresa se muestra con el nombre del negocio: nada queda escrito para un negocio. */
-const NOMBRE: Record<Exclude<Participante, "empresa">, string> = { productor1: "Productor 1", productor2: "Productor 2", comercial: "Comercial" };
-/** Caso patrón Z del plan (ficticio): se carga con un enlace para probar la cuenta sin un proyecto real. */
-const CASO_Z = { co: "1000000", ad: "0", real: "900000", total: "1490000" };
-
-const plata = (c: Centavos) => pesos(c / 100);
-const enPesos = (texto: string | undefined, porDefecto: Centavos): Centavos => (texto === undefined || texto.trim() === "" ? porDefecto : centavosDe(leerNumero(texto)));
-const enPct = (texto: string | undefined, porDefecto: number): number => (texto === undefined || texto.trim() === "" ? porDefecto : leerNumero(texto));
-// Con separador de miles, como el resto de la plata de la pantalla; `leerNumero` lo vuelve a leer igual ("1.532.258,06").
-const textoPesos = (c: Centavos) => (c / 100).toLocaleString("es-AR", { maximumFractionDigits: 2 });
+const plata = (c: number) => pesos(c / 100);
 const textoPct = (n: number) => n.toLocaleString("es-AR", { maximumFractionDigits: 2, useGrouping: false });
+const textoPesos = (c: number) => (c / 100).toLocaleString("es-AR", { maximumFractionDigits: 2 });
 
-export default async function VistaPreviaPrecio({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Q> }) {
+export default async function PrecioDelProyecto({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("proyectos");
-  // La rendición muestra lo que cobra cada uno y el costo: sólo quien ve costos.
+  // El tablero muestra costos y comisiones: sólo quien ve costos.
   const a = await exigirVer("costos");
-  const [{ id }, q] = await Promise.all([params, searchParams]);
+  const { id } = await params;
   const proyecto = await prisma.proyecto.findFirst({ where: { ...filtroDeProyectos(a), id }, select: { id: true, nombre: true, client: { select: { name: true } } } });
   if (!proyecto) notFound();
-
-  const [aprobada, gastos, tc, negocio] = await Promise.all([
-    prisma.proyectoPresupuesto.findFirst({ where: { tenantId: a.tenantId, proyectoId: id, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { version: true, items: { select: { cantidad: true, costo: true, moneda: true } } } }),
-    prisma.proyectoGasto.findMany({ where: { tenantId: a.tenantId, proyectoId: id, anuladoEl: null }, select: { neto: true } }),
-    tiposDeCambio(a.tenantId),
-    datosDelNegocio(a.tenantId),
-  ]);
-  // Lo que se lee del proyecto. Costo aprobado: los ítems de la versión APROBADA (no la última), en pesos, sin IVA.
-  // Costo real: los gastos cargados y no anulados, sin IVA (`ProyectoGasto.neto`). Cada renglón al centavo y suma exacta.
-  const coDelProyecto = aprobada ? centavosDe(sumarAlCentavo(aprobada.items.map((i) => costoTotalItem(i, tc)))) : 0;
-  const realDelProyecto = centavosDe(sumarAlCentavo(gastos.map((g) => g.neto)));
-  const sinCambio = aprobada ? monedasSinCambio(aprobada.items, tc) : [];
-
-  const co = enPesos(q.co, coDelProyecto);
-  const ad = enPesos(q.ad, 0);
-  const real = enPesos(q.real, realDelProyecto);
-  const total = q.total === undefined || q.total.trim() === "" ? null : centavosDe(leerNumero(q.total));
-  const porcentajes: PorcentajesPrecio = {
-    rentabilidad: enPct(q.rent, PORCENTAJES_PLANTILLA.rentabilidad),
-    productor1: enPct(q.p1, PORCENTAJES_PLANTILLA.productor1),
-    productor2: enPct(q.p2, PORCENTAJES_PLANTILLA.productor2),
-    comercial: enPct(q.cc, PORCENTAJES_PLANTILLA.comercial),
-    margenError: enPct(q.me, PORCENTAJES_PLANTILLA.margenError),
-    iibGa: enPct(q.iib, PORCENTAJES_PLANTILLA.iibGa),
-  };
-  const tope = { pct: enPct(q.tope, TOPE_PLANTILLA.pct), medidoSobre: q.medido === "neto" ? ("neto" as const) : ("bruto" as const) };
-  const matriz: MatrizReparto = {
-    defensa: { productor1: enPct(q.d1, MATRIZ_PLANTILLA.defensa.productor1), productor2: enPct(q.d2, MATRIZ_PLANTILLA.defensa.productor2), comercial: enPct(q.dc, MATRIZ_PLANTILLA.defensa.comercial) },
-    redondeo: { productor1: 0, productor2: 0, comercial: 0 },
-    margenError: { productor1: enPct(q.m1, MATRIZ_PLANTILLA.margenError.productor1), productor2: enPct(q.m2, MATRIZ_PLANTILLA.margenError.productor2), comercial: enPct(q.mc, MATRIZ_PLANTILLA.margenError.comercial) },
-  };
-  const defensaNegativa = q.neg === "pisoCero" ? ("pisoCero" as const) : ("descuenta" as const);
-
-  let precio: Precio | null = null;
-  let rendicion: Rendicion | null = null;
-  let error: string | null = null;
-  try {
-    precio = calcularPrecio({ costoOriginal: co, adicionales: ad, porcentajes, totalVenta: total, tope });
-    if (precio.totalVenta !== null) rendicion = calcularRendicion({ precio, costoReal: real, matriz, defensaNegativa });
-  } catch (e) {
-    error = e instanceof RangeError ? e.message : "No se pudo hacer la cuenta con esos valores.";
-  }
-  const provisional = porcentajesDePlantilla(porcentajes, tope, matriz);
+  const ctx = await contextoDelPrecio(a.tenantId);
+  const e = await estadoDelPrecio(a.tenantId, id, ctx);
+  const edita = puede(a, "cotizaciones", "editar");
+  const direccion = a.rol === "DIRECCION";
+  const funciones = ctx.valores["equipo.funciones"];
+  const conceptos = ctx.valores["reparto.conceptos"];
+  const provisionales = ctx.provisionales.map((k) => defDe(k as Clave).nombre);
+  const esperaTope = !!e.tablero?.pasaTope && e.topeAprobado !== e.tablero.redondeoBruto && ctx.valores["precio.redondeo.accion"] !== "INFORMA";
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-5">
       <Link href={`/admin/proyectos/${proyecto.id}?tab=cotizacion`} className="inline-flex min-h-11 items-center text-sm underline">← Volver al proyecto</Link>
       <header className="mb-4 mt-1">
         <p className="text-sm text-muted">{proyecto.client.name}</p>
-        <h1 className="text-2xl font-bold text-strong">{proyecto.nombre}: precio por total y rendición</h1>
+        <h1 className="text-2xl font-bold text-strong">{proyecto.nombre}: precio</h1>
       </header>
 
-      <p role="note" className="mb-4 rounded-xl border border-warning bg-warning-soft p-3 text-sm text-strong">
-        <strong>Vista previa: no guarda nada.</strong> Sirve para ver la cuenta de la planilla de precio y rendición con los datos de este proyecto. Cambiar un valor no mueve cuotas, cobros, pagos ni liquidaciones.
-      </p>
-
-      <section className={cn(tarjeta, "mb-4")} aria-labelledby="t-datos">
-        <h2 id="t-datos" className="text-lg font-semibold text-strong">Datos de la cuenta</h2>
-        <p className="mt-1 text-sm text-muted">
-          Del proyecto: costo aprobado {aprobada ? `(versión ${aprobada.version}) ${plata(coDelProyecto)}` : "— todavía no hay una versión aprobada"} · costo real {plata(realDelProyecto)} ({gastos.length} {gastos.length === 1 ? "gasto" : "gastos"}, sin IVA).
+      {!e.m3 && <Aviso tono="warning">Falta preparar la base para guardar el precio (migración M3). Mientras tanto, el tablero se ve pero no se guarda.</Aviso>}
+      {!e.porTotal && <Aviso tono="warning">Este negocio cotiza por ítem: el precio sale de la planilla de la cotización.</Aviso>}
+      {provisionales.length > 0 && (
+        <p role="note" className="mb-4 rounded-xl border border-warning bg-warning-soft p-3 text-sm text-strong">
+          <strong>Provisional a confirmar:</strong> {provisionales.join(" · ")}. Se cambian en Ajustes del negocio.
         </p>
-        {sinCambio.length > 0 && <p role="alert" className="mt-1 text-sm text-danger">Falta el tipo de cambio de {sinCambio.join(", ")}: esos ítems cuentan 0 en el costo aprobado.</p>}
-        <form method="get" className="mt-3 grid gap-4">
-          <fieldset className="grid gap-3 sm:grid-cols-2">
-            <legend className="mb-1 text-sm font-semibold text-strong">Importes, en pesos</legend>
-            <Campo nombre="co" titulo="Costos originales" valor={textoPesos(co)} />
-            <Campo nombre="ad" titulo="Adicionales" valor={textoPesos(ad)} />
-            <Campo nombre="total" titulo="Total de venta" valor={total === null ? "" : textoPesos(total)} ayuda="Se escribe a mano. Vacío: se ve el tablero sin la rendición." />
-            <Campo nombre="real" titulo="Costo real" valor={textoPesos(real)} />
-          </fieldset>
-          <fieldset className="grid gap-3 sm:grid-cols-3">
-            <legend className="mb-1 flex flex-wrap items-center gap-2 text-sm font-semibold text-strong">
-              Porcentajes del tablero
-              {provisional && <span className="rounded-full border border-warning bg-warning-soft px-2 py-0.5 text-xs font-medium">Plantilla · provisional a confirmar</span>}
-            </legend>
-            <Campo nombre="rent" titulo="Rentabilidad %" valor={textoPct(porcentajes.rentabilidad)} />
-            <Campo nombre="p1" titulo="Comisión productor 1 %" valor={textoPct(porcentajes.productor1)} ayuda="De la rentabilidad, no de la venta." />
-            <Campo nombre="p2" titulo="Comisión productor 2 %" valor={textoPct(porcentajes.productor2)} />
-            <Campo nombre="cc" titulo="Comisión comercial %" valor={textoPct(porcentajes.comercial)} />
-            <Campo nombre="me" titulo="Margen de error %" valor={textoPct(porcentajes.margenError)} />
-            <Campo nombre="iib" titulo="IIB y GA %" valor={textoPct(porcentajes.iibGa)} />
-            <Campo nombre="tope" titulo="Tope del redondeo %" valor={textoPct(tope.pct)} />
-            <label className={cn(etiqueta, "content-start")}>
-              El tope se mide sobre
-              <select name="medido" defaultValue={tope.medidoSobre} className={campo}>
-                <option value="bruto">Redondeo bruto (como el Excel)</option>
-                <option value="neto">Redondeo neto</option>
-              </select>
-            </label>
-          </fieldset>
-          <fieldset className="grid gap-3 sm:grid-cols-3">
-            <legend className="mb-1 text-sm font-semibold text-strong">Reparto ({negocio.nombre} recibe el resto)</legend>
-            <Campo nombre="d1" titulo="Defensa · productor 1 %" valor={textoPct(matriz.defensa.productor1)} />
-            <Campo nombre="d2" titulo="Defensa · productor 2 %" valor={textoPct(matriz.defensa.productor2)} />
-            <Campo nombre="dc" titulo="Defensa · comercial %" valor={textoPct(matriz.defensa.comercial)} />
-            <Campo nombre="m1" titulo="Margen de error · productor 1 %" valor={textoPct(matriz.margenError.productor1)} />
-            <Campo nombre="m2" titulo="Margen de error · productor 2 %" valor={textoPct(matriz.margenError.productor2)} />
-            <Campo nombre="mc" titulo="Margen de error · comercial %" valor={textoPct(matriz.margenError.comercial)} />
-            <label className={cn(etiqueta, "content-start")}>
-              Si la defensa da negativa
-              <select name="neg" defaultValue={defensaNegativa} className={campo}>
-                <option value="descuenta">Se descuenta según el reparto</option>
-                <option value="pisoCero">Piso cero: lo absorbe {negocio.nombre}</option>
-              </select>
-            </label>
-            <p className="text-sm text-muted sm:col-span-2">El redondeo queda 100 % en {negocio.nombre}: incluye IIB y GA y no se reparte a personas hasta que se defina.</p>
-          </fieldset>
-          <div className="flex flex-wrap gap-2">
-            <button type="submit" className={buttonClasses("solid", "md")}>Calcular</button>
-            <Link href={`/admin/proyectos/${proyecto.id}/precio`} className={buttonClasses("outline", "md")}>Volver a los datos del proyecto</Link>
-            <Link href={`/admin/proyectos/${proyecto.id}/precio?${new URLSearchParams(CASO_Z).toString()}`} className={buttonClasses("outline", "md")}>Probar con el caso de ejemplo Z (ficticio)</Link>
-          </div>
-        </form>
-      </section>
+      )}
 
-      {error && <p role="alert" className="mb-4 rounded-xl border border-danger bg-danger-soft p-3 text-sm text-strong">{error}</p>}
+      {e.foto && <Foto f={e.foto} funciones={funciones} conceptos={conceptos} />}
+      {e.freno && !e.foto && <Aviso tono="danger">La propuesta no sale todavía: {e.freno}</Aviso>}
 
-      {precio && <Tablero p={precio} pct={porcentajes} tope={tope} />}
-      {precio && precio.totalVenta === null && <p className={cn(tarjeta, "mb-4 text-sm")}>Escribí el total de venta para ver el redondeo y la rendición.</p>}
-      {rendicion && <VistaRendicion r={rendicion} empresa={negocio.nombre} />}
+      {e.tablero && <VistaTablero t={e.tablero} e={e} funciones={funciones} tope={ctx.valores["precio.redondeo.tope"]} />}
 
-      <details className={cn(tarjeta, "mb-4")}>
-        <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-strong">Cuatro diferencias con la planilla de origen (a confirmar)</summary>
-        <ol className="mt-2 grid list-decimal gap-3 pl-5 text-sm">
-          {DIFERENCIAS_CON_PLANILLA.map((d) => (
-            <li key={d.id}>
-              <p><span className="font-medium text-strong">Planilla:</span> {d.planilla}</p>
-              <p><span className="font-medium text-strong">Esta cuenta:</span> {d.motor}</p>
-            </li>
-          ))}
-        </ol>
-      </details>
+      {(e.pendientes || esperaTope) && (
+        <section className={cn(tarjeta, "mb-4 border-warning")} aria-labelledby="t-direccion">
+          <h2 id="t-direccion" className="text-lg font-semibold text-strong">Espera a Dirección</h2>
+          {e.pendientes && (
+            <p className="mt-1 text-sm">
+              {e.pendientesPor ?? "Alguien"} pidió porcentajes fuera del rango del negocio
+              {e.pendientesMotivo ? ` («${e.pendientesMotivo}»)` : ""}: rentabilidad {porcentaje(e.pendientes.rentabilidad)}, margen de error {porcentaje(e.pendientes.margenError)}, IIB y GA {porcentaje(e.pendientes.iibGa)}
+              {funciones.map((f) => `, ${f.nombre} ${porcentaje(e.pendientes!.comision[f.id] ?? 0)}`).join("")}.
+            </p>
+          )}
+          {esperaTope && <p className="mt-1 text-sm">El redondeo pasa el tope del negocio ({porcentaje(ctx.valores["precio.redondeo.tope"])}).</p>}
+          {direccion && edita ? <FormularioPrecio cual="aprobar" proyectoId={proyecto.id} boton="Aprobar como Dirección" className="mt-3" /> : <p className="mt-2 text-sm text-muted">Lo aprueba Dirección.</p>}
+        </section>
+      )}
+      {e.topeAprobado != null && !esperaTope && e.topeAprobadoPor && <p className="mb-4 text-sm text-muted">El redondeo sobre el tope lo aprobó {e.topeAprobadoPor}.</p>}
+
+      {edita && e.m3 && e.porTotal && (
+        <section className={cn(tarjeta, "mb-4")} aria-labelledby="t-total">
+          <h2 id="t-total" className="text-lg font-semibold text-strong">Total y porcentajes</h2>
+          <p className="mt-1 text-sm text-muted">El total va sin IVA y en pesos; el plan de cobro le suma el IVA. Un porcentaje fuera del rango del negocio espera a Dirección.</p>
+          <FormularioPrecio cual="precio" proyectoId={proyecto.id} boton="Guardar el precio" className="mt-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Campo nombre="total" titulo="Total de venta, sin IVA" valor={e.totalVenta == null ? "" : textoPesos(e.totalVenta)} />
+              <Campo nombre="rentabilidad" titulo="Rentabilidad %" valor={textoPct(e.vigentes.rentabilidad)} />
+              <Campo nombre="margenError" titulo="Margen de error %" valor={textoPct(e.vigentes.margenError)} />
+              <Campo nombre="iibGa" titulo="IIB y GA %" valor={textoPct(e.vigentes.iibGa)} />
+              {funciones.map((f) => <Campo key={f.id} nombre={`comision.${f.id}`} titulo={`Comisión ${f.nombre} %`} valor={textoPct(e.vigentes.comision[f.id] ?? 0)} />)}
+            </div>
+            {e.foto && <Campo nombre="motivo" titulo="Motivo del cambio (la propuesta ya está aprobada)" valor="" />}
+          </FormularioPrecio>
+        </section>
+      )}
+
+      {e.m3 && e.porTotal && <Reparto e={e} conceptos={conceptos} edita={edita && e.m4} proyectoId={proyecto.id} />}
+
+      <p className="mt-4 text-sm">
+        <Link href={`/admin/proyectos/${proyecto.id}/precio/calculadora`} className="inline-flex min-h-11 items-center underline">Calculadora libre de precio y rendición (no guarda nada)</Link>
+      </p>
     </main>
   );
 }
 
-function Campo({ nombre, titulo, valor, ayuda }: { nombre: string; titulo: string; valor: string; ayuda?: string }) {
+function Aviso({ tono, children }: { tono: "warning" | "danger"; children: React.ReactNode }) {
+  return <p role="alert" className={cn("mb-4 rounded-xl border p-3 text-sm text-strong", tono === "danger" ? "border-danger bg-danger-soft" : "border-warning bg-warning-soft")}>{children}</p>;
+}
+
+function Campo({ nombre, titulo, valor }: { nombre: string; titulo: string; valor: string }) {
   return (
     <label className={cn(etiqueta, "content-start")}>
       {titulo}
       <input name={nombre} defaultValue={valor} inputMode="decimal" autoComplete="off" className={campo} />
-      {ayuda && <span className="text-xs font-normal text-muted">{ayuda}</span>}
     </label>
   );
 }
@@ -199,78 +125,101 @@ function Renglon({ titulo, cuenta, valor, fuerte }: { titulo: string; cuenta?: s
   );
 }
 
-function Tablero({ p, pct, tope }: { p: Precio; pct: PorcentajesPrecio; tope: { pct: number; medidoSobre: "bruto" | "neto" } }) {
-  const f = (n: number) => porcentaje(n);
+function VistaTablero({ t, e, funciones, tope }: { t: Tablero; e: EstadoPrecio; funciones: readonly { id: string; nombre: string }[]; tope: number }) {
+  const p = e.vigentes;
   return (
     <section className={cn(tarjeta, "mb-4")} aria-labelledby="t-tablero">
-      <h2 id="t-tablero" className="text-lg font-semibold text-strong">Tablero de precio</h2>
+      <h2 id="t-tablero" className="text-lg font-semibold text-strong">Tablero</h2>
       <dl className="mt-2 text-sm">
-        <Renglon titulo="Costos originales" valor={plata(p.costoOriginal)} />
-        <Renglon titulo="Adicionales" valor={plata(p.adicionales)} />
-        <Renglon titulo="Rentabilidad" cuenta={`(costos originales + adicionales) × ${f(pct.rentabilidad)}`} valor={plata(p.rentabilidad)} />
-        <Renglon titulo="Comisión productor 1" cuenta={`rentabilidad × ${f(pct.productor1)}`} valor={plata(p.comisiones.productor1)} />
-        <Renglon titulo="Comisión productor 2" cuenta={`rentabilidad × ${f(pct.productor2)}`} valor={plata(p.comisiones.productor2)} />
-        <Renglon titulo="Comisión comercial" cuenta={`rentabilidad × ${f(pct.comercial)}`} valor={plata(p.comisiones.comercial)} />
-        <Renglon titulo="Margen de error" cuenta={`(costos originales + rentabilidad) × ${f(pct.margenError)}`} valor={plata(p.margenError)} />
-        <Renglon titulo="Subtotal" cuenta="suma de los renglones de arriba" valor={plata(p.subtotal)} fuerte />
-        <Renglon titulo="IIB y GA" cuenta={`subtotal × ${f(pct.iibGa)} ÷ ${f(100 - pct.iibGa)} · no entra en el subtotal`} valor={plata(p.iibGa)} />
-        {p.totalVenta !== null && (
+        <Renglon titulo="Costos originales" cuenta="los ítems de la versión viva, en pesos y sin IVA" valor={plata(t.costoOriginal)} />
+        <Renglon titulo="Rentabilidad" cuenta={`costos × ${porcentaje(p.rentabilidad)}`} valor={plata(t.rentabilidad)} />
+        {funciones.map((f) => <Renglon key={f.id} titulo={`Comisión ${f.nombre}`} cuenta={`rentabilidad × ${porcentaje(p.comision[f.id] ?? 0)}`} valor={plata(t.comisiones[f.id] ?? 0)} />)}
+        <Renglon titulo="Margen de error" cuenta={`(costos + rentabilidad) × ${porcentaje(p.margenError)}`} valor={plata(t.margenError)} />
+        <Renglon titulo="Subtotal" valor={plata(t.subtotal)} fuerte />
+        <Renglon titulo="IIB y GA" cuenta={`subtotal × ${porcentaje(p.iibGa)} ÷ ${porcentaje(100 - p.iibGa)}`} valor={plata(t.iibGa)} />
+        {t.totalVenta != null ? (
           <>
-            <Renglon titulo="Total de venta" cuenta="escrito a mano" valor={plata(p.totalVenta)} fuerte />
-            <Renglon titulo="Redondeo bruto" cuenta="total − subtotal" valor={plata(p.redondeoBruto as number)} />
-            <Renglon titulo="Redondeo en %" cuenta={`redondeo bruto ÷ total · tope ${f(tope.pct)}`} valor={p.redondeoPuntos === null ? "—" : f(p.redondeoPuntos / 100)} />
-            <Renglon titulo="Redondeo neto" cuenta="redondeo bruto − IIB y GA" valor={plata(p.redondeoNeto as number)} />
+            <Renglon titulo="Total de venta, sin IVA" cuenta="escrito a mano" valor={plata(t.totalVenta)} fuerte />
+            <Renglon titulo="Redondeo bruto" cuenta="total − subtotal" valor={plata(t.redondeoBruto ?? 0)} />
+            <Renglon titulo="Redondeo en %" cuenta={`tope del negocio ${porcentaje(tope)}`} valor={t.redondeoPuntos == null ? "—" : porcentaje(t.redondeoPuntos / 100)} />
+            <Renglon titulo="Redondeo neto" cuenta="redondeo bruto − IIB y GA" valor={plata(t.redondeoNeto ?? 0)} />
           </>
+        ) : (
+          <Renglon titulo="Total de venta" cuenta="todavía no se escribió: la propuesta sale con la suma de los ítems" valor="—" />
         )}
       </dl>
-      {p.totalMenorAlSubtotal && <p role="alert" className="mt-3 rounded-lg border border-danger bg-danger-soft p-3 text-sm text-strong">El total de venta es menor que el subtotal. La planilla de origen no lo acepta: al guardar, se va a rechazar.</p>}
-      {p.pasaTope && (
-        <p role="alert" className="mt-3 rounded-lg border border-warning bg-warning-soft p-3 text-sm text-strong">
-          El redondeo {tope.medidoSobre === "neto" ? "neto" : "bruto"} pasa el tope de {f(tope.pct)}. Cuando se pueda guardar, este precio va a necesitar la aprobación de Dirección antes de enviarse (provisional a confirmar).
-        </p>
+      {t.pasaTope && <p role="alert" className="mt-3 rounded-lg border border-warning bg-warning-soft p-3 text-sm text-strong">El redondeo pasa el tope de {porcentaje(tope)}.</p>}
+    </section>
+  );
+}
+
+function Reparto({ e, conceptos, edita, proyectoId }: { e: EstadoPrecio; conceptos: readonly { id: string; nombre: string }[]; edita: boolean; proyectoId: string }) {
+  const filas = conceptos.map((c) => {
+    const personas = e.equipo.reduce((s, m) => s + (e.reparto[c.id]?.[m.id] ?? 0), 0);
+    return { c, personas, empresa: Math.round((100 - personas) * 100) / 100 }; // no-es-plata: un porcentaje para leer
+  });
+  return (
+    <section className={cn(tarjeta, "mb-4")} aria-labelledby="t-reparto">
+      <h2 id="t-reparto" className="text-lg font-semibold text-strong">Reparto del equipo</h2>
+      <p className="mt-1 text-sm text-muted">
+        Por persona y concepto. La empresa se queda con el resto y con el 100 % del redondeo, que no se reparte.{!e.repartoGuardado && " Todavía sale de la matriz del negocio: guardalo para fijarlo en este proyecto."}
+      </p>
+      {e.equipo.length === 0 ? (
+        <p className="mt-3 text-sm">No hay nadie en el equipo del proyecto. Se suma desde la ficha, en Equipo.</p>
+      ) : (
+        <ReparticionForm edita={edita} proyectoId={proyectoId}>
+          {filas.map(({ c, empresa }) => (
+            <fieldset key={c.id} className="grid gap-3 rounded-xl border border-line p-3 sm:grid-cols-3">
+              <legend className="px-1 text-sm font-semibold text-strong">{c.nombre}</legend>
+              {e.equipo.map((m) => (
+                <label key={m.id} className={cn(etiqueta, "content-start")}>
+                  {m.nombre} <span className="text-xs font-normal text-muted">{m.funcion ?? "sin función"}</span>
+                  <input name={`reparto.${c.id}.${m.id}`} defaultValue={textoPct(e.reparto[c.id]?.[m.id] ?? 0)} inputMode="decimal" autoComplete="off" disabled={!edita} className={campo} />
+                </label>
+              ))}
+              <p className="self-end text-sm">Empresa: <strong className="tabular-nums">{porcentaje(empresa)}</strong></p>
+            </fieldset>
+          ))}
+        </ReparticionForm>
       )}
     </section>
   );
 }
 
-function VistaRendicion({ r, empresa }: { r: Rendicion; empresa: string }) {
-  const conceptos = [
-    ["defensa", "Defensa"],
-    ["redondeo", "Redondeo"],
-    ["comisiones", "Comisiones"],
-    ["margenError", "Margen de error"],
-    ["rentabilidad", "Rentabilidad"],
-  ] as const;
+function ReparticionForm({ edita, proyectoId, children }: { edita: boolean; proyectoId: string; children: React.ReactNode }) {
+  if (!edita) return <div className="mt-3 grid gap-3">{children}</div>;
+  return <FormularioPrecio cual="reparto" proyectoId={proyectoId} boton="Guardar el reparto" className="mt-3">{children}</FormularioPrecio>;
+}
+
+function Foto({ f, funciones, conceptos }: { f: FotoPrecio; funciones: readonly { id: string; nombre: string }[]; conceptos: readonly { id: string; nombre: string }[] }) {
+  const nombreFuncion = (id: string | null) => funciones.find((x) => x.id === id)?.nombre ?? "—";
+  const pct = leerPorcentajes(f.parametros.porcentajes);
   return (
-    <section className={cn(tarjeta, "mb-4")} aria-labelledby="t-rendicion">
-      <h2 id="t-rendicion" className="text-lg font-semibold text-strong">Rendición</h2>
-      <p className="mt-1 text-sm">
-        Defensa (costo aprobado − costo real): <strong className="tabular-nums">{plata(r.defensa)}</strong>
-      </p>
-      {r.avisos.map((t) => <p key={t} role="alert" className="mt-2 rounded-lg border border-warning bg-warning-soft p-3 text-sm text-strong">{t}</p>)}
-      <ul className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {PARTICIPANTES.map((p) => (
-          <li key={p} className="rounded-xl border border-line bg-surface p-3">
-            <h3 className="font-semibold text-strong">{p === "empresa" ? empresa : NOMBRE[p]}</h3>
-            <dl className="mt-1 text-sm">
-              {conceptos.map(([k, t]) => <Renglon key={k} titulo={t} valor={plata(r.filas[p][k])} />)}
-              <Renglon titulo="Total" valor={plata(r.filas[p].total)} fuerte />
-            </dl>
+    <section className={cn(tarjeta, "mb-4 border-success")} aria-labelledby="t-foto">
+      <h2 id="t-foto" className="text-lg font-semibold text-strong">Aprobado el {fechaCorta(f.createdAt)}, con estos parámetros</h2>
+      <p className="mt-1 text-sm text-muted">Versión {f.version}, aprobada por {f.aprobadoPor}. Es la foto de la aprobación: no cambia aunque cambien los parámetros o el equipo.</p>
+      <dl className="mt-2 text-sm">
+        <Renglon titulo="Total de venta, sin IVA" valor={plata(f.totalVenta)} fuerte />
+        <Renglon titulo={`Con IVA ${porcentaje(f.ivaPct)}`} valor={pesos(totalesDelNeto(f.totalVenta / 100, f.ivaPct).total)} />
+        <Renglon titulo="Subtotal" valor={plata(f.subtotal)} />
+        <Renglon titulo="IIB y GA" valor={plata(f.iibGa)} />
+        <Renglon titulo="Redondeo bruto" valor={plata(f.redondeoBruto)} />
+        <Renglon titulo="Redondeo neto" valor={plata(f.redondeoNeto)} />
+      </dl>
+      {pct && <p className="mt-2 text-sm text-muted">Rentabilidad {porcentaje(pct.rentabilidad)} · Margen de error {porcentaje(pct.margenError)} · IIB y GA {porcentaje(pct.iibGa)}</p>}
+      <h3 className="mt-3 text-sm font-semibold text-strong">Equipo en la foto</h3>
+      <ul className="mt-1 grid gap-2 sm:grid-cols-2">
+        {f.participantes.map((p) => (
+          <li key={p.equipoId ?? EMPRESA} className="rounded-xl border border-line p-3 text-sm">
+            <p className="font-medium text-strong">{p.nombre}{p.funcion ? ` · ${nombreFuncion(p.funcion)}` : ""}</p>
+            <p className="text-muted">
+              Comisión {porcentaje(p.comisionPct)}
+              {conceptos.map((c) => ` · ${c.nombre} ${porcentaje(p.reparto[c.id] ?? 0)}`).join("")}
+              {p.reparto[REDONDEO] != null && ` · Redondeo ${porcentaje(p.reparto[REDONDEO])}`}
+            </p>
           </li>
         ))}
       </ul>
-      <div className={cn("mt-3 rounded-lg border p-3 text-sm", r.control.cierra ? "border-success bg-success-soft" : "border-danger bg-danger-soft")}>
-        <p className="font-semibold text-strong">Control de cierre: {r.control.cierra ? "cierra al centavo" : "NO cierra"}</p>
-        <p className="tabular-nums">Suma de las filas {plata(r.control.suma)} · total de venta − costo real {plata(r.control.esperado)}</p>
-      </div>
     </section>
   );
-}
-
-function porcentajesDePlantilla(p: PorcentajesPrecio, tope: { pct: number; medidoSobre: string }, m: MatrizReparto): boolean {
-  const t = PORCENTAJES_PLANTILLA;
-  const igualesPrecio = p.rentabilidad === t.rentabilidad && p.productor1 === t.productor1 && p.productor2 === t.productor2 && p.comercial === t.comercial && p.margenError === t.margenError && p.iibGa === t.iibGa;
-  const igualTope = tope.pct === TOPE_PLANTILLA.pct && tope.medidoSobre === TOPE_PLANTILLA.medidoSobre;
-  const igualMatriz = (["productor1", "productor2", "comercial"] as const).every((k) => m.defensa[k] === MATRIZ_PLANTILLA.defensa[k] && m.margenError[k] === MATRIZ_PLANTILLA.margenError[k]);
-  return igualesPrecio && igualTope && igualMatriz;
 }

@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { randomBytes } from "node:crypto";
+import { contextoDelPrecio, grabarFotoTx } from "./precio-proyecto.server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -173,6 +174,7 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
   if (!pr) return { ok: false, error: "El link no es válido." };
   if (!clientePuedeResponder(pr)) return { ok: false, error: "Esta propuesta ya no se puede responder. Escribinos y la actualizamos." };
   const destinatarios = await usuariosDelEquipo(tenantId, pr.proyectoId, "");
+  const ctxPrecio = d.aprueba ? await contextoDelPrecio(tenantId) : null;
   const ganada = await conGuardiaDeBase(() => tenantTransaction(async (tx) => {
     // Una sola base aprobada (O10): la base la garantiza con su índice; esto da el mensaje.
     if (d.aprueba && (await hayBaseAprobada(tx, tenantId, pr.proyectoId, pr.id))) throw new BaseYaAprobada();
@@ -185,6 +187,8 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
     const autor = `${nombre} (cliente)`;
     await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "Presupuesto", entidadId: pr.id, campo: `Versión ${pr.version}`, antes: "Enviada", despues: d.aprueba ? "Aprobada" : "Rechazada", autor });
     if (d.aprueba) {
+      // MIA T07 · O18 (préstamo de T07, Adenda 1 § D.1): la foto del precio en la misma transacción que la aprobación.
+      if (ctxPrecio) await grabarFotoTx(tx, tenantId, pr.id, `${nombre} (por su link)`, ctxPrecio);
       const etapa = etapaAlAprobar(pr.proyecto.servicio, pr.proyecto.etapa);
       await tx.proyecto.updateMany({ where: { id: pr.proyectoId, tenantId }, data: { etapa } });
       await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "Proyecto", entidadId: pr.proyectoId, campo: "Etapa", antes: etapaLabel(pr.proyecto.etapa, pr.proyecto.servicio), despues: etapaLabel(etapa, pr.proyecto.servicio), autor });

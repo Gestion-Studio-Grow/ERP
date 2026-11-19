@@ -65,6 +65,8 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
               </p>
             )}
             {baseAprobada && vista.editaCotizaciones && <p className="text-sm text-muted">No se abre otra versión: un cambio va como adicional, más abajo.</p>}
+            {/* MIA T07: el precio por total (tablero, Dirección, reparto y la foto de la aprobación). */}
+            {vista.costos && <Link href={`/admin/proyectos/${p.id}/precio`} className="inline-flex min-h-11 items-center text-sm underline">Precio del proyecto: tablero y reparto</Link>}
           </div>
           {vista.editaCotizaciones && ofreceNuevaVersion({ baseAprobada: !!baseAprobada, hayBorrador }) && (
             <FormAccion accion={nuevaVersion} className="flex flex-wrap items-center gap-2">

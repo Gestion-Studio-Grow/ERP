@@ -6,6 +6,8 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { topeDeAdicionalesPorProyecto } from "./presupuesto-m2.server";
+import { totalesCongelados } from "./precio-foto.server";
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { cobranza, cobranzaDePerdido, cobranzaEnMoneda, leerOriginal, pendientesDeCobro, totalAprobado, type Cobranza } from "./cobranza-core";
 import { cambioDeVenta } from "./gestion-core";
 
@@ -23,7 +25,7 @@ export const SELECT_COBRANZA = {
     where: { estado: "APROBADO" },
     orderBy: { version: "desc" as const },
     take: 1,
-    select: { ivaPct: true, tcVenta: true, items: { select: { cantidad: true, costo: true, precio: true, moneda: true, recargoPct: true } } },
+    select: { id: true, ivaPct: true, tcVenta: true, items: { select: { cantidad: true, costo: true, precio: true, moneda: true, recargoPct: true } } },
   },
   pagos: { where: { anuladoEl: null }, select: { id: true, monto: true } },
 } as const;
@@ -60,7 +62,7 @@ export async function originalesDeCobros(tenantId: string, proyectos: readonly {
 export function cobranzaDe(
   p: {
     moneda: string;
-    presupuestos: { ivaPct: number; tcVenta: number | null; items: { cantidad: number; costo: number; precio: number; moneda: string; recargoPct: number | null }[] }[];
+    presupuestos: { id?: string; ivaPct: number; tcVenta: number | null; congelado?: number | null; items: { cantidad: number; costo: number; precio: number; moneda: string; recargoPct: number | null }[] }[];
     pagos: { id: string; monto: number }[];
     perdidoEl: Date | null;
   },
@@ -86,7 +88,19 @@ function cobranzaSinPerder(
   const cobros = p.pagos.map((x) => ({ monto: x.monto, original: enlaces.get(x.id)?.original ?? null, cuotaId: enlaces.get(x.id)?.cuotaId ?? null }));
   if (!aprobado) return cobranza(0, cobros);
   // MIA T06 · O11: el tope sube el precio con IVA de los adicionales aprobados (en pesos), y nada más.
-  return cobranzaEnMoneda(totalAprobado(aprobado, tc, recargoGeneral) + adicionales, cobros, { moneda: p.moneda, cambioVenta: cambioDeVenta(p.moneda, aprobado.tcVenta, tc), tcHoy: tc[p.moneda] ?? 0 });
+  // MIA T07 · O16: con la foto de la aprobación, el tope es el total congelado con IVA, no lo que digan hoy los ítems.
+  const base = aprobado.congelado != null ? redondearAlCentavo(aprobado.congelado * (1 + aprobado.ivaPct / 100)) : totalAprobado(aprobado, tc, recargoGeneral);
+  return cobranzaEnMoneda(base + adicionales, cobros, { moneda: p.moneda, cambioVenta: cambioDeVenta(p.moneda, aprobado.tcVenta, tc), tcHoy: tc[p.moneda] ?? 0 });
+}
+
+/**
+ * MIA T07 · O16: a la versión aprobada de cada proyecto le pone su total congelado (la foto de M3), si lo tiene. Así el
+ * tope de cobro sale de lo que aceptó el cliente. Sin M3, no cambia nada.
+ */
+export async function anotarCongelados(db: Db, tenantId: string, proyectos: readonly { presupuestos: { id?: string; congelado?: number | null }[] }[]): Promise<void> {
+  const aprobadas = proyectos.map((p) => p.presupuestos[0]).filter((x): x is { id: string; congelado?: number | null } => !!x?.id);
+  const totales = await totalesCongelados(db, tenantId, aprobadas.map((x) => x.id));
+  for (const x of aprobadas) x.congelado = totales.get(x.id) ?? null;
 }
 
 /** La cobranza de cada proyecto del negocio (o de los pedidos), por id. Con `db` = la transacción, lee adentro de ella. */
@@ -101,7 +115,7 @@ export async function cobranzasDelNegocio(
     where: { tenantId, ...(proyectoIds && { id: { in: [...proyectoIds] } }) },
     select: { id: true, ...SELECT_COBRANZA },
   });
-  const [enlaces, adicionales] = await Promise.all([originalesDeCobros(tenantId, proyectos, db), topeDeAdicionalesPorProyecto(db, tenantId, proyectoIds)]);
+  const [enlaces, adicionales] = await Promise.all([originalesDeCobros(tenantId, proyectos, db), topeDeAdicionalesPorProyecto(db, tenantId, proyectoIds), anotarCongelados(db, tenantId, proyectos)]);
   return new Map(proyectos.map((p) => [p.id, cobranzaDe(p, tc, recargoGeneral, enlaces, adicionales.get(p.id) ?? 0)]));
 }
 
