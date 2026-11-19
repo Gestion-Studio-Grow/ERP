@@ -10,7 +10,7 @@ import type { NegocioApps } from "@/apps/visibles";
  * `billing:manage`. Sin la capacidad el layout no la saca (evita el loop), así que acá tampoco cuenta. PURA.
  */
 export function fueraPorProducto(negocio: Pick<NegocioApps, "blueprintId" | "modulosAsignados">, usuario: UsuarioConPermisos): boolean {
-  const producto = derivarProducto({ blueprintId: negocio.blueprintId, modules: negocio.modulosAsignados });
+  const producto = derivarProducto({ blueprintId: negocio.blueprintId ?? null, modules: negocio.modulosAsignados });
   if (producto === "contador") return permisoEfectivo(usuario, "cartera:manage");
   if (producto === "facturita") return permisoEfectivo(usuario, "billing:manage");
   return false;
