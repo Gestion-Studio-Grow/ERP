@@ -4,11 +4,11 @@
 import { Badge, cn, type BadgeTone } from "@/components/ui";
 import { fechaCorta } from "@/lib/proyectos/core";
 import type { Actor } from "@/lib/proyectos/gestion.server";
-import { panelDeLiquidacion, SIN_M5, type FilaVisible } from "@/lib/proyectos/liquidacion-proyecto.server";
+import { panelDeLiquidacion, SIN_M5, type AjusteVisible, type FilaVisible, type PropuestaDeAjuste } from "@/lib/proyectos/liquidacion-proyecto.server";
 import type { Comparacion } from "@/lib/proyectos/liquidacion-proyecto-core";
 import { formatearPesos } from "@/lib/rendiciones/dinero";
 import { tarjeta } from "../_vista";
-import { AprobarLiquidacion, DeclararCostos, RevisarLiquidacion } from "./_liquidacion-cliente";
+import { AprobarAjuste, AprobarLiquidacion, DeclararCostos, RevisarLiquidacion } from "./_liquidacion-cliente";
 
 const ESTADO: Record<"BORRADOR" | "REVISADA" | "APROBADA", { label: string; tono: BadgeTone }> = {
   BORRADOR: { label: "Borrador", tono: "warning" },
@@ -41,6 +41,7 @@ export async function PestanaLiquidacion({ a, proyectoId }: { a: Actor; proyecto
         ) : (
           <Filas filas={p.filas} esperado={p.esperado} />
         )}
+        {p.ajustes.length > 0 && <Ajustes lista={p.ajustes} esperado={p.esperado} />}
         {p.avisos.length > 0 && (
           <ul className="mt-3 grid gap-1 text-sm text-strong">
             {p.avisos.map((x) => <li key={x} className="rounded-lg border border-line bg-surface-raised px-3 py-2">{x}</li>)}
@@ -71,20 +72,7 @@ export async function PestanaLiquidacion({ a, proyectoId }: { a: Actor; proyecto
             {p.accion === "APROBAR" && <AprobarLiquidacion proyectoId={proyectoId} />}
             {p.motivo && <p className="mt-2 text-sm text-muted">{p.motivo}</p>}
           </section>
-          {p.paraAjuste.length > 0 && (
-            <section className={tarjeta} aria-labelledby="titulo-ajuste">
-              <h2 id="titulo-ajuste" className="font-semibold text-strong">Entró después de aprobar</h2>
-              <p className="text-sm text-muted">No cambia la liquidación aprobada: queda para un ajuste.</p>
-              <ul className="mt-2 grid gap-1 text-sm">
-                {p.paraAjuste.map((x) => (
-                  <li key={x.id} className="flex flex-wrap justify-between gap-2 border-t border-line pt-2">
-                    <span className="min-w-0 break-words text-strong">{x.origen}</span>
-                    <span className="tabular-nums text-strong">{formatearPesos(x.costo)}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          {p.propuesta && <PorAjustar propuesta={p.propuesta} proyectoId={proyectoId} aprueba={p.apruebaAjuste} motivo={p.motivoAjuste} />}
         </div>
       )}
     </div>
@@ -155,6 +143,63 @@ function Filas({ filas, esperado }: { filas: readonly FilaVisible[]; esperado: n
         )}
       </ul>
     </>
+  );
+}
+
+/** T12 (O24): los ajustes aprobados, debajo de la liquidación, que no cambia. */
+function Ajustes({ lista, esperado }: { lista: readonly AjusteVisible[]; esperado: number | null }) {
+  const suma = lista.reduce((s, x) => s + x.monto, 0);
+  return (
+    <div className="mt-4 border-t border-line pt-3" aria-labelledby="titulo-ajustes">
+      <h3 id="titulo-ajustes" className="font-semibold text-strong">Ajustes después de aprobar</h3>
+      <p className="text-sm text-muted">La liquidación aprobada no cambió: cada ajuste queda acá, con quién lo aprobó.</p>
+      <ul className="mt-2 grid gap-2 text-sm">
+        {lista.map((x) => (
+          <li key={x.id} className="grid gap-0.5 border-t border-line pt-2">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="min-w-0 break-words font-medium text-strong">{x.nombre}</span>
+              <span className={cn("tabular-nums font-semibold", x.monto < 0 ? "text-danger" : "text-strong")}>{formatearPesos(x.monto)}</span>
+            </div>
+            <p className="min-w-0 break-words text-xs text-muted">{`${x.motivo} · ${x.autor} · ${fechaCorta(x.cuando)}`}</p>
+          </li>
+        ))}
+      </ul>
+      {esperado !== null && (
+        <p className="mt-2 flex flex-wrap justify-between gap-2 border-t border-line pt-2 text-sm">
+          <span className="text-muted">Liquidación + ajustes = Total venta − costo real nuevo</span>
+          <span className="tabular-nums font-semibold text-strong">{formatearPesos(esperado + suma)}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** T12 (O24): lo que entró después de aprobar y el ajuste que propone el sistema, para que Dirección lo apruebe. */
+function PorAjustar({ propuesta, proyectoId, aprueba, motivo }: { propuesta: PropuestaDeAjuste; proyectoId: string; aprueba: boolean; motivo: string | null }) {
+  return (
+    <section className={tarjeta} aria-labelledby="titulo-ajuste">
+      <h2 id="titulo-ajuste" className="font-semibold text-strong">Entró después de aprobar</h2>
+      <p className="text-sm text-muted">No reabre la liquidación: genera un ajuste que aprueba Dirección.</p>
+      <ul className="mt-2 grid gap-1 text-sm">
+        {propuesta.pendientes.map((x) => (
+          <li key={x.id} className="flex flex-wrap justify-between gap-2 border-t border-line pt-2">
+            <span className="min-w-0 break-words text-strong">{x.origen}</span>
+            <span className="tabular-nums text-strong">{formatearPesos(x.costo)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-sm font-medium text-strong">{`Costo real: ${formatearPesos(propuesta.costoRealAntes)} → ${formatearPesos(propuesta.costoRealNuevo)}`}</p>
+      <ul className="mt-1 grid gap-1 text-sm">
+        {propuesta.renglones.map((x) => (
+          <li key={x.lineaId} className="flex flex-wrap justify-between gap-2">
+            <span className="min-w-0 break-words text-muted">{x.nombre}</span>
+            <span className={cn("tabular-nums font-semibold", x.monto < 0 ? "text-danger" : "text-strong")}>{formatearPesos(x.monto)}</span>
+          </li>
+        ))}
+      </ul>
+      {propuesta.renglones.some((x) => x.personaId && x.monto < 0) && <p className="mt-2 text-xs text-muted">Lo que una persona recibe de menos queda como saldo a favor de la empresa: no se descuenta solo de su liquidación del mes.</p>}
+      {aprueba ? <AprobarAjuste proyectoId={proyectoId} /> : motivo && <p className="mt-2 text-sm text-muted">{motivo}</p>}
+    </section>
   );
 }
 

@@ -83,6 +83,7 @@ export const PUERTAS_DE_ACCIONES: Readonly<Record<string, string>> = {
   "acciones-liquidacion-proyecto#declararCostosCompletos": "SOLO:ADMINISTRACION",
   "acciones-liquidacion-proyecto#revisarLiquidacionProyecto": "E:liquidaciones",
   "acciones-liquidacion-proyecto#aprobarLiquidacionProyecto": "SOLO:DIRECCION",
+  "acciones-liquidacion-proyecto#aprobarAjusteTardio": "SOLO:DIRECCION",
   // MIA-50 T09 · O04, O05, O07.
   "acciones-etapas#guardarFechasPrevistas": "E:pipeline",
   "acciones-etapas#crearObligacion": "E:pipeline",

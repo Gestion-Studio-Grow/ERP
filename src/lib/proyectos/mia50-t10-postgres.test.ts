@@ -22,6 +22,24 @@
 //  C-O23  Cobrado 1.000.000 de 1.802.900: generar el mes no suma la línea del proyecto y lo dice. Se cobra 802.900: 1 línea
 //         por persona («Proyecto · …»): productor 55.000, comercial 30.000. Generar dos veces: sigue 1. Publicar y pagar al
 //         productor: 1 egreso de 55.000.
+//
+// MIA-50 T12 · liquidación del proyecto II (O24-O26) + observación 3(a) de la certificación de la ola 4. Mismo método:
+//  C-O24  Z aprobada (prod 55.000 · com 30.000 · empresa 505.000). Entra un comprobante tardío de 10.000: real 910.000 →
+//         defensa 90.000 → prod 22.500 + 30.000 = 52.500 (Δ −2.500) · com 30.000 (Δ 0, sin renglón) · empresa
+//         67.500 + 430.000 = 497.500 (Δ −7.500). Ajuste = 2 renglones: −250.000 c y −750.000 c. Líneas + ajustes =
+//         590.000 − 10.000 = 580.000 = 1.490.000 − 910.000. Las líneas aprobadas no cambian. Los −2.500 de la productora
+//         quedan como 1 saldo a favor de 250.000 c (no se descuentan del mes). Administración: rechazo. Sin código: rechazo.
+//         2 aprobaciones a la vez = 1 lote (2 renglones). Repetir sin nada nuevo: «ya estaba hecho» y NO gasta un código.
+//         La productora ve sólo su renglón (−250.000 c), no el de la empresa.
+//  C-O25  Evento de octubre, plus de la productora 20.000, aprobado y cobrado: la mensual 2026-10 trae «Proyecto · Z» 55.000
+//         y NO el plus. Otro Z de agosto con plus 20.000 (sin liquidar): con el reparto prendido, 2026-08 sin el plus; con
+//         `reparto.activo` apagado (el «negocio B» del plan, simulado con el parámetro de A), 2026-08 trae el plus 20.000.
+//  C-O26  Real 1.300.000 → defensa 1.490.000 − 1.300.000 − 490.000 = −300.000 → prod −75.000 + 30.000 = −45.000 · com
+//         30.000 · empresa −225.000 + 430.000 = 205.000. Suma 190.000 = 1.490.000 − 1.300.000. Aprobada: 1 saldo a favor
+//         de 4.500.000 c. Cobrada y generada 2026-09: la productora no tiene línea negativa; el comercial, 30.000.
+//  RLS    B ve 0 ajustes y 0 saldos; insertar un saldo con el tenantId de A: rechazo.
+//  3(a)   Aprobar cuando quien aprueba cobra en el proyecto, o no tiene ficha: rechazo y los códigos de respaldo quedan
+//         iguales (antes el código se gastaba primero).
 // ============================================================================
 
 import { test } from "node:test";
@@ -98,14 +116,14 @@ async function armar(base: BaseEfimera) {
 
   let numero = (await duenio.proyecto.count()) + 1000;
   /** Un proyecto Z: foto del precio aprobado, equipo, el comprobante de 900.000, lo facturado y lo cobrado. */
-  const z = async (o: { evento?: Date; facturado?: number; cobrado?: number; gasto?: number; rendicion?: boolean; conAdmin2?: boolean } = {}) => {
+  const z = async (o: { evento?: Date; facturado?: number; cobrado?: number; gasto?: number; rendicion?: boolean; conAdmin2?: boolean; real?: number; plus?: number; otros?: string[] } = {}) => {
     const nombre = `Z ${++numero}`;
     const p = await duenio.proyecto.create({ data: { tenantId: a.id, numero, clientId: a.clientes[0], nombre, servicio: "EVENTOS", etapa: "APROBADO", brief: "Stand", responsable: "Comercial", fechaEvento: o.evento ?? PASADO }, select: { id: true } });
     const pres = await duenio.proyectoPresupuesto.create({ data: { tenantId: a.id, proyectoId: p.id, version: 1, estado: "APROBADO", token: `t10-${p.id}`, ivaPct: 21 }, select: { id: true } });
     await duenio.proyectoItem.create({ data: { tenantId: a.id, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 1_490_000 } });
-    const equipo = [{ ...prod, funcion: "PRODUCTOR" }, { ...com, funcion: "COMERCIAL" }, ...(o.conAdmin2 ? [{ ...admin2, funcion: "PRODUCTOR" }] : [])];
+    const equipo = [{ ...prod, funcion: "PRODUCTOR", plus: o.plus ?? 0 }, { ...com, funcion: "COMERCIAL" }, ...(o.conAdmin2 ? [{ ...admin2, funcion: "PRODUCTOR" }] : []), ...(o.otros ?? []).map((personaId) => ({ personaId, funcion: "PRODUCTOR" }))];
     const eqs = [];
-    for (const m of equipo) eqs.push(await duenio.proyectoEquipo.create({ data: { tenantId: a.id, proyectoId: p.id, personaId: m.personaId, funcion: m.funcion }, select: { id: true } }));
+    for (const m of equipo) eqs.push(await duenio.proyectoEquipo.create({ data: { tenantId: a.id, proyectoId: p.id, personaId: m.personaId, funcion: m.funcion, plus: "plus" in m ? m.plus : 0 }, select: { id: true } }));
     const participantes = [
       { equipoId: eqs[0].id, personaId: prod.personaId, nombre: "Productora", funcion: "PRODUCTOR", comisionPct: 10, reparto: { DEFENSA: 25 } },
       { equipoId: eqs[1].id, personaId: com.personaId, nombre: "Comercial", funcion: "COMERCIAL", comisionPct: 10, reparto: { DEFENSA: 0 } },
@@ -120,7 +138,7 @@ async function armar(base: BaseEfimera) {
         participantes, aprobadoPor: "Dirección",
       },
     }));
-    await comprobante(p.id, 900_000);
+    await comprobante(p.id, o.real ?? 900_000);
     if (o.gasto) await duenio.proyectoGasto.create({ data: { tenantId: a.id, proyectoId: p.id, descripcion: "Taxi", neto: o.gasto, iva: 0 } });
     if (o.rendicion) {
       const g = await duenio.proyectoGasto.create({ data: { tenantId: a.id, proyectoId: p.id, descripcion: "Fletes", neto: 0, iva: 0 }, select: { id: true } });
@@ -142,10 +160,17 @@ async function armar(base: BaseEfimera) {
   const respaldos = [...((activado as { codigos?: string[] }).codigos ?? [])];
   assert.ok(respaldos.length >= 8, "códigos de respaldo para las aprobaciones");
 
+  /** T12: más códigos de respaldo para quien aprueba (los de la activación alcanzan para T10). */
+  const masCodigos = async (userId: string) => {
+    const n = sfc.nuevosCodigosDeRespaldo();
+    await duenio.proyectoSegundoFactor.updateMany({ where: { tenantId: a.id, userId }, data: { codigosRespaldo: { push: n.hashes } } });
+    return n.visibles;
+  };
+  const codigosDe = async (userId: string) => (await duenio.proyectoSegundoFactor.findFirstOrThrow({ where: { tenantId: a.id, userId }, select: { codigosRespaldo: true } })).codigosRespaldo.length;
   const liq = (proyectoId: string) => enA((tx) => tx.proyectoLiquidacionProyecto.findMany({ where: { proyectoId }, include: { lineas: true } }));
   const totales = (lineas: { clave: string; personaId: string | null; total: bigint }[]) =>
     Object.fromEntries(lineas.map((l) => [l.personaId === prod.personaId ? "prod" : l.personaId === com.personaId ? "com" : l.personaId ? "otro" : "empresa", Number(l.total)]));
-  return { a, b, duenio, enA, acc, empresa, lectura, tenantTransaction, como, valor, form, z, comprobante, cobrar, liq, totales, prod, com, admin, admin2, dir, respaldos, sf, sfc };
+  return { a, b, duenio, enA, acc, empresa, lectura, tenantTransaction, como, valor, form, z, comprobante, cobrar, liq, totales, prod, com, admin, admin2, dir, respaldos, sf, sfc, persona, masCodigos, codigosDe };
 }
 
 async function preparar(t: import("node:test").TestContext) {
@@ -331,7 +356,125 @@ test("MIA-179 · Dirección sin ficha (dueño por el rol del ERP) no revisa ni a
   assert.equal((await p.liq(z.id))[0].estado, "BORRADOR", "sin ficha no revisa");
 
   ok(p.valor(await p.como(p.admin.userId, () => p.acc.revisarLiquidacionProyecto(p.form({ proyectoId: z.id, nota: "" })))));
+  const antes = await p.codigosDe(otro.id);
   rechazo(p.valor(await p.como(otro.id, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId: z.id, codigo: respaldo })))), /ficha/i);
+  assert.equal(await p.codigosDe(otro.id), antes, "T12 · 3(a): el rechazo no gastó el código");
   assert.equal((await p.liq(z.id))[0].estado, "REVISADA", "sin ficha no aprueba");
   assert.equal(await p.duenio.proyectoCambio.count({ where: { proyectoId: z.id, autor: "Dueño sin ficha" } }), 0, "no escribió historial");
+});
+
+// ── T12 · liquidación del proyecto II ──
+
+/** Declarada, revisada y aprobada por Dirección con un código nuevo. */
+async function aprobada(p: NonNullable<Awaited<ReturnType<typeof preparar>>>, proyectoId: string) {
+  ok(p.valor(await p.como(p.admin.userId, () => p.acc.declararCostosCompletos(p.form({ proyectoId })))));
+  ok(p.valor(await p.como(p.admin.userId, () => p.acc.revisarLiquidacionProyecto(p.form({ proyectoId, nota: "" })))));
+  const [codigo] = await p.masCodigos(p.dir);
+  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId, codigo })))));
+}
+
+test("T12 · C-O24 · comprobante tardío: ajuste de 2 renglones debajo; doble envío = 1 lote; la aprobada no cambia", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const z = await p.z();
+  await aprobada(p, z.id);
+  await p.comprobante(z.id, 10_000);
+  rechazo(p.valor(await p.como(p.admin.userId, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: "123456" })))), /Dirección/);
+  rechazo(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: "" })))), /código/);
+  const codigos = await p.masCodigos(p.dir);
+  const rs = await Promise.all(codigos.slice(0, 2).map((codigo) => p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo })))));
+  for (const r of rs) ok(p.valor(r));
+  const cab = (await p.liq(z.id))[0];
+  assert.deepEqual(p.totales(cab.lineas), { prod: $(55_000), com: $(30_000), empresa: $(505_000) }, "las líneas aprobadas no cambian");
+  const ajustes = await p.enA((tx) => tx.proyectoLiquidacionProyectoAjuste.findMany({ where: { liquidacionId: cab.id }, select: { lineaId: true, monto: true, detalle: true, autorNombre: true } }));
+  const deLinea = (id: string | null) => cab.lineas.find((l) => l.id === id);
+  assert.deepEqual(ajustes.map((x) => [deLinea(x.lineaId)?.personaId === p.prod.personaId ? "prod" : deLinea(x.lineaId)?.personaId ? "otro" : "empresa", Number(x.monto)]).sort(), [["empresa", -$(7_500)], ["prod", -$(2_500)]]);
+  assert.equal(new Set(ajustes.map((x) => (x.detalle as { lote: string }).lote)).size, 1, "un solo lote");
+  const suma = cab.lineas.reduce((s, l) => s + Number(l.total), 0) + ajustes.reduce((s, x) => s + Number(x.monto), 0);
+  assert.equal(suma, $(580_000), "liquidación + ajustes = 1.490.000 − 910.000");
+  const saldos = await p.enA((tx) => tx.proyectoSaldoAFavor.findMany({ where: { liquidacionId: cab.id }, select: { personaId: true, monto: true } }));
+  assert.deepEqual(saldos.map((x) => [x.personaId, Number(x.monto)]), [[p.prod.personaId, $(2_500)]]);
+  // Repetir sin nada nuevo: no hay ajuste ni se gasta el código.
+  const antes = await p.codigosDe(p.dir);
+  const r3 = p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: codigos[2] }))));
+  assert.equal(r3.ok, true);
+  assert.match(String(r3.listo ?? ""), /ya estaba hecho/);
+  assert.equal(await p.codigosDe(p.dir), antes, "no gastó el código");
+  assert.equal(await p.enA((tx) => tx.proyectoLiquidacionProyectoAjuste.count({ where: { liquidacionId: cab.id } })), 2);
+  // La productora ve sólo su renglón y su saldo.
+  const deProd = p.valor(await p.como(p.prod.userId, () => p.lectura.liquidacionDeLaFicha(z.id)))!;
+  assert.deepEqual(deProd.ajustes.map((x) => x.monto), [-$(2_500)]);
+  const susSaldos = p.valor(await p.como(p.prod.userId, () => p.lectura.saldosAFavorDe(p.a.id, p.prod.personaId)));
+  assert.ok(susSaldos.some((x) => x.proyecto === z.nombre && x.monto === $(2_500)));
+});
+
+test("T12 · C-O25 · plus con el reparto prendido no se paga dos veces; con el reparto apagado, entra", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const octubre = new Date("2026-10-15T12:00:00-03:00");
+  const z = await p.z({ evento: octubre, plus: 20_000 });
+  await aprobada(p, z.id);
+  await p.cobrar(z.id, 802_900);
+  const extrasDe = async (periodo: string) => {
+    ok(p.valor(await p.como(p.admin.userId, () => p.empresa.generarLiquidaciones(p.form({ periodo })))) as Res);
+    const l = await p.duenio.proyectoLiquidacion.findFirst({ where: { tenantId: p.a.id, personaId: p.prod.personaId, periodo }, select: { extras: true } });
+    return ((l?.extras ?? []) as { nombre: string; monto: number }[]).map((e) => [e.nombre, e.monto]);
+  };
+  const oct = await extrasDe("2026-10");
+  assert.ok(oct.some(([n, m]) => n === `Proyecto · ${z.nombre}` && m === 55_000), JSON.stringify(oct));
+  assert.ok(!oct.some(([n]) => n === z.nombre), `sin el plus: ${JSON.stringify(oct)}`);
+  const agosto = await p.z({ evento: new Date("2026-08-15T12:00:00-03:00"), plus: 20_000 });
+  assert.ok(!(await extrasDe("2026-08")).some(([n]) => n === agosto.nombre), "reparto prendido: sin plus");
+  await p.enA((tx) => tx.proyectoParametro.upsert({ where: { tenantId_clave: { tenantId: p.a.id, clave: "reparto.activo" } }, create: { tenantId: p.a.id, clave: "reparto.activo", valor: false, actualizadoPor: p.dir, actualizadoNombre: "Test" }, update: { valor: false } }));
+  try {
+    assert.deepEqual((await extrasDe("2026-08")).filter(([n]) => n === agosto.nombre), [[agosto.nombre, 20_000]], "reparto apagado: el plus entra");
+  } finally {
+    await p.enA((tx) => tx.proyectoParametro.delete({ where: { tenantId_clave: { tenantId: p.a.id, clave: "reparto.activo" } } }));
+  }
+});
+
+test("T12 · C-O26 · total negativo: saldo a favor de la empresa, no un descuento del mes", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const z = await p.z({ real: 1_300_000 });
+  await aprobada(p, z.id);
+  const cab = (await p.liq(z.id))[0];
+  assert.deepEqual(p.totales(cab.lineas), { prod: -$(45_000), com: $(30_000), empresa: $(205_000) });
+  assert.equal(cab.lineas.reduce((s, l) => s + Number(l.total), 0), $(190_000));
+  const saldos = await p.enA((tx) => tx.proyectoSaldoAFavor.findMany({ where: { liquidacionId: cab.id }, select: { personaId: true, monto: true, aplicado: true } }));
+  assert.deepEqual(saldos.map((x) => [x.personaId, Number(x.monto), Number(x.aplicado)]), [[p.prod.personaId, $(45_000), 0]]);
+  await p.cobrar(z.id, 802_900);
+  const periodo = "2026-09";
+  ok(p.valor(await p.como(p.admin.userId, () => p.empresa.generarLiquidaciones(p.form({ periodo })))) as Res);
+  const extras = async (personaId: string) => (((await p.duenio.proyectoLiquidacion.findFirst({ where: { tenantId: p.a.id, personaId, periodo }, select: { extras: true } }))?.extras ?? []) as { nombre: string; monto: number }[]).filter((e) => e.nombre === `Proyecto · ${z.nombre}`).map((e) => e.monto);
+  assert.deepEqual(await extras(p.prod.personaId), [], "el negativo no se descuenta del mes");
+  assert.deepEqual(await extras(p.com.personaId), [30_000]);
+});
+
+test("T12 · RLS · B no ve los ajustes ni los saldos de A, ni inserta un saldo con su tenantId", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const contar = (tenantId: string) => p.tenantTransaction(async (tx) => [await tx.proyectoLiquidacionProyectoAjuste.count(), await tx.proyectoSaldoAFavor.count()], { tenantId });
+  const deA = await contar(p.a.id);
+  assert.ok(deA[0] >= 2 && deA[1] >= 2, `A ve lo suyo (${deA})`);
+  assert.deepEqual(await contar(p.b.id), [0, 0]);
+  const s = await p.enA((tx) => tx.proyectoSaldoAFavor.findFirstOrThrow({ select: { personaId: true, liquidacionId: true } }));
+  await assert.rejects(p.tenantTransaction((tx) => tx.proyectoSaldoAFavor.create({ data: { tenantId: p.a.id, personaId: s.personaId, liquidacionId: s.liquidacionId, monto: BigInt(1) } }), { tenantId: p.b.id }));
+});
+
+test("T12 · 3(a) · quien cobra en el proyecto no aprueba y su código no se gasta", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const d2 = await p.persona("Direquipo", "DIRECCION");
+  const u = { id: d2.userId, tenantId: p.a.id, email: "direquipo@mia50t10.test", role: "RECEPTION" };
+  const act = p.valor(await p.como(d2.userId, () => p.sf.datosDeActivacion(u, "Factoque")));
+  const activado = p.valor(await p.como(d2.userId, () => p.sf.comprobarCodigo(u, p.sfc.codigoDelPaso(act.secreto, p.sfc.pasoDe(Date.now())))));
+  assert.equal(activado.ok, true);
+  const z = await p.z({ otros: [d2.personaId] });
+  ok(p.valor(await p.como(p.admin.userId, () => p.acc.declararCostosCompletos(p.form({ proyectoId: z.id })))));
+  ok(p.valor(await p.como(p.admin.userId, () => p.acc.revisarLiquidacionProyecto(p.form({ proyectoId: z.id, nota: "" })))));
+  const antes = await p.codigosDe(d2.userId);
+  rechazo(p.valor(await p.como(d2.userId, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId: z.id, codigo: (activado as { codigos: string[] }).codigos[0] })))), /cobrás/i);
+  assert.equal(await p.codigosDe(d2.userId), antes, "el rechazo llegó antes de gastar el código");
+  assert.equal((await p.liq(z.id))[0].estado, "REVISADA");
 });

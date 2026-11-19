@@ -133,7 +133,8 @@ test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
     // Administración. Nadie más cambia. Rol nuevo Producción de campo (O47): sólo lo suyo, el proyecto y la ficha en ver.
     // MIA-50 T10 (ola 4, MIA-179): +3 acciones de la liquidación del proyecto. Revisar (E:liquidaciones) para Dirección y
     // Administración; declarar, sólo Administración; aprobar, sólo Dirección. Nadie más cambia.
-    { DIRECCION: [48, 162], ADMINISTRACION: [37, 67], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 122], PRODUCCION_CAMPO: [15, 12], SIN_FICHA: [10, 11] },
+    // MIA-50 T12: Dirección suma `aprobarAjusteTardio` (SOLO:DIRECCION) → 163; los demás roles no cambian.
+    { DIRECCION: [48, 163], ADMINISTRACION: [37, 67], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 122], PRODUCCION_CAMPO: [15, 12], SIN_FICHA: [10, 11] },
   );
 });
 

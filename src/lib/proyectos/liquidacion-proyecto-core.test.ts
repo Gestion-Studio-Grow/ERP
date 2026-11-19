@@ -12,7 +12,7 @@
 // Z-neg con piso cero: productor 30.000; comercial 30.000; empresa −300.000 + 430.000 = 130.000. Suma 190.000.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularLiquidacion, cierraAlCentavo, comparacionesDeRevision, rechazoDeRevision, listaParaLaMensual } from "./liquidacion-proyecto-core";
+import { calcularAjuste, calcularLiquidacion, cierraAlCentavo, saldosAFavor, comparacionesDeRevision, rechazoDeRevision, listaParaLaMensual } from "./liquidacion-proyecto-core";
 import { calcularRendicion, MATRIZ_PLANTILLA } from "./rendicion-core";
 import type { ParticipanteFoto } from "./precio-proyecto-core";
 
@@ -110,4 +110,29 @@ test("cuándo se paga: al cobrar todo espera el saldo; al aprobar, no", () => {
   assert.match(espera.lista ? "" : espera.motivo, /pague todo/);
   assert.equal(listaParaLaMensual({ estado: "APROBADA", cuandoSePaga: "AL_COBRAR_TODO", porCobrar: 0 }).lista, true);
   assert.equal(listaParaLaMensual({ estado: "APROBADA", cuandoSePaga: "AL_APROBAR", porCobrar: $(100) }).lista, true);
+});
+
+// T12 · Z-tarde (a mano): aprobada con real 900.000, llega un comprobante de 10.000 → real 910.000, defensa 90.000.
+//   Productor 25 % de 90.000 = 22.500 (tenía 25.000): −2.500. Empresa 75 % = 67.500 (tenía 75.000): −7.500. Comercial 0.
+//   Liquidación 590.000 + ajustes −10.000 = 580.000 = 1.490.000 − 910.000.
+const guardadas = (r: ReturnType<typeof calcularLiquidacion>) => r.lineas.map((l) => ({ id: `l-${l.clave}`, clave: l.clave, personaId: l.personaId, nombre: l.nombre, total: BigInt(l.total) }));
+
+test("T12 · C-O24 · Z-tarde: ajuste −2.500 al productor y −7.500 a la empresa; liquidación + ajustes = total − real nuevo", () => {
+  const lineas = guardadas(calcularLiquidacion(Z(900_000)));
+  const r = calcularAjuste({ lineas, previos: [], recalculo: calcularLiquidacion(Z(910_000)) });
+  assert.deepEqual(r.renglones.map((x) => [x.clave, x.monto]), [["eq-prod", -$(2_500)], ["EMPRESA", -$(7_500)]]);
+  assert.equal(r.cierra, true);
+  assert.equal(lineas.reduce((s, l) => s + Number(l.total), 0) + r.renglones.reduce((s, x) => s + x.monto, 0), $(1_490_000) - $(910_000));
+  // El mismo comprobante otra vez (ya ajustado): nada nuevo.
+  const otra = calcularAjuste({ lineas, previos: r.renglones, recalculo: calcularLiquidacion(Z(910_000)) });
+  assert.deepEqual(otra.renglones, []);
+  assert.equal(otra.cierra, true);
+  // Un descuadre de 1 centavo en lo previo: no cierra.
+  assert.equal(calcularAjuste({ lineas, previos: [{ lineaId: "l-EMPRESA", monto: 1 }], recalculo: calcularLiquidacion(Z(910_000)) }).renglones.find((x) => x.clave === "EMPRESA")?.monto, -$(7_500) - 1);
+});
+
+test("T12 · C-O26 · Z-neg: el productor queda en −45.000 → saldo a favor de 45.000; la empresa no tiene saldo", () => {
+  const r = calcularLiquidacion(Z(1_300_000));
+  assert.deepEqual(saldosAFavor(r.lineas.map((l) => ({ personaId: l.personaId, monto: l.total }))), [{ personaId: "p-prod", monto: $(45_000) }]);
+  assert.deepEqual(saldosAFavor([{ personaId: null, monto: -1 }, { personaId: "x", monto: 0 }]), []);
 });

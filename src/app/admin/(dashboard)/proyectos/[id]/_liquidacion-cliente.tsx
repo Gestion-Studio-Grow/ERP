@@ -6,7 +6,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
-import { aprobarLiquidacionProyecto, declararCostosCompletos, revisarLiquidacionProyecto, type ResultadoLiq } from "@/lib/proyectos/acciones-liquidacion-proyecto";
+import { aprobarAjusteTardio, aprobarLiquidacionProyecto, declararCostosCompletos, revisarLiquidacionProyecto, type ResultadoLiq } from "@/lib/proyectos/acciones-liquidacion-proyecto";
 import { campo, etiqueta } from "../_vista";
 
 function usePaso(accion: (fd: FormData) => Promise<ResultadoLiq>) {
@@ -60,6 +60,21 @@ export function AprobarLiquidacion({ proyectoId }: { proyectoId: string }) {
         <input name="codigo" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9A-Za-z-]{6,20}" maxLength={20} required className={cn(campo, "tracking-widest tabular-nums")} />
       </label>
       <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 justify-self-start")}>{ocupado ? "Aprobando…" : "Aprobar con el código"}</button>
+      <Fallo texto={error} />
+    </form>
+  );
+}
+
+/** T12 (O24): Dirección aprueba el ajuste por los comprobantes que llegaron después, con el código de su app. */
+export function AprobarAjuste({ proyectoId }: { proyectoId: string }) {
+  const { error, ocupado, correr } = usePaso(aprobarAjusteTardio);
+  return (
+    <form action={(fd) => { fd.set("proyectoId", proyectoId); correr(fd); }} className="mt-3 grid gap-2">
+      <label className={etiqueta}>
+        Código de tu app de autenticación
+        <input name="codigo" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9A-Za-z-]{6,20}" maxLength={20} required className={cn(campo, "tracking-widest tabular-nums")} />
+      </label>
+      <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 justify-self-start")}>{ocupado ? "Aprobando…" : "Aprobar el ajuste con el código"}</button>
       <Fallo texto={error} />
     </form>
   );

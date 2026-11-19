@@ -10,7 +10,7 @@ import { rubroDe } from "@/lib/proyectos/segundo-factor.server";
 import { cambiaLosPermisos, COLUMNAS_FICHA, COLUMNAS_OCULTAS_BASE, MODULOS, permisoDe, ROL_LABEL, ROLES_GESTION, type RolGestion } from "@/lib/proyectos/gestion-core";
 import { exigirVer, puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { personasDelEquipo, registroDeCambios } from "@/lib/proyectos/gestion-lecturas.server";
-import { plataEn } from "@/lib/proyectos/gestion-core";
+import { pesos } from "@/lib/proyectos/core";
 import { tarjeta } from "../_vista";
 import { puedeGenerarPinDe, rigePin } from "@/lib/rendiciones/pin-core";
 import { CodigoParaPasar } from "./CodigoParaPasar";
@@ -76,7 +76,7 @@ async function Personas({ a, rubro }: { a: Actor; rubro: string | null }) {
                 {p.userId && p.activa && p.userId !== a.user.id && !conFactor.has(p.userId) && conPin && puedeGenerarPinDe(a.rol, p.rol) && (
                   <CodigoParaPasar personaId={p.id} nombre={p.nombre} />
                 )}
-                {p.sueldoBase !== null && <p className="text-sm text-strong">Sueldo {plataEn(p.sueldoBase, "ARS")}</p>}
+                {p.sueldoBase !== null && <p className="text-sm text-strong">Sueldo {pesos(p.sueldoBase)}</p>}
                 {p.facturaA && <p className="break-words text-sm text-muted">Factura a {p.facturaA}</p>}
                 {tocable && (
                   <details className="mt-1">

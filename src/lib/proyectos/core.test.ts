@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ayudaEspecificacion, clientePuedeResponder, desvioPorRubro, estadoDelEntregable, resultadoReal, resumenEntregables, totalDelGasto, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, metodoDeCaja, pesos, porcentaje, porRubro, precioConMargen, sePuedeEditar, totales, ultimaEnviada, waLink } from "./core";
-import { plataEn } from "./gestion-core";
+import { ventaEn } from "./gestion-core";
 import { computar, costosVigentes, dentroDelLote, disenoInicial, normalizarDiseno, paredesDe, superficieParedes } from "./stand";
 
 const v = (numero: number, estado: string) => ({ numero, estado });
@@ -142,8 +142,9 @@ for (const [n, moneda, esperado] of TABLA_V3) {
   test(`V3-a · pesos(${n}${moneda ? `, ${moneda}` : ""}) da ${esperado}`, () => {
     assert.equal(moneda ? pesos(n, moneda) : pesos(n), esperado);
   });
-  test(`V3-a · pesos y plataEn dan lo mismo para ${n}${moneda ? ` ${moneda}` : ""}`, () => {
-    assert.equal(pesos(n, moneda ?? "ARS"), plataEn(n, moneda ?? "ARS"));
+  // V3-c (T12): el formateador viejo ya no existe; `ventaEn` (cambio 1) da lo mismo que la tabla porque llama a `pesos`.
+  test(`V3-c · ventaEn sigue la regla de pesos para ${n}${moneda ? ` ${moneda}` : ""}`, () => {
+    assert.equal(ventaEn(n, moneda ?? "ARS", 1), esperado);
   });
 }
 

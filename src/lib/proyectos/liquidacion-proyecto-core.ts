@@ -172,11 +172,56 @@ export function listaParaLaMensual(e: { estado: string; cuandoSePaga: string; po
   return { lista: true };
 }
 
-/** El nombre de la línea en la liquidación mensual. */
 /**
  * MIA-179 (observación 4(b) de T10): sin ficha en Equipo no hay `personaId` y «no cobra en el proyecto» no se puede
  * comprobar. Revisar y aprobar fallan cerrado; el panel muestra este motivo en lugar del botón.
  */
 export const SIN_FICHA_NO_REVISA = "Tu usuario no tiene ficha en Equipo: sin ella no se puede comprobar que no cobrás en el proyecto. Pedí que te la vinculen.";
 
+/** El nombre de la línea en la liquidación mensual. */
 export const nombreDeLineaMensual = (proyecto: string) => `Proyecto · ${proyecto}`;
+
+// ── Después de aprobar (T12: O24 y O26) ──
+
+export interface RenglonAjuste {
+  lineaId: string;
+  clave: string;
+  personaId: string | null;
+  nombre: string;
+  monto: Centavos;
+}
+
+/**
+ * O24 · El ajuste por un comprobante que llegó tarde: la liquidación aprobada NO se toca; cada línea recibe la diferencia
+ * entre lo que le toca con el costo real nuevo (`recalculo`) y lo que ya tiene (su total congelado más los ajustes
+ * anteriores). `cierra`: liquidación + todos los ajustes = Total venta − costo real nuevo, al centavo. Sólo devuelve los
+ * renglones distintos de cero.
+ */
+export function calcularAjuste(e: {
+  lineas: readonly { id: string; clave: string; personaId: string | null; nombre: string; total: number | bigint }[];
+  previos: readonly { lineaId: string | null; monto: number | bigint }[];
+  recalculo: Pick<LiquidacionCalculada, "lineas" | "esperado">;
+}): { renglones: RenglonAjuste[]; cierra: boolean } {
+  const nuevo = new Map(e.recalculo.lineas.map((l) => [l.clave, l.total]));
+  let suma = BigInt(0);
+  const renglones: RenglonAjuste[] = [];
+  for (const l of e.lineas) {
+    const debe = nuevo.get(l.clave);
+    if (debe === undefined) throw new RangeError(`La línea ${l.nombre} no está en la foto del precio: el ajuste no se puede calcular.`);
+    const tiene = e.previos.filter((p) => p.lineaId === l.id).reduce((s, p) => s + BigInt(p.monto), BigInt(l.total));
+    const monto = BigInt(debe) - tiene;
+    suma += tiene + monto;
+    if (monto !== BigInt(0)) renglones.push({ lineaId: l.id, clave: l.clave, personaId: l.personaId, nombre: l.nombre, monto: Number(monto) });
+  }
+  const sueltos = e.previos.filter((p) => !e.lineas.some((l) => l.id === p.lineaId)).reduce((s, p) => s + BigInt(p.monto), BigInt(0));
+  return { renglones, cierra: e.lineas.length === nuevo.size && suma + sueltos === BigInt(e.recalculo.esperado) };
+}
+
+/**
+ * O26 · Lo negativo de una persona (su línea con defensa negativa, o un ajuste en contra) no se descuenta solo de la
+ * mensual: queda como saldo a favor de la empresa, en positivo. La empresa no tiene saldo: absorbe en su línea.
+ */
+export const saldosAFavor = (items: readonly { personaId: string | null; monto: number | bigint }[]): { personaId: string; monto: Centavos }[] =>
+  items.filter((i): i is { personaId: string; monto: number | bigint } => !!i.personaId && BigInt(i.monto) < BigInt(0)).map((i) => ({ personaId: i.personaId, monto: -Number(i.monto) }));
+
+export const AVISO_SALDO = "No se descuenta solo de tu liquidación del mes: Dirección decide cómo se compensa.";

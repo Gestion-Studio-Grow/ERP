@@ -2,14 +2,10 @@
  * MIA T06 · vuelta (MIA-131): lo que la ficha y la cotización muestran del presupuesto. PURO, testeable sin base.
  */
 import { pesos } from "./core";
-import { plataEn } from "./gestion-core";
 
-/**
- * V3: un solo helper de plata. Copia de `importe` de `../_tabla` (rama de T02), dependencia declarada en el PR: sobre esta
- * base `pesos` todavía no recibe la moneda. La saca la vuelta de integración de T06 con `pesos(monto, moneda)`.
- */
+/** V3: un solo helper de plata; `pesos` ya recibe la moneda (T12, V3-c). */
 export function importe(monto: number, moneda = "ARS"): string {
-  return moneda === "ARS" ? pesos(monto) : plataEn(monto, moneda);
+  return pesos(monto, moneda);
 }
 
 /** El costo unitario de un ítem, en su moneda, en la tabla de la ficha sin editar (`_tabla-ficha`). */

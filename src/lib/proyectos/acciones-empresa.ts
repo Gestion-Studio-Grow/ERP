@@ -33,7 +33,7 @@ import { randomUUID } from "node:crypto";
 import { aCentavos, esDiaValido, esOrigenConciliable, esTramo, huellasDelExtracto, MEDIO_RETENCION, signoDelOrigen, TRAMO_LABEL, type OrigenConciliable } from "./moneda-bancos-core";
 import { hayM6, hayM8, hoyArgentina, moverCuentaTx } from "./moneda-bancos.server";
 import { valorDelNegocio } from "./parametros/leer.server";
-import { hayM5, lineasParaLaMensual, reclamarLineasDeProyectoTx } from "./liquidacion-proyecto.server";
+import { hayM5, lineasParaLaMensual, proyectosConReparto, reclamarLineasDeProyectoTx } from "./liquidacion-proyecto.server";
 
 const ADMIN = "/admin/proyectos/administracion";
 /** Un extracto de varios meses entra de sobra, y no pasa el límite de lo que recibe una acción del servidor. */
@@ -634,13 +634,15 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
     lineasParaLaMensual(prisma, a.tenantId),
   ]);
   const publicadas = actuales.filter((l) => l.estado !== "BORRADOR").length;
+  // T12 (O25): con el reparto prendido, el plus de un proyecto que se liquida por reparto no entra (no se paga dos veces).
+  const conReparto = await proyectosConReparto(prisma, a.tenantId, [...new Set(personas.flatMap((p) => p.equipos.map((e) => e.proyecto.id)))]);
   let generadas = 0;
   let salteada: string | null = null;
   await tenantTransaction(async (tx) => {
     for (const p of personas) {
       const previa = actuales.find((l) => l.personaId === p.id);
       if (previa && previa.estado !== "BORRADOR") continue;
-      const delPeriodo = extrasDelPeriodo(p.equipos, periodo);
+      const delPeriodo = extrasDelPeriodo(p.equipos, periodo, conReparto);
       const deProyecto = deProyectos.porPersona.get(p.id) ?? [];
       if (!previa && !(p.sueldoBase > 0) && delPeriodo.length === 0 && !conReintegro?.has(p.id) && deProyecto.length === 0) continue;
       // G4: la propia no se genera ni se recalcula; la arma otra persona con permiso (el resultado lo dice).

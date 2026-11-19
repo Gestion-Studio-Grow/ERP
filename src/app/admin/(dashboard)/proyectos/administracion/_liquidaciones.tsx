@@ -11,6 +11,8 @@ import { BotonDosPasos, EditarExtras, GenerarLiquidaciones, PagarLiquidacion } f
 import { CampoCodigo } from "@/components/segundo-paso/CampoCodigo";
 import { rigeSegundoPaso } from "@/lib/proyectos/segundo-factor-core";
 import { rubroDe } from "@/lib/proyectos/segundo-factor.server";
+import { saldosAFavorDe } from "@/lib/proyectos/liquidacion-proyecto.server";
+import { formatearPesos } from "@/lib/rendiciones/dinero";
 
 /**
  * `paga`: Dirección o Administración (el servidor lo vuelve a decidir, y nadie se paga lo propio). `yo`: quien mira; la
@@ -18,7 +20,7 @@ import { rubroDe } from "@/lib/proyectos/segundo-factor.server";
  */
 export async function TabLiquidaciones({ tenantId, mes, edita, paga = false, yo }: { tenantId: string; mes?: string; edita: boolean; paga?: boolean; yo: { personaId: string | null; userId: string } }) {
   const periodo = mes && periodoValido(mes) ? mes : claveMes(new Date());
-  const [filas, cuentas, rubro] = await Promise.all([liquidacionesDelPeriodo(tenantId, periodo), paga ? cuentasEnPesos(tenantId) : [], paga ? rubroDe(tenantId) : null]);
+  const [filas, cuentas, rubro, saldos] = await Promise.all([liquidacionesDelPeriodo(tenantId, periodo), paga ? cuentasEnPesos(tenantId) : [], paga ? rubroDe(tenantId) : null, saldosAFavorDe(tenantId)]);
   // MIA-50 T11 (O47, D10): pagar pide el código de la app en el momento, donde rigen los dos pasos.
   const dosPasos = paga && rigeSegundoPaso(rubro);
   const esMia = (f: (typeof filas)[number]) => esLoPropio(yo, { personaId: f.personaId, userId: f.persona.userId });
@@ -100,6 +102,20 @@ export async function TabLiquidaciones({ tenantId, mes, edita, paga = false, yo 
           </table>
         )}
       </section>
+      {saldos.length > 0 && (
+        <section className={tarjeta} aria-labelledby="titulo-saldos">
+          <h2 id="titulo-saldos" className="font-semibold text-strong">Saldos a favor de la empresa</h2>
+          <p className="text-sm text-muted">{"Personas cuya parte de un proyecto cerró en negativo o bajó por un ajuste. No se descuenta solo de su liquidación del mes: Dirección decide cómo se compensa."}</p>
+          <ul className="mt-3 grid gap-2 text-sm">
+            {saldos.map((x) => (
+              <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2">
+                <span className="min-w-0 break-words text-strong">{`${x.persona} · `}<Link href={`/admin/proyectos/${x.proyectoId}?tab=liquidacion`} prefetch={false} className="underline">{x.proyecto}</Link></span>
+                <span className="tabular-nums font-semibold text-strong">{formatearPesos(x.monto - x.aplicado)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

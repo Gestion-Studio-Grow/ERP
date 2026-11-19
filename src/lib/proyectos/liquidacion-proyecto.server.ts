@@ -13,11 +13,11 @@ import { cobranzasDelNegocio, tiposDeCambio } from "./cobranza.server";
 import { configProyectos } from "./datos.server";
 import { aCobrarPorCuota } from "./moneda-bancos.server";
 import { hayM3 } from "./precio-foto.server";
-import { parametrosDelNegocio } from "./parametros/leer.server";
+import { parametrosDelNegocio, valorDelNegocio } from "./parametros/leer.server";
 import type { ParticipanteFoto } from "./precio-proyecto-core";
 import { actorActual, proyectoVisible, puede, type Actor } from "./gestion.server";
 import { CATALOGO } from "./parametros/catalogo";
-import { calcularLiquidacion, comparacionesDeRevision, listaParaLaMensual, nombreDeLineaMensual, SIN_FICHA_NO_REVISA, type Comparacion, type LiquidacionCalculada } from "./liquidacion-proyecto-core";
+import { calcularAjuste, calcularLiquidacion, comparacionesDeRevision, listaParaLaMensual, nombreDeLineaMensual, SIN_FICHA_NO_REVISA, type Comparacion, type LiquidacionCalculada, type RenglonAjuste } from "./liquidacion-proyecto-core";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -74,25 +74,12 @@ export async function medirProyecto(db: Db, tenantId: string, proyectoId: string
     cobranzasDelNegocio(tenantId, tc, config.margenPct, [proyectoId], db).then((m) => m.get(proyectoId)),
     aCobrarPorCuota(tenantId, cobrosCuotas.map((c) => c.id), db),
   ]);
-  const p = f.parametros as Record<string, unknown>;
-  const comisiones = (p.comisiones ?? {}) as Record<string, number>;
   const participantes = f.participantes as unknown as ParticipanteFoto[];
   const valores = Object.fromEntries(CLAVES.map((k) => [k, String(params[k].valor)])) as Medicion["parametros"]["valores"];
   const provisionales = CLAVES.filter((k) => params[k].provisional);
   const costoReal = centavosDe(real.costoReal);
   const foto = { presupuestoId: f.presupuestoId, version: f.version, totalVenta: n(f.totalVentaCentavos), costoOriginal: n(f.costoOriginalCentavos), adicionales: n(f.adicionalesCentavos), redondeoBruto: n(f.redondeoBrutoCentavos), participantes };
-  const calculo = calcularLiquidacion({
-    totalVenta: foto.totalVenta,
-    costoOriginal: foto.costoOriginal,
-    adicionales: foto.adicionales,
-    redondeoBruto: foto.redondeoBruto,
-    rentabilidad: n(p.rentabilidad as number),
-    margenError: n(p.margenError as number),
-    comisiones,
-    participantes,
-    costoReal,
-    defensaNegativa: valores["reparto.defensaNegativa"],
-  });
+  const calculo = calculoDeLaFoto(f, costoReal, valores["reparto.defensaNegativa"]);
   const comprobantes = centavosDe(real.imputado);
   const facturado = [...aCobrar.values()].reduce((s, q) => s + centavosDe(q.facturado), 0);
   const cobrado = centavosDe(cob?.cobrado ?? 0);
@@ -108,6 +95,25 @@ export async function medirProyecto(db: Db, tenantId: string, proyectoId: string
     calculo,
     comparaciones: comparacionesDeRevision({ costoReal, comprobantes, facturado, cobrado }),
   };
+}
+
+type FotoGuardada = NonNullable<Awaited<ReturnType<typeof prisma.proyectoPrecioFoto.findFirst>>>;
+
+/** La cuenta de la liquidación con la foto del precio congelada y un costo real dado (la provisoria, el borrador y el ajuste). */
+function calculoDeLaFoto(f: FotoGuardada, costoReal: number, defensaNegativa: string): LiquidacionCalculada {
+  const p = f.parametros as Record<string, unknown>;
+  return calcularLiquidacion({
+    totalVenta: n(f.totalVentaCentavos),
+    costoOriginal: n(f.costoOriginalCentavos),
+    adicionales: n(f.adicionalesCentavos),
+    redondeoBruto: n(f.redondeoBrutoCentavos),
+    rentabilidad: n(p.rentabilidad as number),
+    margenError: n(p.margenError as number),
+    comisiones: (p.comisiones ?? {}) as Record<string, number>,
+    participantes: f.participantes as unknown as ParticipanteFoto[],
+    costoReal,
+    defensaNegativa,
+  });
 }
 
 /** El evento terminó: la fecha de fin (o la del evento) ya pasó. Sin fecha, no terminó. */
@@ -145,6 +151,85 @@ export async function comprobantesParaAjuste(db: Db, tenantId: string, proyectoI
   return filas.filter((l) => !congeladas.has(l.id)).map((l) => ({ id: l.id, costo: n(l.costoCentavos), origen: `${l.comprobante.supplier.name} · ${l.comprobante.tipo} ${l.comprobante.numero}` }));
 }
 
+// ── T12 · O24: el ajuste por comprobante tardío ──
+
+export interface ComprobanteTardio { id: string; costo: number; origen: string }
+/** Lo que guarda cada renglón de ajuste: el lote de comprobantes que cubre y el costo real antes y después. */
+export interface DetalleAjuste { lote: string; comprobantes: ComprobanteTardio[]; costoRealAntes: number; costoRealNuevo: number; periodo: string }
+
+const detalleDe = (d: unknown): DetalleAjuste | null => (d && typeof d === "object" && Array.isArray((d as DetalleAjuste).comprobantes) ? (d as DetalleAjuste) : null);
+
+export interface PropuestaDeAjuste {
+  /** Comprobantes imputados después de aprobar que todavía no tienen ajuste. */
+  pendientes: ComprobanteTardio[];
+  renglones: RenglonAjuste[];
+  costoRealAntes: number;
+  costoRealNuevo: number;
+  cierra: boolean;
+}
+
+/**
+ * Lo que falta ajustar de una liquidación APROBADA: los comprobantes que entraron después de congelar el costo y no cubre
+ * ningún ajuste anterior, y lo que cambia cada línea con el costo real nuevo (la foto y el parámetro de defensa negativa
+ * son los congelados al declarar). `null` si no hay nada pendiente.
+ */
+export async function propuestaDeAjuste(db: Db, tenantId: string, cab: LiquidacionGuardada): Promise<PropuestaDeAjuste | null> {
+  if (cab.estado !== "APROBADA") return null;
+  const previos = await db.proyectoLiquidacionProyectoAjuste.findMany({ where: { tenantId, liquidacionId: cab.id }, select: { lineaId: true, monto: true, detalle: true } });
+  const cubiertos = new Map<string, number>();
+  for (const a of previos) for (const c of detalleDe(a.detalle)?.comprobantes ?? []) cubiertos.set(c.id, c.costo);
+  const pendientes = (await comprobantesParaAjuste(db, tenantId, cab.proyectoId, cab.costoDetalle)).filter((c) => !cubiertos.has(c.id) && c.costo !== 0);
+  if (pendientes.length === 0) return null;
+  const costoRealAntes = n(cab.costoReal) + [...cubiertos.values()].reduce((s, c) => s + c, 0);
+  const costoRealNuevo = costoRealAntes + pendientes.reduce((s, c) => s + c.costo, 0);
+  const foto = cab.presupuestoId && cab.fotoVersion !== null ? await db.proyectoPrecioFoto.findFirst({ where: { tenantId, proyectoId: cab.proyectoId, presupuestoId: cab.presupuestoId, version: cab.fotoVersion } }) : null;
+  const defensaNegativa = (cab.parametros as Medicion["parametros"] | null)?.valores?.["reparto.defensaNegativa"];
+  if (!foto || !defensaNegativa) throw new Error("La liquidación aprobada no tiene su foto del precio: el ajuste no se puede calcular.");
+  const r = calcularAjuste({ lineas: cab.lineas, previos, recalculo: calculoDeLaFoto(foto, costoRealNuevo, defensaNegativa) });
+  return { pendientes, renglones: r.renglones, costoRealAntes, costoRealNuevo, cierra: r.cierra };
+}
+
+export interface AjusteVisible { id: string; nombre: string; personaId: string | null; motivo: string; monto: number; autor: string; cuando: Date }
+
+/** Los ajustes ya aprobados de una liquidación, con el nombre de la línea. Sin `veTodo`, sólo los de la persona. */
+async function ajustesVisibles(db: Db, tenantId: string, cab: LiquidacionGuardada, veTodo: boolean, personaId: string | null): Promise<AjusteVisible[]> {
+  const filas = await db.proyectoLiquidacionProyectoAjuste.findMany({ where: { tenantId, liquidacionId: cab.id }, orderBy: { createdAt: "asc" } });
+  const linea = new Map(cab.lineas.map((l) => [l.id, l]));
+  return filas
+    .map((f) => ({ id: f.id, nombre: linea.get(f.lineaId ?? "")?.nombre ?? "—", personaId: linea.get(f.lineaId ?? "")?.personaId ?? null, motivo: f.motivo, monto: n(f.monto), autor: f.autorNombre, cuando: f.createdAt }))
+    .filter((f) => veTodo || (!!personaId && f.personaId === personaId));
+}
+
+// ── T12 · O25: el plus no se paga dos veces ──
+
+/**
+ * De `proyectoIds`, los que se liquidan por el reparto: con el parámetro «Reparto» prendido, los que tienen el precio
+ * aprobado con su foto (equipo y porcentajes). Ahí el plus fijo no entra a la mensual. Reparto apagado: ninguno.
+ */
+export async function proyectosConReparto(db: Db, tenantId: string, proyectoIds: readonly string[]): Promise<Set<string>> {
+  if (proyectoIds.length === 0 || !(await valorDelNegocio(tenantId, "reparto.activo", db)) || !(await hayM3())) return new Set();
+  const fotos = await db.proyectoPrecioFoto.findMany({ where: { tenantId, proyectoId: { in: [...proyectoIds] }, presupuesto: { estado: "APROBADO" } }, select: { proyectoId: true } });
+  return new Set(fotos.map((f) => f.proyectoId));
+}
+
+export const PLUS_APAGADO = "plus apagado por reparto";
+
+// ── T12 · O26: saldo a favor de la empresa ──
+
+export interface SaldoVisible { id: string; persona: string; proyectoId: string; proyecto: string; monto: number; aplicado: number; desde: Date }
+
+/** Los saldos a favor de la empresa. Con `personaId`, sólo los de esa persona («Mi liquidación»); sin él, los del negocio. */
+export async function saldosAFavorDe(tenantId: string, personaId?: string): Promise<SaldoVisible[]> {
+  if (!(await hayM5())) return [];
+  const filas = await prisma.proyectoSaldoAFavor.findMany({
+    where: { tenantId, ...(personaId ? { personaId } : {}) },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: { id: true, monto: true, aplicado: true, createdAt: true, persona: { select: { nombre: true } }, liquidacion: { select: { proyectoId: true, proyecto: { select: { nombre: true } } } } },
+  });
+  return filas.map((f) => ({ id: f.id, persona: f.persona.nombre, proyectoId: f.liquidacion.proyectoId, proyecto: f.liquidacion.proyecto.nombre, monto: n(f.monto), aplicado: n(f.aplicado), desde: f.createdAt }));
+}
+
 /** Las personas que cobran en el proyecto (su equipo de hoy y las de la foto): no revisan ni aprueban (O21, O22). */
 export async function quienesCobran(db: Db, tenantId: string, proyectoId: string, participantes: readonly ParticipanteFoto[]): Promise<Set<string>> {
   const equipo = await db.proyectoEquipo.findMany({ where: { tenantId, proyectoId }, select: { personaId: true } });
@@ -176,12 +261,14 @@ export async function liquidacionVisible(a: { tenantId: string; personaId: strin
   const filtrar = <T extends { personaId: string | null }>(filas: T[]) => (veTodo ? filas : filas.filter((f) => !!a.personaId && f.personaId === a.personaId));
   if (guardada) {
     const filas: FilaVisible[] = guardada.lineas.map((l) => ({ clave: l.clave, personaId: l.personaId, nombre: l.nombre, funcion: l.funcion, comision: n(l.comision), reparto: n(l.reparto), redondeo: n(l.redondeo), rentabilidad: n(l.rentabilidad), total: n(l.total) }));
-    return { m5, provisoria: guardada.estado !== "APROBADA", estado: guardada.estado, filas: filtrar(filas), cabecera: veTodo ? guardada : null };
+    const ajustes = await ajustesVisibles(prisma, tenantId, guardada, veTodo, a.personaId);
+    return { m5, provisoria: guardada.estado !== "APROBADA", estado: guardada.estado, filas: filtrar(filas), ajustes, cabecera: veTodo ? guardada : null };
   }
   const m = await medirProyecto(prisma, tenantId, proyectoId, m3);
-  if (!m) return { m5, provisoria: true, estado: null, filas: [] as FilaVisible[], cabecera: null };
+  const ajustes: AjusteVisible[] = [];
+  if (!m) return { m5, provisoria: true, estado: null, filas: [] as FilaVisible[], ajustes, cabecera: null };
   const filas: FilaVisible[] = m.calculo.lineas.map(({ detalle: _d, ...l }) => l);
-  return { m5, provisoria: true, estado: null, filas: filtrar(filas), cabecera: null, medicion: veTodo ? m : undefined };
+  return { m5, provisoria: true, estado: null, filas: filtrar(filas), ajustes, cabecera: null, medicion: veTodo ? m : undefined };
 }
 
 /** La pestaña «Liquidación» de la ficha: lo que ve quien entra. Sin acceso al proyecto, null. */
@@ -245,7 +332,12 @@ export interface PanelLiquidacion {
   esperado: number | null;
   comparaciones: Comparacion[];
   pasos: { que: string; quien: string; cuando: Date; nota?: string | null }[];
-  paraAjuste: { id: string; costo: number; origen: string }[];
+  /** T12 · O24: los ajustes aprobados (debajo de la liquidación) y lo que falta ajustar, con su cuenta. */
+  ajustes: AjusteVisible[];
+  propuesta: PropuestaDeAjuste | null;
+  /** Si quien entra aprueba el ajuste; si no, por qué. */
+  apruebaAjuste: boolean;
+  motivoAjuste: string | null;
   provisionales: string[];
   avisos: string[];
   /** Qué botón ve quien entra; el permiso se vuelve a pedir en la acción. */
@@ -263,7 +355,7 @@ export async function panelDeLiquidacion(a: Actor, proyectoId: string): Promise<
   const estado = v.estado && ESTADOS.has(v.estado) ? (v.estado as PanelLiquidacion["estado"]) : null;
   const sinFoto = !v.estado && v.filas.length === 0 && !v.medicion && veTodo;
   const nombreDe = (k: string) => CATALOGO.find((p) => p.clave === k)?.nombre ?? k;
-  const base: PanelLiquidacion = { m5: v.m5, sinFoto, estado, provisoria: v.provisoria, veTodo, filas: v.filas, esperado: null, comparaciones: [], pasos: [], paraAjuste: [], provisionales: [], avisos: [], accion: null, motivo: null };
+  const base: PanelLiquidacion = { m5: v.m5, sinFoto, estado, provisoria: v.provisoria, veTodo, filas: v.filas, esperado: null, comparaciones: [], pasos: [], ajustes: v.ajustes, propuesta: null, apruebaAjuste: false, motivoAjuste: null, provisionales: [], avisos: [], accion: null, motivo: null };
   if (!veTodo) return base;
   if (!cab) {
     const m = v.medicion;
@@ -303,12 +395,21 @@ export async function panelDeLiquidacion(a: Actor, proyectoId: string): Promise<
     else if (cobraEl) motivo = "Cobrás en este proyecto: la aprueba otra persona de Dirección.";
     else accion = "APROBAR";
   }
+  const propuesta = await propuestaDeAjuste(prisma, tenantId, cab);
+  let motivoAjuste: string | null = null;
+  if (propuesta) {
+    if (a.rol !== "DIRECCION") motivoAjuste = "El ajuste lo aprueba Dirección con el código de su app.";
+    else if (!a.personaId) motivoAjuste = SIN_FICHA_NO_REVISA;
+    else if (cobraEl) motivoAjuste = "Cobrás en este proyecto: el ajuste lo aprueba otra persona de Dirección.";
+  }
   return {
     ...base,
     esperado: n(cab.esperado),
     comparaciones: comparacionesDeRevision({ ...congelados, ...cobro }),
     pasos,
-    paraAjuste: cab.estado === "APROBADA" ? await comprobantesParaAjuste(prisma, tenantId, proyectoId, cab.costoDetalle) : [],
+    propuesta,
+    apruebaAjuste: !!propuesta && !motivoAjuste,
+    motivoAjuste,
     provisionales: (params.provisionales ?? []).map(nombreDe),
     avisos: Array.isArray(cab.avisos) ? (cab.avisos as string[]) : [],
     accion,

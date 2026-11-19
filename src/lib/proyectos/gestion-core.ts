@@ -3,7 +3,7 @@
 // docs/benchmark/heka-especificacion.md.
 
 import { anticipoDeLaLinea, DIAS_POR_DEFECTO, type DiasDelPlan } from "./presupuesto-core";
-import { redondear, yaVencio } from "./core";
+import { pesos, redondear, yaVencio } from "./core";
 
 const DIA = 86_400_000;
 
@@ -62,11 +62,6 @@ export function aPesos(monto: number, moneda: string, tiposDeCambio: Readonly<Re
   return redondear(monto * (tiposDeCambio[moneda] ?? 0));
 }
 
-export function plataEn(monto: number, moneda: string): string {
-  const d = Number.isInteger(redondear(monto)) ? 0 : 2;
-  return new Intl.NumberFormat("es-AR", { style: "currency", currency: moneda === "USD" ? "USD" : "ARS", minimumFractionDigits: d, maximumFractionDigits: d }).format(monto);
-}
-
 /** Pesos por unidad de la moneda de venta. Enviada la versión queda fijo; antes, el de hoy. 0 si falta. PURA. */
 export function cambioDeVenta(moneda: string, tcVenta: number | null | undefined, tc: Readonly<Record<string, number>>): number {
   if (moneda === "ARS") return 1;
@@ -79,7 +74,7 @@ export function enMonedaDeVenta(enPesos: number, cambio: number): number {
 }
 
 export function ventaEn(enPesos: number, moneda: string, cambio: number): string {
-  return moneda === "ARS" || !(cambio > 0) ? plataEn(enPesos, "ARS") : plataEn(enMonedaDeVenta(enPesos, cambio), moneda);
+  return moneda === "ARS" || !(cambio > 0) ? pesos(enPesos) : pesos(enMonedaDeVenta(enPesos, cambio), moneda);
 }
 
 // ── Ficha del evento ────────────────────────────────────────────────────────
@@ -428,12 +423,15 @@ export interface ExtraLiquidacion {
   monto: number;
 }
 
-/** El plus se cobra el mes en que el evento terminó. */
-export function extrasDelPeriodo(equipos: readonly { plus: number; proyecto: { id: string; nombre: string; fechaEvento: Date | null; fechaFin: Date | null } }[], periodo: string): ExtraLiquidacion[] {
+/**
+ * El plus se cobra el mes en que el evento terminó. T12 (O25, «no se paga dos veces»): `conReparto` son los proyectos
+ * que se liquidan por el reparto (negocio con el reparto prendido y precio aprobado con su foto); ahí el plus no entra.
+ */
+export function extrasDelPeriodo(equipos: readonly { plus: number; proyecto: { id: string; nombre: string; fechaEvento: Date | null; fechaFin: Date | null } }[], periodo: string, conReparto: ReadonlySet<string> = new Set()): ExtraLiquidacion[] {
   return equipos
     .filter((e) => {
       const f = e.proyecto.fechaFin ?? e.proyecto.fechaEvento;
-      return e.plus > 0 && !!f && claveMes(f) === periodo;
+      return e.plus > 0 && !!f && claveMes(f) === periodo && !conReparto.has(e.proyecto.id);
     })
     .map((e) => ({ proyectoId: e.proyecto.id, nombre: e.proyecto.nombre, monto: e.plus }));
 }

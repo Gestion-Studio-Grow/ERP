@@ -14,8 +14,10 @@ import { tenantTransaction } from "@/lib/rls";
 import { actorActual, proyectoVisible, puede, registrarCambio, type Actor } from "./gestion.server";
 import { hayM3 } from "./precio-foto.server";
 import { comprobarCodigo } from "./segundo-factor.server";
-import { cierraAlCentavo, comparacionesDeRevision, rechazoDeRevision, SIN_FICHA_NO_REVISA } from "./liquidacion-proyecto-core";
-import { eventoTerminado, hayM5, liquidacionDelProyecto, medirProyecto, quienesCobran, rendicionesPendientes, SIN_M5 } from "./liquidacion-proyecto.server";
+import { randomUUID } from "node:crypto";
+import { claveMes } from "./gestion-core";
+import { cierraAlCentavo, comparacionesDeRevision, rechazoDeRevision, saldosAFavor, SIN_FICHA_NO_REVISA } from "./liquidacion-proyecto-core";
+import { eventoTerminado, hayM5, liquidacionDelProyecto, medirProyecto, propuestaDeAjuste, quienesCobran, rendicionesPendientes, SIN_M5, type DetalleAjuste, type LiquidacionGuardada } from "./liquidacion-proyecto.server";
 import type { ParticipanteFoto } from "./precio-proyecto-core";
 
 export type ResultadoLiq = { ok: true; listo?: string } | { ok: false; error: string };
@@ -161,39 +163,120 @@ export async function revisarLiquidacionProyecto(formData: FormData): Promise<Re
   }
 }
 
+/** Lo que se comprueba antes de aprobar, sin escribir: se corre ANTES de pedir el código y otra vez adentro de la escritura. */
+async function chequearAprobacion(tx: Prisma.TransactionClient, a: Actor, proyectoId: string): Promise<LiquidacionGuardada> {
+  const liq = await liquidacionDelProyecto(tx, a.tenantId, proyectoId);
+  if (!liq) throw new Rechazo("Primero Administración declara los costos completos.");
+  if (liq.estado === "APROBADA") throw new Rechazo("Ya está aprobada: queda congelada.");
+  if (liq.estado !== "REVISADA") throw new Rechazo("Antes de aprobarla, alguien que no cobra en el proyecto la tiene que revisar.");
+  await exigirQueNoCobre(tx, a, proyectoId, liq.lineas);
+  return liq;
+}
+
+/**
+ * Pide el código de la app de Dirección. T12 (observación 3 de la certificación de la ola 4): primero se corre `chequear`,
+ * que rechaza a quien no puede (sin ficha, cobra en el proyecto, estado equivocado) SIN gastar el código; recién después se
+ * comprueba el código, que consume un código de respaldo o el paso de tiempo.
+ */
+async function conCodigo(a: Actor, codigo: string, chequear: () => Promise<unknown>): Promise<string | null> {
+  if (!soloRol(a, "DIRECCION")) return "Sólo Dirección aprueba la liquidación del proyecto y sus ajustes.";
+  if (!codigo) return "Escribí el código de tu app de autenticación para aprobar.";
+  const factor = await prisma.proyectoSegundoFactor.findUnique({ where: { tenantId_userId: { tenantId: a.tenantId, userId: a.user.id } }, select: { activadoEl: true } });
+  // Sin factor activo no se aprueba: `comprobarCodigo` lo activaría con este mismo código.
+  if (!factor?.activadoEl) return "Para aprobar, primero activá el ingreso en dos pasos de tu usuario.";
+  try {
+    await chequear();
+  } catch (e) {
+    if (e instanceof Rechazo) return e.message;
+    throw e;
+  }
+  const c = await comprobarCodigo({ id: a.user.id, tenantId: a.tenantId, email: a.user.email, role: a.user.role }, codigo);
+  return c.ok ? null : c.error;
+}
+
 /**
  * O22 · Dirección aprueba con el código de su app EN ESE MOMENTO. Vuelve a hacer la cuenta desde las filas guardadas: si
  * no da Total venta − costo real al centavo, no aprueba. El paso REVISADA → APROBADA es condicionado: una sola aprobada.
- * Queda congelada: lo que entra después va a ajuste (T12).
+ * Queda congelada: lo que entra después va a ajuste. T12 (O26): la línea de una persona que da negativa queda, en la misma
+ * transacción, como saldo a favor de la empresa; no se descuenta de la mensual.
  */
 export async function aprobarLiquidacionProyecto(formData: FormData): Promise<ResultadoLiq> {
   const proyectoId = txt(formData.get("proyectoId"), 40);
   const codigo = txt(formData.get("codigo"), 20);
   const a = await entrar(proyectoId);
   if (typeof a === "string") return { ok: false, error: a };
-  if (!soloRol(a, "DIRECCION")) return { ok: false, error: "Sólo Dirección aprueba la liquidación del proyecto." };
-  if (!codigo) return { ok: false, error: "Escribí el código de tu app de autenticación para aprobar." };
   const { tenantId } = a;
-  const factor = await prisma.proyectoSegundoFactor.findUnique({ where: { tenantId_userId: { tenantId, userId: a.user.id } }, select: { activadoEl: true } });
-  // Sin factor activo no se aprueba: `comprobarCodigo` lo activaría con este mismo código.
-  if (!factor?.activadoEl) return { ok: false, error: "Para aprobar, primero activá el ingreso en dos pasos de tu usuario." };
-  const c = await comprobarCodigo({ id: a.user.id, tenantId, email: a.user.email, role: a.user.role }, codigo);
-  if (!c.ok) return { ok: false, error: c.error };
+  const error = await conCodigo(a, codigo, () => tenantTransaction((tx) => chequearAprobacion(tx, a, proyectoId)));
+  if (error) return { ok: false, error };
   try {
     await tenantTransaction(async (tx) => {
-      const liq = await liquidacionDelProyecto(tx, tenantId, proyectoId);
-      if (!liq) throw new Rechazo("Primero Administración declara los costos completos.");
-      if (liq.estado === "APROBADA") throw new Rechazo("Ya está aprobada: queda congelada.");
-      if (liq.estado !== "REVISADA") throw new Rechazo("Antes de aprobarla, alguien que no cobra en el proyecto la tiene que revisar.");
-      await exigirQueNoCobre(tx, a, proyectoId, liq.lineas);
+      const liq = await chequearAprobacion(tx, a, proyectoId);
       if (liq.esperado !== liq.totalVenta - liq.costoReal || !cierraAlCentavo(liq.lineas, liq.esperado)) {
         throw new Rechazo("La suma de las filas no da Total venta − costo real al centavo: no se aprueba. Avisá a Gestión Studio Grow.");
       }
       const hecho = await tx.proyectoLiquidacionProyecto.updateMany({ where: { id: liq.id, tenantId, estado: "REVISADA" }, data: { estado: "APROBADA", aprobadaPor: a.user.id, aprobadaNombre: a.nombre, aprobadaEl: new Date() } });
       if (hecho.count === 0) throw new Rechazo("Ya está aprobada: queda congelada.");
+      const saldos = saldosAFavor(liq.lineas.map((l) => ({ personaId: l.personaId, monto: l.total })));
+      if (saldos.length > 0) await tx.proyectoSaldoAFavor.createMany({ data: saldos.map((x) => ({ tenantId, personaId: x.personaId, liquidacionId: liq.id, monto: BigInt(x.monto) })) });
       await registrarCambio(tx, { tenantId, proyectoId, entidad: "LiquidacionProyecto", entidadId: liq.id, campo: CAMPO, antes: "Revisada", despues: "Aprobada", autor: a.nombre });
     });
     return listo(proyectoId, "Aprobada y congelada. Entra a la liquidación del mes cuando se cumpla «cuándo se paga».");
+  } catch (e) {
+    if (e instanceof Rechazo) return { ok: false, error: e.message };
+    throw e;
+  }
+}
+
+/** Lo que se comprueba antes de aprobar un ajuste. Sin nada pendiente devuelve null (el segundo envío no hace otro). */
+async function chequearAjuste(tx: Prisma.TransactionClient, a: Actor, proyectoId: string) {
+  const liq = await liquidacionDelProyecto(tx, a.tenantId, proyectoId);
+  if (!liq || liq.estado !== "APROBADA") throw new Rechazo("El ajuste es para una liquidación ya aprobada.");
+  await exigirQueNoCobre(tx, a, proyectoId, liq.lineas);
+  const propuesta = await propuestaDeAjuste(tx, a.tenantId, liq);
+  return propuesta ? { liq, propuesta } : null;
+}
+
+const YA_AJUSTADO = "No hay comprobantes nuevos para ajustar: el ajuste ya estaba hecho.";
+
+/**
+ * O24 · Un comprobante que llega después de aprobar NO reabre la liquidación: Dirección aprueba, con el código de su app,
+ * un ajuste en el período abierto (un renglón por línea que cambia). Candado por liquidación (`FOR UPDATE`): dos envíos a
+ * la vez hacen un solo ajuste; el segundo encuentra el comprobante ya cubierto. Liquidación + ajustes = Total venta − costo
+ * real nuevo, o no se escribe nada. Lo que le toca de menos a una persona queda como saldo a favor de la empresa (O26).
+ */
+export async function aprobarAjusteTardio(formData: FormData): Promise<ResultadoLiq> {
+  const proyectoId = txt(formData.get("proyectoId"), 40);
+  const codigo = txt(formData.get("codigo"), 20);
+  const a = await entrar(proyectoId);
+  if (typeof a === "string") return { ok: false, error: a };
+  const { tenantId } = a;
+  let nada = false;
+  const error = await conCodigo(a, codigo, async () => {
+    nada = !(await tenantTransaction((tx) => chequearAjuste(tx, a, proyectoId)));
+    if (nada) throw new Rechazo(YA_AJUSTADO);
+  });
+  if (nada) return listo(proyectoId, YA_AJUSTADO);
+  if (error) return { ok: false, error };
+  try {
+    const r = await tenantTransaction(async (tx) => {
+      const cab = await liquidacionDelProyecto(tx, tenantId, proyectoId);
+      if (!cab) throw new Rechazo("El ajuste es para una liquidación ya aprobada.");
+      await tx.$queryRaw`SELECT id FROM "ProyectoLiquidacionProyecto" WHERE id = ${cab.id} AND "tenantId" = ${tenantId} FOR UPDATE`;
+      const hay = await chequearAjuste(tx, a, proyectoId);
+      if (!hay) return "ya";
+      const { liq, propuesta: p } = hay;
+      if (!p.cierra) throw new Rechazo("La liquidación más los ajustes no da Total venta − costo real al centavo: no se ajusta. Avisá a Gestión Studio Grow.");
+      const detalle: DetalleAjuste = { lote: randomUUID(), comprobantes: p.pendientes, costoRealAntes: p.costoRealAntes, costoRealNuevo: p.costoRealNuevo, periodo: claveMes(new Date()) };
+      const motivo = `Comprobante tardío: ${p.pendientes.map((c) => c.origen).join("; ")}`.slice(0, 300);
+      await tx.proyectoLiquidacionProyectoAjuste.createMany({
+        data: p.renglones.map((x) => ({ tenantId, liquidacionId: liq.id, lineaId: x.lineaId, motivo, monto: BigInt(x.monto), detalle: detalle as unknown as Prisma.InputJsonValue, autorId: a.user.id, autorNombre: a.nombre })),
+      });
+      const saldos = saldosAFavor(p.renglones);
+      if (saldos.length > 0) await tx.proyectoSaldoAFavor.createMany({ data: saldos.map((x) => ({ tenantId, personaId: x.personaId, liquidacionId: liq.id, monto: BigInt(x.monto) })) });
+      await registrarCambio(tx, { tenantId, proyectoId, entidad: "LiquidacionProyecto", entidadId: liq.id, campo: CAMPO, antes: "Aprobada", despues: `Ajuste aprobado · ${p.renglones.length} renglones`, autor: a.nombre });
+      return "hecho";
+    });
+    return listo(proyectoId, r === "ya" ? YA_AJUSTADO : "Ajuste aprobado. La liquidación aprobada no cambió: el ajuste queda debajo.");
   } catch (e) {
     if (e instanceof Rechazo) return { ok: false, error: e.message };
     throw e;

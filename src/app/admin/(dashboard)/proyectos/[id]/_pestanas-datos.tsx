@@ -17,6 +17,7 @@ import { cabezaMovil, celdaMovil, cssTarjetas, cuerpoMovil, etiquetasFicha, fila
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
 import { CopiarLink } from "./_piezas";
 import { valorDelNegocio } from "@/lib/proyectos/parametros/leer.server";
+import { PLUS_APAGADO, proyectosConReparto } from "@/lib/proyectos/liquidacion-proyecto.server";
 import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
 import { TablaFicha } from "./_tabla-ficha";
 
@@ -45,6 +46,8 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
   const libres = personas.filter((x) => !p.equipo.some((e) => e.personaId === x.id));
   // MIA T07: las funciones del negocio (catálogo de parámetros): con ellas se cobra la comisión del precio por total.
   const funciones = await valorDelNegocio(a.tenantId, "equipo.funciones");
+  // T12 (O25): con el reparto prendido y el precio aprobado con su foto, el plus no se paga: lo dice al lado de la persona.
+  const plusApagado = vista.costos && p.equipo.some((e) => e.plus > 0) && (await proyectosConReparto(prisma, a.tenantId, [p.id])).has(p.id);
   const clientes = vista.pipelineEdita ? await prisma.client.findMany({ where: { tenantId: a.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [];
 
   return (
@@ -148,7 +151,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
             <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-1 text-sm">
               <span className="min-w-0">
                 <span className="font-medium text-strong">{e.persona.nombre}</span>
-                <span className="block text-xs text-muted">{[(e.funcion && funciones.find((f) => f.id === e.funcion)?.nombre) || e.funcion || e.persona.puesto, vista.costos && e.plus > 0 ? `plus ${pesos(e.plus)}` : null].filter(Boolean).join(" · ")}</span>
+                <span className="block text-xs text-muted">{[(e.funcion && funciones.find((f) => f.id === e.funcion)?.nombre) || e.funcion || e.persona.puesto, vista.costos && e.plus > 0 ? (plusApagado ? `plus ${pesos(e.plus)}: ${PLUS_APAGADO}` : `plus ${pesos(e.plus)}`) : null].filter(Boolean).join(" · ")}</span>
               </span>
               {vista.pipelineEdita && <BotonConConfirmacion accion={quitarEquipo} ocultos={{ id: e.id, proyectoId: p.id }} texto="Quitar" textoConfirma="Quitar" etiqueta={`Quitar a ${e.persona.nombre}`} />}
             </li>
