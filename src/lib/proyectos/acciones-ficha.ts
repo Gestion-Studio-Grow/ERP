@@ -11,6 +11,7 @@ import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { cuentaParaCuota } from "./gestion-cuentas.server";
 import { prisma } from "@/lib/prisma";
+import { BASE_YA_APROBADA, BaseYaAprobada, conGuardiaDeBase, hayBaseAprobada } from "./presupuesto-base.server";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin } from "@/lib/audit-core";
@@ -645,6 +646,7 @@ export async function nuevaVersion(formData: FormData): Promise<ResultadoFicha> 
   const { tenantId } = a;
   const config = await configProyectos(tenantId);
   const r = await tenantTransaction(async (tx) => {
+    if (await hayBaseAprobada(tx, tenantId, proyectoId)) return "base" as const;
     const ultima = await tx.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId }, orderBy: { version: "desc" }, include: { items: { orderBy: { posicion: "asc" } } } });
     if (ultima && sePuedeEditar(ultima.estado)) return false;
     const nueva = await tx.proyectoPresupuesto.create({
@@ -695,6 +697,7 @@ export async function nuevaVersion(formData: FormData): Promise<ResultadoFicha> 
     await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPresupuesto", entidadId: nueva.id, campo: "Versión nueva", despues: `Versión ${nueva.version}`, autor: a.nombre });
     return true;
   });
+  if (r === "base") return mal(BASE_YA_APROBADA);
   if (!r) return mal("Ya hay una versión en borrador: seguí con ésa.");
   await regenerar(tenantId, proyectoId);
   refrescar(proyectoId);
@@ -756,7 +759,8 @@ export async function enviarCotizacion(formData: FormData): Promise<ResultadoFic
   const foto = fotoDeVersion(fijados.map(({ item, fijo }) => ({ ...item, ...fijo })), tc, config.margenPct);
   const ahora = new Date();
   let avanzo = false;
-  const enviada = await tenantTransaction(async (tx) => {
+  const enviada = await conGuardiaDeBase(() => tenantTransaction(async (tx) => {
+    if (await hayBaseAprobada(tx, tenantId, pr.proyectoId)) throw new BaseYaAprobada();
     const r = await tx.proyectoPresupuesto.updateMany({
       where: { id, tenantId, estado: "BORRADOR", aprobadoInternoEl: { not: null } },
       data: { estado: "ENVIADO", enviadoEl: ahora, validoHasta: sumarDias(ahora, config.validezDias), foto: foto as unknown as Prisma.InputJsonValue, tcVenta: monedaVenta === "ARS" ? null : cambioDeVenta(monedaVenta, pr.tcVenta, tc) },
@@ -769,7 +773,8 @@ export async function enviarCotizacion(formData: FormData): Promise<ResultadoFic
     avanzo = avanza.count > 0;
     if (avanzo) await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "Proyecto", entidadId: pr.proyectoId, campo: "Etapa", despues: etapaLabel("PROPUESTA"), autor: a.nombre });
     return true;
-  });
+  }));
+  if (enviada === "base") return mal(BASE_YA_APROBADA);
   if (!enviada) return mal("No se pudo enviar: revisá que siga aprobada y en borrador.");
   if (avanzo) await avisarEtapa(tenantId, pr.proyectoId, a.user.id, etapaLabel("PROPUESTA"));
   await regenerar(tenantId, pr.proyectoId);
@@ -791,7 +796,8 @@ export async function registrarRespuesta(formData: FormData): Promise<ResultadoF
   const motivo = txt(formData.get("motivo")).slice(0, 500);
   if (!nombre) return mal("Escribí quién respondió.");
   if (!aprueba && !motivo) return mal("Escribí qué cambios pidió.");
-  const ganada = await tenantTransaction(async (tx) => {
+  const ganada = await conGuardiaDeBase(() => tenantTransaction(async (tx) => {
+    if (aprueba && (await hayBaseAprobada(tx, tenantId, pr.proyectoId, id))) throw new BaseYaAprobada();
     const r = await tx.proyectoPresupuesto.updateMany({
       where: { id, tenantId, estado: "ENVIADO" },
       data: { estado: aprueba ? "APROBADO" : "RECHAZADO", respondidoEl: new Date(), respondidoPor: nombre, motivoRechazo: aprueba ? null : motivo },
@@ -804,7 +810,8 @@ export async function registrarRespuesta(formData: FormData): Promise<ResultadoF
       await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "Proyecto", entidadId: pr.proyectoId, campo: "Etapa", antes: etapaLabel(pr.proyecto.etapa, pr.proyecto.servicio), despues: etapaLabel(etapa, pr.proyecto.servicio), autor: a.nombre });
     }
     return true;
-  });
+  }));
+  if (ganada === "base") return mal(BASE_YA_APROBADA);
   if (!ganada) return mal("Esta versión ya fue respondida o reemplazada.");
   if (aprueba) await avisarEtapa(tenantId, pr.proyectoId, a.user.id, etapaLabel(etapaAlAprobar(pr.proyecto.servicio, pr.proyecto.etapa), pr.proyecto.servicio));
   await regenerar(tenantId, pr.proyectoId);

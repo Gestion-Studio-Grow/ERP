@@ -22,6 +22,8 @@ import { configProyectos } from "./datos.server";
 import { venceDeLaCuota, previstaDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_CON_PARTES } from "./pago-parcial-core";
+import { adicionalesDelProyecto, detallesDeLineas, diasDelPlan } from "./presupuesto-m2.server";
+import { cuotasDeAdicionales } from "./presupuesto-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 
 export interface Actor {
@@ -293,11 +295,19 @@ export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: 
       ]);
       if (!p || !viva) return true;
       const items = viva.items.map(aItemFicha);
-      const proveedores = [...new Set(items.map((i) => i.supplierId).filter((s): s is string => !!s))];
+      // MIA T06: el % de cada línea, los adicionales aprobados (sin M2, ninguno) y los días del catálogo (R8).
+      const [detalles, adicionales, dias] = await Promise.all([
+        detallesDeLineas(tx, tenantId, items.map((i) => i.id)),
+        adicionalesDelProyecto(tx, tenantId, proyectoId),
+        diasDelPlan(tenantId),
+      ]);
+      const proveedores = [...new Set([...items.map((i) => i.supplierId), ...adicionales.flatMap((a) => a.lineas.map((l) => l.supplierId))].filter((s): s is string => !!s))];
       const fichas = await tx.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
+      const anticipoProveedor = Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct]));
+      const anticipoLinea = Object.fromEntries([...detalles].filter(([, d]) => d.anticipoPct != null).map(([id, d]) => [id, d.anticipoPct!]));
       const planDeLaFicha =
         !p.perdidoEl
-          ? planDeCuotas(items, {
+          ? [...planDeCuotas(items, {
               proyectoId,
               nombre: p.nombre,
               fechaEvento: p.fechaEvento,
@@ -308,8 +318,10 @@ export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: 
               tiposDeCambio: tc,
               monedaVenta: p.moneda,
               cambioVenta: cambioDeVenta(p.moneda, viva.tcVenta, tc),
-              anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
-            })
+              anticipoProveedor,
+              anticipoLinea,
+              dias,
+            }), ...cuotasDeAdicionales(adicionales, { proyectoId, nombre: p.nombre, fechaEvento: p.fechaEvento, creado: p.createdAt, anticipoClientePct: p.anticipoClientePct, dias, anticipoProveedor })]
           : [];
       const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
       // Una cuota de pago se puede marcar sin este candado: si se marca mientras se ajusta el plan, no se le pisa nada y

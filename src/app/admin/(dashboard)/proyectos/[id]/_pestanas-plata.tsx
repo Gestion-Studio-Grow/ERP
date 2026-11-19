@@ -14,16 +14,18 @@ import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, totalesFich
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { textoPagado } from "@/lib/proyectos/cobranza-core";
+import { ofreceNuevaVersion } from "@/lib/proyectos/presupuesto-vista-core";
 import { textoCubierta } from "@/lib/proyectos/avisos-cuota";
 import { nombreDelComprobante } from "@/lib/factura-de-prueba";
 import type { Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
-import { FormGasto } from "./_gastos";
+import { CostosEnColumnas, FormGasto } from "./_gastos";
 import { CopiarLink } from "./_piezas";
 import { PlanillaVenta } from "./_planilla";
 import { importe as importeEn, importeDeVenta } from "../_tabla";
 import { Numero } from "./_pestanas-datos";
+import { Adicionales, DetalleDeLineas, PrevisionDePagos } from "./_presupuesto";
 
 const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 const areaTexto = "w-full rounded-lg border border-line bg-surface p-3 text-sm text-strong";
@@ -46,14 +48,25 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
   const viva = versiones[0];
   const hayBorrador = !!viva && sePuedeEditar(viva.estado);
   const planillaViva = viva ? planillaDeVenta(viva.items, tc, recargo) : null;
+  // O10: una sola base aprobada por proyecto (la garantiza la base con M2); los cambios después van como adicional.
+  const baseAprobada = versiones.find((v) => v.estado === "APROBADO") ?? null;
   const wa = waLink(p.client.phone, `Hola ${p.client.name}! Te compartimos la propuesta de ${negocio.nombre} para "${p.nombre}":`);
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       <section className={tarjeta} aria-label="Versiones">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold text-strong">Versiones</h2>
-          {vista.editaCotizaciones && !hayBorrador && (
+          <div className="min-w-0">
+            <h2 className="font-semibold text-strong">Versiones</h2>
+            {baseAprobada && (
+              <p className="text-sm text-body">
+                Versión base aprobada: <strong className="text-strong">v{baseAprobada.version}</strong>
+                {hayBorrador && viva.id !== baseAprobada.id && <span className="text-muted"> · la v{viva.version} es un borrador y no mueve plata</span>}
+              </p>
+            )}
+            {baseAprobada && vista.editaCotizaciones && <p className="text-sm text-muted">No se abre otra versión: un cambio va como adicional, más abajo.</p>}
+          </div>
+          {vista.editaCotizaciones && ofreceNuevaVersion({ baseAprobada: !!baseAprobada, hayBorrador }) && (
             <FormAccion accion={nuevaVersion} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="proyectoId" value={p.id} />
               <input name="nota" maxLength={300} aria-label="Nota de la versión" placeholder="Qué cambia" className={cn(campoEnLinea, "flex-1")} />
@@ -122,7 +135,8 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                     </FormAccion>
                     <FormAccion accion={enviarCotizacion}>
                       <input type="hidden" name="id" value={v.id} />
-                      <SubmitButton className={cn(buttonClasses("solid", "lg"), "w-full justify-center")}>Enviar: cerrar versión y generar link</SubmitButton>
+                      {/* V1: sin corte de línea el texto mide ~370 px y a 390 la tarjeta desbordaba (423); en el teléfono va en dos renglones. */}
+                      <SubmitButton className={cn(buttonClasses("solid", "lg"), "h-auto! min-h-14 w-full justify-center py-2 text-center whitespace-normal!")}>Enviar: cerrar versión y generar link</SubmitButton>
                       <p className="mt-1 text-sm text-muted">Después de esto, la versión no se edita: para cambiarla se abre otra.</p>
                     </FormAccion>
                   </div>
@@ -148,6 +162,9 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
           })}
         </ul>
       </section>
+
+      {hayBorrador && <DetalleDeLineas a={a} vista={vista} lineas={viva.items} />}
+      <Adicionales a={a} vista={vista} proyectoId={p.id} baseAprobada={baseAprobada?.version ?? null} />
 
       {comparada && (
         <section className={tarjeta} aria-label="Qué cambió">
@@ -409,6 +426,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
             <div><dt className="text-muted">Ganancia real</dt><dd className="font-bold text-strong">{d.real.gananciaReal === null ? "—" : `${pesos(d.real.gananciaReal)} (${porcentaje(d.real.margenReal ?? 0)})`}</dd></div>
             <div><dt className="text-muted">Por pagar</dt><dd className="font-medium text-strong">{pesos(d.real.porPagar)}</dd></div>
           </dl>
+          <CostosEnColumnas original={d.totalesAprobada ? d.totalesAprobada.costo : null} real={d.real} />
           {/* Una rendición o un gasto aparte al mismo proveedor mientras quedan cuotas a proveedor por pagar: si pagó una de esas
               cuotas, está contado dos veces. No hay enlace que lo diga, así que no se resta solo: se avisa hasta cuánto. */}
           {d.enDuda > 0 && (
@@ -468,6 +486,8 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
           <p className="mt-2 text-sm text-muted">Lo pagado sale por el libro de caja. El neto es lo que se compara contra el presupuesto.</p>
         </section>
       )}
+
+      <PrevisionDePagos a={a} vista={vista} proyectoId={p.id} lineas={cab.base?.estado === "APROBADO" ? cab.base.items : []} />
 
       <section className={tarjeta} aria-label="Cobros">
         <h2 className="mb-1 font-semibold text-strong">Cobros</h2>

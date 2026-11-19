@@ -628,6 +628,8 @@ function dbFalso(datos: { cuotas: Fila[]; proyecto: Fila & { pagos: Fila[] }; en
   const log: string[] = [];
   const db = {
     $executeRaw: async () => (log.push("candado"), 1),
+    // MIA T06: la cobranza pregunta si M2 (adicionales) está aplicada; este `db` falso responde que no.
+    $queryRaw: async () => [{ ok: false }],
     proyectoCuota: {
       findMany: async ({ where }: { where: { id?: { in: string[] }; moneda?: { not: string } } }) => (
         log.push("cuotas"), datos.cuotas.filter((c) => (!where.id || where.id.in.includes(c.id as string)) && (!where.moneda || c.moneda !== where.moneda.not))

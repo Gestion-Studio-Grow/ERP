@@ -195,7 +195,7 @@ export const CATALOGO: readonly DefParametro[] = [
   // ── Previsión ──
   {
     clave: "prevision.palabras", grupo: "prevision", nombre: "Estados de la previsión", seNota: "La previsión de pagos", usa: "T06",
-    def: { tipo: "mapaTexto", claves: [{ id: "sinConfirmar", label: "Sin confirmar por Administración" }, { id: "confirmado", label: "Confirmado por Administración" }] }, rubro: { sinConfirmar: "Previsto", confirmado: "Confirmado" }, provisional: true, fuente: "Sin fuente: a confirmar",
+    def: { tipo: "mapaTexto", claves: [{ id: "sinConfirmar", label: "Sin confirmar por Administración" }, { id: "confirmado", label: "Confirmado por Administración" }] }, rubro: { sinConfirmar: "Pendiente", confirmado: "Pagado" }, provisional: true, fuente: "Sin fuente: a confirmar",
   },
   // ── IVA ──
   {

@@ -7,7 +7,8 @@ import { agregarTarea, alternarTarea, borrarTarea } from "@/lib/proyectos/accion
 import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, cargarPlantillaChecklist, generarPortal, guardarDatos, nuevaVersion, quitarEquipo, revocarPortal } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, yaVencio, type MedioPago } from "@/lib/proyectos/core";
 import { avanceDeCobro, conteoPorEstado } from "@/lib/proyectos/ficha-core";
-import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, TIPOS_EVENTO } from "@/lib/proyectos/gestion-core";
+import { ofreceNuevaVersion } from "@/lib/proyectos/presupuesto-vista-core";
+import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO, ventaEn } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { prisma } from "@/lib/prisma";
 import { puede, type Actor } from "@/lib/proyectos/gestion.server";
@@ -200,6 +201,7 @@ export async function PestanaFicha({ a, cab, vista }: { a: Actor; cab: Cabecera;
   const { viva, totalesViva: t, faltanCambio, config, proyecto } = cab;
   const { filas, proveedores } = await datosFicha(a, cab, vista);
   const enBorrador = !viva || sePuedeEditar(viva.estado);
+  const baseAprobada = cab.base?.estado === "APROBADO";
   const verCosto = !vista.ocultas.has("costoTotal");
   const verMargen = !vista.ocultas.has("margen");
   const cambioVenta = cambioDeVenta(proyecto.moneda, viva?.tcVenta, cab.tc);
@@ -218,10 +220,11 @@ export async function PestanaFicha({ a, cab, vista }: { a: Actor; cab: Cabecera;
       {!enBorrador && (
         <div className="mb-3 rounded-lg border border-line p-3">
           <p className="text-sm font-medium text-strong">La versión {viva?.version} ya se envió al cliente: lo que vio no se reescribe.</p>
-          {vista.fichaEdita && <p className="mb-2 text-sm text-muted">Para cambiar algo, abrí una versión nueva. Copia todos los ítems y lo ya pagado no vuelve a aparecer como deuda.</p>}
+          {vista.fichaEdita && baseAprobada && <p className="text-sm text-muted">El cliente ya la aprobó, así que no se abre otra versión: un cambio va como adicional, en Cotización.</p>}
+          {vista.fichaEdita && !baseAprobada && <p className="mb-2 text-sm text-muted">Para cambiar algo, abrí una versión nueva. Copia todos los ítems y lo ya pagado no vuelve a aparecer como deuda.</p>}
         </div>
       )}
-      {vista.fichaEdita && (!viva || !enBorrador) && (
+      {vista.fichaEdita && ofreceNuevaVersion({ baseAprobada, hayBorrador: !!viva && enBorrador }) && (
         <FormAccion accion={nuevaVersion} className="mb-3 flex flex-wrap items-center gap-2">
           <input type="hidden" name="proyectoId" value={proyecto.id} />
           <input name="nota" maxLength={300} aria-label="Nota de la versión" placeholder="Qué cambia en esta versión" className={cn(campo, "min-w-0 flex-1 sm:max-w-md")} />

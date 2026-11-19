@@ -5,6 +5,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { topeDeAdicionalesPorProyecto } from "./presupuesto-m2.server";
 import { cobranza, cobranzaDePerdido, cobranzaEnMoneda, leerOriginal, pendientesDeCobro, totalAprobado, type Cobranza } from "./cobranza-core";
 import { cambioDeVenta } from "./gestion-core";
 
@@ -66,8 +67,9 @@ export function cobranzaDe(
   tc: Readonly<Record<string, number>>,
   recargoGeneral: number,
   enlaces: ReadonlyMap<string, EnlaceDeCobro> = new Map(),
+  adicionales = 0,
 ): Cobranza {
-  const c = cobranzaSinPerder(p, tc, recargoGeneral, enlaces);
+  const c = cobranzaSinPerder(p, tc, recargoGeneral, enlaces, adicionales);
   // Un proyecto perdido no tiene nada por cobrar (pregunta 2 = A, provisional a confirmar por el dueño): lo cobrado sigue
   // como cobrado y devolverlo es otra operación. En la fuente única: ficha, Administración, Rentabilidad y Dirección.
   return p.perdidoEl ? cobranzaDePerdido(c) : c;
@@ -78,11 +80,13 @@ function cobranzaSinPerder(
   tc: Readonly<Record<string, number>>,
   recargoGeneral: number,
   enlaces: ReadonlyMap<string, EnlaceDeCobro>,
+  adicionales: number,
 ): Cobranza {
   const aprobado = p.presupuestos[0];
   const cobros = p.pagos.map((x) => ({ monto: x.monto, original: enlaces.get(x.id)?.original ?? null, cuotaId: enlaces.get(x.id)?.cuotaId ?? null }));
   if (!aprobado) return cobranza(0, cobros);
-  return cobranzaEnMoneda(totalAprobado(aprobado, tc, recargoGeneral), cobros, { moneda: p.moneda, cambioVenta: cambioDeVenta(p.moneda, aprobado.tcVenta, tc), tcHoy: tc[p.moneda] ?? 0 });
+  // MIA T06 · O11: el tope sube el precio con IVA de los adicionales aprobados (en pesos), y nada más.
+  return cobranzaEnMoneda(totalAprobado(aprobado, tc, recargoGeneral) + adicionales, cobros, { moneda: p.moneda, cambioVenta: cambioDeVenta(p.moneda, aprobado.tcVenta, tc), tcHoy: tc[p.moneda] ?? 0 });
 }
 
 /** La cobranza de cada proyecto del negocio (o de los pedidos), por id. Con `db` = la transacción, lee adentro de ella. */
@@ -97,8 +101,8 @@ export async function cobranzasDelNegocio(
     where: { tenantId, ...(proyectoIds && { id: { in: [...proyectoIds] } }) },
     select: { id: true, ...SELECT_COBRANZA },
   });
-  const enlaces = await originalesDeCobros(tenantId, proyectos, db);
-  return new Map(proyectos.map((p) => [p.id, cobranzaDe(p, tc, recargoGeneral, enlaces)]));
+  const [enlaces, adicionales] = await Promise.all([originalesDeCobros(tenantId, proyectos, db), topeDeAdicionalesPorProyecto(db, tenantId, proyectoIds)]);
+  return new Map(proyectos.map((p) => [p.id, cobranzaDe(p, tc, recargoGeneral, enlaces, adicionales.get(p.id) ?? 0)]));
 }
 
 /**

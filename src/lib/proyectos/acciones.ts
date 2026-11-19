@@ -24,6 +24,7 @@ import { avisoTopeCobro } from "./avisos-cuota";
 import { actorActual, avisar, exigirPlataDeDireccion, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import type { ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
+import { BASE_YA_APROBADA, BaseYaAprobada, conGuardiaDeBase, hayBaseAprobada } from "./presupuesto-base.server";
 import { claveDeEnvio } from "./pago-columnas";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import { faltaDelPago } from "./pago-parcial-core";
@@ -172,7 +173,9 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
   if (!pr) return { ok: false, error: "El link no es válido." };
   if (!clientePuedeResponder(pr)) return { ok: false, error: "Esta propuesta ya no se puede responder. Escribinos y la actualizamos." };
   const destinatarios = await usuariosDelEquipo(tenantId, pr.proyectoId, "");
-  const ganada = await tenantTransaction(async (tx) => {
+  const ganada = await conGuardiaDeBase(() => tenantTransaction(async (tx) => {
+    // Una sola base aprobada (O10): la base la garantiza con su índice; esto da el mensaje.
+    if (d.aprueba && (await hayBaseAprobada(tx, tenantId, pr.proyectoId, pr.id))) throw new BaseYaAprobada();
     // El estado va en el where: dos clics a la vez no responden dos veces.
     const r = await tx.proyectoPresupuesto.updateMany({
       where: { id: pr.id, tenantId, estado: "ENVIADO" },
@@ -188,7 +191,8 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
     }
     await avisar(tx, { tenantId, destinatarios, tipo: "aprobacion", texto: `${nombre} ${d.aprueba ? "aprobó" : "rechazó"} la versión ${pr.version} de ${pr.proyecto.nombre}`, enlace: `/admin/proyectos/${pr.proyectoId}?tab=cotizacion` });
     return true;
-  });
+  }));
+  if (ganada === "base") return { ok: false, error: BASE_YA_APROBADA };
   if (!ganada) return { ok: false, error: "Esta propuesta ya fue respondida." };
   // Confirmado: de acá salen los cobros y los pagos.
   if (d.aprueba) await regenerarCuotas(tenantId, pr.proyectoId);

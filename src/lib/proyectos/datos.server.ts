@@ -18,6 +18,7 @@ import { costosVigentes, normalizarDiseno } from "./stand";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
 import { cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
 import { totalesEnPesos } from "./cobranza-core";
+import { topeDeAdicionalesPorProyecto } from "./presupuesto-m2.server";
 import { aPesos } from "./gestion-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
 import { costoRealDeProyectos } from "./comprobantes.server";
@@ -114,7 +115,9 @@ export async function fichaProyecto(id: string) {
   // Cobrado y saldo: la fuente única (cobranza-core), igual que la caja «Cobros» y las listas.
   const pagosVivos = proyecto.pagos.filter((x) => !x.anuladoEl);
   const delProyecto = { moneda: proyecto.moneda, perdidoEl: proyecto.perdidoEl, presupuestos: vigente ? [vigente] : [], pagos: pagosVivos };
-  const { total: totalAprobado, cobrado, saldo } = cobranzaDe(delProyecto, tc, config.margenPct, await originalesDeCobros(tenantId, [delProyecto]));
+  // MIA T06 · O11: los adicionales aprobados suman al total, igual que al tope del cobro.
+  const [originales, adicionales] = await Promise.all([originalesDeCobros(tenantId, [delProyecto]), topeDeAdicionalesPorProyecto(prisma, tenantId, [proyecto.id])]);
+  const { total: totalAprobado, cobrado, saldo } = cobranzaDe(delProyecto, tc, config.margenPct, originales, adicionales.get(proyecto.id) ?? 0);
   return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo, totalesVigente, real, rubros, proveedores: proveedores.map((s) => s.name) };
 }
 
