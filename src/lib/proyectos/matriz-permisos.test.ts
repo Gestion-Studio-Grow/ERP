@@ -27,6 +27,7 @@ const PATRONES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/entrar\("(\w+)"/g, (m) => `E:${m[1]}`],
   [/!puede\(\w+, "(\w+)", "(ver|editar)"\)/g, (m) => `${m[2] === "ver" ? "V" : "E"}:${m[1]}`],
   [/exigirDireccion\(\)/g, () => "DIR"],
+  [/soloRol\(\w+, "(\w+)"\)/g, (m) => `SOLO:${m[1]}`],
   [/exigirPlataDeDireccion\("(\w+)"\)/g, (m) => `PLATA:${m[1]}`],
   [/sinRendiciones\(\w+, "(\w+)"\)/g, (m) => `REND:${m[1]}`],
   [/puedeReintegrarRendicion\(/g, () => "ROL:aprueba"],
@@ -99,8 +100,11 @@ test("A1 · guarda única: nadie llama a requireCapabilityFueraDeLaAgenda suelto
 test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
   const r = Object.fromEntries(recorridoDeLaMatriz().map((f) => [f.rol, f]));
   const todas = Object.keys(PUERTAS_DE_ACCIONES);
-  // Dirección pasa por todas las rutas y todas las acciones.
-  assert.equal(r.DIRECCION.acciones.length, todas.length);
+  // Dirección pasa por todas las rutas y todas las acciones, salvo las que son sólo de otro rol (`SOLO:`, MIA-50 T10: declarar
+  // los costos completos del proyecto es de Administración).
+  const deOtroRol = todas.filter((a) => terminosDe(PUERTAS_DE_ACCIONES[a]).some((t) => t.startsWith("SOLO:") && t !== "SOLO:DIRECCION"));
+  assert.deepEqual(deOtroRol, ["acciones-liquidacion-proyecto#declararCostosCompletos"]);
+  assert.deepEqual(todas.filter((a) => !r.DIRECCION.acciones.includes(a)), deOtroRol);
   assert.equal(r.DIRECCION.rutas.length, Object.keys(PUERTAS_DE_RUTAS).length);
   // Sin ficha: sólo lo suyo y los links del cliente.
   assert.ok(r.SIN_FICHA.acciones.every((a) => /^(SESION|LINK) — /.test(PUERTAS_DE_ACCIONES[a])));
@@ -127,7 +131,9 @@ test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
     // MIA-50 T11 (Adenda 2): +5 rutas del ERP (las listas y los detalles [id] de Cuentas a cobrar y a pagar, y Flujo; la ficha decía
     // «+3» contando sólo las apps) y +4 acciones (el cobro, el pago y los dos de cheques), para quien tiene «Empresa»: Dirección y
     // Administración. Nadie más cambia. Rol nuevo Producción de campo (O47): sólo lo suyo, el proyecto y la ficha en ver.
-    { DIRECCION: [48, 160], ADMINISTRACION: [37, 65], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 122], PRODUCCION_CAMPO: [15, 12], SIN_FICHA: [10, 11] },
+    // MIA-50 T10 (ola 4, MIA-179): +3 acciones de la liquidación del proyecto. Revisar (E:liquidaciones) para Dirección y
+    // Administración; declarar, sólo Administración; aprobar, sólo Dirección. Nadie más cambia.
+    { DIRECCION: [48, 162], ADMINISTRACION: [37, 67], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 122], PRODUCCION_CAMPO: [15, 12], SIN_FICHA: [10, 11] },
   );
 });
 

@@ -9,7 +9,7 @@
  * - `E:m` editar el módulo m · `V:m` verlo.
  * - `PLATA:ver|editar` `exigirPlataDeDireccion`: el módulo `direccion` (pregunta 2-A, confirmada por el dueño el 18/11) y,
  *   además, el techo del rol ERP (`agenda:manage`), que está fuera de esta matriz.
- * - `DIR` el rol Dirección · `MATRIZ` `cambiaLosPermisos` (pregunta 1-A, confirmada por el dueño el 18/11).
+ * - `DIR` el rol Dirección · `SOLO:<rol>` sólo ese rol (`soloRol`, MIA-50 T10) · `MATRIZ` `cambiaLosPermisos` (pregunta 1-A, confirmada por el dueño el 18/11).
  * - `REND:rendir|revisar` `motivoSinRendiciones` y el rol que rinde o revisa · `ROL:aprueba` Dirección o Administración, nunca lo propio.
  * - `SESION — motivo` cualquiera con sesión: sobre lo suyo, o la regla está adentro (el motivo dice cuál).
  * - `LINK — motivo` sin sesión: el cliente, por un link con clave.
@@ -77,6 +77,12 @@ export const PUERTAS_DE_ACCIONES: Readonly<Record<string, string>> = {
   "acciones-empresa#borrarLiquidacion": "E:liquidaciones",
   "acciones-empresa#editarExtrasLiquidacion": "E:liquidaciones",
   "acciones-empresa#marcarLiquidacionVista": "SESION — sólo la liquidación propia (`personaId` del actor)",
+  // MIA-50 T10 (O20-O22): la liquidación del proyecto. Declarar es sólo de Administración y aprobar, sólo de Dirección con el
+  // código de su app en ese momento (`soloRol`); revisar pide Liquidaciones. Revisar y aprobar, además, nunca quien cobra en el
+  // proyecto ni quien no tiene ficha (`exigirQueNoCobre`).
+  "acciones-liquidacion-proyecto#declararCostosCompletos": "SOLO:ADMINISTRACION",
+  "acciones-liquidacion-proyecto#revisarLiquidacionProyecto": "E:liquidaciones",
+  "acciones-liquidacion-proyecto#aprobarLiquidacionProyecto": "SOLO:DIRECCION",
   // MIA-50 T09 · O04, O05, O07.
   "acciones-etapas#guardarFechasPrevistas": "E:pipeline",
   "acciones-etapas#crearObligacion": "E:pipeline",
@@ -260,6 +266,7 @@ export function dejaPasar(rol: RolGestion, puerta: string, guardados: Guardados 
       case "V": return alguno((m) => p(m).ver);
       case "PLATA": return arg === "editar" ? p("direccion").editar : p("direccion").ver;
       case "DIR": return rol === "DIRECCION";
+      case "SOLO": return rol === arg;
       case "MATRIZ": return cambiaLosPermisos(rol);
       case "REND": return arg === "revisar" ? revisaRendiciones(rol, p("rendiciones")) : motivoSinRendiciones(p("rendiciones"), "rendir") === null && puedeRendir(rol, true);
       case "ROL": return puedeAprobarRendicion(rol, "quien-aprueba", "otra-persona");

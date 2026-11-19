@@ -28,6 +28,9 @@ const txt = (v: FormDataEntryValue | null | undefined, max = 300): string => Str
 /** Rechazo de la transacción: aborta y vuelve como mensaje. */
 class Rechazo extends Error {}
 
+/** La puerta por rol de declarar y aprobar (la matriz de permisos la lee de acá: `SOLO:<rol>`). */
+const soloRol = (a: Actor, rol: "DIRECCION" | "ADMINISTRACION"): boolean => a.rol === rol;
+
 async function entrar(proyectoId: string): Promise<Actor | string> {
   const a = await actorActual();
   if (!proyectoId || !(await proyectoVisible(a, proyectoId))) return "Ese proyecto no existe.";
@@ -49,7 +52,7 @@ export async function declararCostosCompletos(formData: FormData): Promise<Resul
   const proyectoId = txt(formData.get("proyectoId"), 40);
   const a = await entrar(proyectoId);
   if (typeof a === "string") return { ok: false, error: a };
-  if (a.rol !== "ADMINISTRACION") return { ok: false, error: "Sólo Administración declara los costos completos del proyecto." };
+  if (!soloRol(a, "ADMINISTRACION")) return { ok: false, error: "Sólo Administración declara los costos completos del proyecto." };
   const { tenantId } = a;
   const m3 = await hayM3();
   try {
@@ -166,7 +169,7 @@ export async function aprobarLiquidacionProyecto(formData: FormData): Promise<Re
   const codigo = txt(formData.get("codigo"), 20);
   const a = await entrar(proyectoId);
   if (typeof a === "string") return { ok: false, error: a };
-  if (a.rol !== "DIRECCION") return { ok: false, error: "Sólo Dirección aprueba la liquidación del proyecto." };
+  if (!soloRol(a, "DIRECCION")) return { ok: false, error: "Sólo Dirección aprueba la liquidación del proyecto." };
   if (!codigo) return { ok: false, error: "Escribí el código de tu app de autenticación para aprobar." };
   const { tenantId } = a;
   const factor = await prisma.proyectoSegundoFactor.findUnique({ where: { tenantId_userId: { tenantId, userId: a.user.id } }, select: { activadoEl: true } });
