@@ -33,7 +33,7 @@ import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAs
 import { marcaDeGastoProyecto } from "./marcas";
 import { evaluarPase, textoDelPase, type Pase } from "./compuertas-core";
 import { parametrosDelNegocio, valorDelNegocio } from "./parametros/leer.server";
-import { aCentavos, leerRetenciones, MEDIO_RETENCION, repartoDelCobro, type RetencionLeida } from "./moneda-bancos-core";
+import { aCentavos, leerRetenciones, MEDIO_RETENCION, notaDeRetencion, repartoDelCobro, type RetencionLeida } from "./moneda-bancos-core";
 import { anularRetencionesDelCobroTx, guardarFotoTx, hayM8, revertirCuentaTx } from "./moneda-bancos.server";
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
@@ -884,6 +884,12 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
  * pago, el `ProyectoGasto` ya pagado con su asiento. Espera `id` y `medio` en el FormData. A prueba de doble clic: sólo gana quien la
  * encuentra sin pagar. Las cuotas de la empresa, sin proyecto, tienen su propia acción en acciones-empresa.ts.
  */
+/** O36: los tipos de retención del negocio (`retenciones.tipos`), para la lista del formulario de cobro. */
+export async function tiposDeRetencion(): Promise<string[]> {
+  const tenantId = await getCurrentTenantId();
+  return [...(await parametrosDelNegocio(tenantId))["retenciones.tipos"].valor];
+}
+
 export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
@@ -1029,7 +1035,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
       // del cobro que entró al banco (anularlo anula las dos cosas) con la marca de provisional de sus parámetros.
       let retencionPagoId: string | null = null;
       if (cuentanComoCobrado) {
-        const rp = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio: MEDIO_RETENCION, monto: importeRet, nota: `Retención sufrida · ${retenidas.map((r) => r.tipo).join(", ")}`.slice(0, 200), cobradoPor: a.nombre }, select: { id: true } });
+        const rp = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio: MEDIO_RETENCION, monto: importeRet, nota: notaDeRetencion(retenidas.map((r) => r.tipo)), cobradoPor: a.nombre }, select: { id: true } });
         retencionPagoId = rp.id;
         await registrarCambio(tx, { ...cambio, campo: "Asiento", antes: c.moneda !== "ARS" ? `${textoAlCentavo(retenidoEnMoneda)} ${c.moneda}` : null, despues: rp.id });
       }

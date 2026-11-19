@@ -223,7 +223,7 @@ export const CATALOGO: readonly DefParametro[] = [
   },
   { clave: "moneda.quienCotiza", grupo: "moneda", nombre: "Quién carga la cotización", seNota: "El costo en pesos de lo que se compra en otra moneda", usa: "T08", def: { tipo: "opcion", opciones: ROLES_QUE_CIERRAN }, rubro: "ADMINISTRACION", provisional: true, fuente: "Sin fuente: a confirmar" },
   // ── Retenciones ──
-  { clave: "retenciones.tipos", grupo: "retenciones", nombre: "Tipos de retención", seNota: "Los cobros con retención", usa: "T08", def: { tipo: "lista", min: 0, max: 20 }, rubro: ["IIBB", "Ganancias", "IVA", "SUSS"], provisional: true, fuente: "Sin fuente del negocio: a confirmar" },
+  { clave: "retenciones.tipos", grupo: "retenciones", nombre: "Tipos de retención", seNota: "Los cobros con retención", usa: "T08", def: { tipo: "lista", min: 0, max: 20 }, rubro: ["Retención sufrida (sin clasificar)"], provisional: true, fuente: "PLAN O36: un solo tipo genérico, sin nombres de impuestos por falta de fuente; la lista la edita el usuario. Provisional a confirmar" },
   { clave: "retenciones.cuentanComoCobrado", grupo: "retenciones", nombre: "La retención cuenta como cobrado", seNota: "Los cobros con retención", usa: "T08", def: { tipo: "booleano", si: "Sí", no: "No" }, rubro: true, provisional: true, fuente: "Sin fuente: a confirmar" },
   // ── Cierre ──
   { clave: "cierre.dia", grupo: "cierre", nombre: "Día de cierre del mes", seNota: "El cierre del mes", usa: "T01, T09", def: { tipo: "entero", min: 1, max: 28, unidad: "del mes siguiente" }, rubro: 10, provisional: true, fuente: "Diseño del módulo: provisional a confirmar" },

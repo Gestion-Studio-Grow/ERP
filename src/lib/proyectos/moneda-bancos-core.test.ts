@@ -3,8 +3,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   aCentavos, cambioAplicable, diaArgentino, diferenciaDeCambio, estadoDelMovimiento, fotoEnPesos, huellasDelExtracto,
-  leerRetenciones, repartoDelCobro, saldoDeMovimientos, signoDelOrigen,
+  leerRetenciones, notaDeRetencion, repartoDelCobro, saldoDeMovimientos, signoDelOrigen,
 } from "./moneda-bancos-core";
+import { defDe } from "./parametros/catalogo";
 
 test("diaArgentino: las 01:00 UTC del 20/11 todavía son el 19/11 en Argentina", () => {
   assert.equal(diaArgentino(new Date("2026-11-20T01:00:00Z")), "2026-11-19");
@@ -65,11 +66,24 @@ test("O38 · saldo = inicial + Σ movimientos vigentes; un anulado no cuenta", (
   assert.equal(estadoDelMovimiento({ cuotaId: null }), "SIN_CONCILIAR");
 });
 
+test("O36 · retenciones.tipos: un solo tipo genérico, sin nombres de impuestos (no hay fuente: PLAN O36), provisional", () => {
+  const def = defDe("retenciones.tipos");
+  assert.deepEqual(def.rubro, ["Retención sufrida (sin clasificar)"]);
+  assert.equal(def.provisional, true);
+  assert.ok(!/IIBB|Ganancias|IVA|SUSS/.test(JSON.stringify(def)), "ningún impuesto con nombre");
+});
+
+test("O36 · notaDeRetencion: el genérico va solo; otro nombre lleva «Retención sufrida · »; sin repetidos", () => {
+  assert.equal(notaDeRetencion(["Retención sufrida (sin clasificar)", "Retención sufrida (sin clasificar)"]), "Retención sufrida (sin clasificar)");
+  assert.equal(notaDeRetencion(["Municipal"]), "Retención sufrida · Municipal");
+});
+
 test("O36 · leerRetenciones: filas vacías se ignoran; tipo fuera del catálogo o sin importe, error", () => {
-  const tipos = ["IIBB", "Ganancias", "IVA", "SUSS"];
-  assert.deepEqual(leerRetenciones(["IIBB", ""], ["1.500,50", ""], ["CERT-1", ""], tipos), { ok: true, retenciones: [{ tipo: "IIBB", importe: 1500.5, certificado: "CERT-1" }] });
-  assert.equal(leerRetenciones(["Otra"], ["10"], [], tipos).ok, false);
-  assert.equal(leerRetenciones(["IIBB"], [""], [], tipos).ok, false);
+  const T = "Retención sufrida (sin clasificar)";
+  const tipos = [T];
+  assert.deepEqual(leerRetenciones([T, ""], ["1.500,50", ""], ["CERT-1", ""], tipos), { ok: true, retenciones: [{ tipo: T, importe: 1500.5, certificado: "CERT-1" }] });
+  assert.equal(leerRetenciones(["IIBB"], ["10"], [], tipos).ok, false);
+  assert.equal(leerRetenciones([T], [""], [], tipos).ok, false);
   assert.equal(leerRetenciones([""], ["10"], [], tipos).ok, false);
 });
 

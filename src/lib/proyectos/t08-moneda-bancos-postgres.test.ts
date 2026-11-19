@@ -13,7 +13,7 @@
 //  C-O38  cuenta con $ 10.000: cobro +500, pago de gasto −200 y cuota cobrada +100 → $ 10.400; los 3 movimientos del
 //         extracto se concilian (cuota, cobro y pago); en sentido opuesto no; importar dos veces no duplica; anular el
 //         cobro → $ 9.900 y su movimiento vuelve a estar libre.
-//  C-O36  cuota de $ 100: entran 93 + 7 de IIBB retenidos → cuota cobrada, caja +93, retenido 7, cobrado del proyecto
+//  C-O36  cuota de $ 100: entran 93 + 7 retenidos («Retención sufrida (sin clasificar)», el único tipo del catálogo) → cuota cobrada, caja +93, retenido 7, cobrado del proyecto
 //         100; 95 + 7 sobre 100 se rechaza; anular el cobro anula también la retención y la cuota vuelve.
 //  C-O35  cuota de $ 1.000 enlazada a la factura de $ 1.210 (tramo anticipo): facturado 1.210; cobro parcial de 400 →
 //         cobrado 400 y le faltan 600; una segunda factura a la misma cuota no; la factura de otro negocio no existe.
@@ -37,6 +37,7 @@ const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
 const AHORA = Date.parse("2026-11-19T18:00:00Z");
 const TABLAS = ["ProyectoCambioDia", "ProyectoMovMoneda", "ProyectoMovCuenta", "ProyectoCobroRetencion", "ProyectoCuotaFactura"];
+const RET = "Retención sufrida (sin clasificar)";
 
 let serie = 0;
 const sig = () => ++serie;
@@ -177,7 +178,7 @@ test("B no ve lo de A · cambio, cuenta, retenciones y enlaces (acciones, lectur
   const cta = await p.cuenta(0);
   // La cuota primero: un cobro suelto anterior la cubriría (cobranza-core reparte lo cobrado aparte por vencimiento).
   const q = await p.cuota(pr, 100);
-  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", retTipo: "IIBB", retImporte: "7" }))));
+  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", retTipo: RET, retImporte: "7" }))));
   const cobro = await p.cobrar(pr, { monto: "500", cuentaId: cta });
   const q2 = await p.cuota(pr, 1000);
   const fa = await p.factura(1210);
@@ -297,20 +298,23 @@ test("C-O36 · 93 al banco + 7 retenidos: cuota cobrada, caja +93, retenido 7, c
   const pr = await p.proyecto();
   const q = await p.cuota(pr, 100);
   // 95 + 7 > 100: no.
-  const pasa = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", monto: "95", retTipo: "IIBB", retImporte: "7" })));
+  const pasa = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", monto: "95", retTipo: RET, retImporte: "7" })));
   assert.equal(pasa.ok, false);
   assert.equal(await p.duenio.proyectoPago.count({ where: { proyectoId: pr } }), 0);
   // Un tipo fuera del catálogo: no.
   assert.equal((await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", retTipo: "Otra", retImporte: "7" })))).ok, false);
-  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", retTipo: ["IIBB", ""], retImporte: ["7", ""], retCertificado: ["CERT-T08", ""] }))));
+  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", retTipo: [RET, ""], retImporte: ["7", ""], retCertificado: ["CERT-T08", ""] }))));
   assert.ok((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true } })).pagadoEl, "cuota cobrada");
   const pagos = await p.duenio.proyectoPago.findMany({ where: { proyectoId: pr, anuladoEl: null }, select: { id: true, monto: true, medio: true } });
   assert.deepEqual(pagos.map((x) => [x.medio, x.monto]).sort(), [["RETENCION", 7], ["TRANSFERENCIA", 93]]);
   const banco = pagos.find((x) => x.medio === "TRANSFERENCIA")!;
   const caja = await p.duenio.cashMovement.findMany({ where: { proyectoPagoId: { in: pagos.map((x) => x.id) } }, select: { amount: true, proyectoPagoId: true } });
   assert.deepEqual(caja.map((c) => [c.proyectoPagoId, Number(c.amount)]), [[banco.id, 93]], "a la caja entran 93; la retención no");
+  // La ficha muestra la nota del cobro RETENCION: sólo el tipo del catálogo, sin nombres de impuestos.
+  const notaRet = await p.duenio.proyectoPago.findFirstOrThrow({ where: { proyectoId: pr, medio: "RETENCION" }, select: { nota: true } });
+  assert.equal(notaRet.nota, RET, "la ficha dice «Retención sufrida (sin clasificar)»");
   const ret = await p.leer((tx) => tx.proyectoCobroRetencion.findMany({ where: { cuotaId: q }, select: { tipo: true, importeCentavos: true, certificado: true, cuentaComoCobrado: true, provisional: true, anuladoEl: true } }));
-  assert.deepEqual(ret.map((r) => [r.tipo, Number(r.importeCentavos), r.certificado, r.cuentaComoCobrado, r.provisional, r.anuladoEl]), [["IIBB", 700, "CERT-T08", true, true, null]], "provisional: el parámetro lo es");
+  assert.deepEqual(ret.map((r) => [r.tipo, Number(r.importeCentavos), r.certificado, r.cuentaComoCobrado, r.provisional, r.anuladoEl]), [[RET, 700, "CERT-T08", true, true, null]], "provisional: el parámetro lo es");
   const ac = (await p.enSesion(() => p.mb.aCobrarPorCuota(p.a.id, [q]))).get(q)!;
   assert.deepEqual([ac.cobrado, ac.retenido], [100, 7]);
   // La retención sola no se anula: se anula con su cobro, y la cuota vuelve.

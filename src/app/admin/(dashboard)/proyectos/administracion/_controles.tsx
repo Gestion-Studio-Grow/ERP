@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState, useTransition, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
-import { marcarCuota } from "@/lib/proyectos/acciones-ficha";
+import { marcarCuota, tiposDeRetencion } from "@/lib/proyectos/acciones-ficha";
 import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista, pagarLiquidacion } from "@/lib/proyectos/acciones-empresa";
 import { MEDIOS, MEDIO_LABEL, pesos } from "@/lib/proyectos/core";
 import { campo } from "../_vista";
@@ -128,6 +128,20 @@ function ElegirCuenta() {
   return <SelectCuenta cuentas={cuentas} />;
 }
 
+/** O36: el tipo de retención sale de la lista del negocio (hoy uno solo, el genérico): elegido de entrada si es el único. */
+function ElegirTipoRetencion({ concepto }: { concepto: string }) {
+  const [tipos, setTipos] = useState<string[]>([]);
+  useEffect(() => {
+    tiposDeRetencion().then(setTipos).catch(() => setTipos([]));
+  }, []);
+  return (
+    <select key={tipos.join("|")} name="retTipo" aria-label={`Tipo de retención de ${concepto}`} defaultValue={tipos.length === 1 ? tipos[0] : ""} className={campo}>
+      <option value="">{tipos.length === 0 ? "Sin tipos de retención cargados" : "Tipo de retención"}</option>
+      {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
+    </select>
+  );
+}
+
 /**
  * La de un proyecto, además, cobra o paga UNA PARTE (`monto`, en la moneda de la cuota; vacío = todo lo que falta) y manda
  * lo que faltaba al cargar la pantalla (`visto`): si cambió mientras tanto, el servidor no asienta «todo» sin preguntar.
@@ -176,7 +190,7 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
             <details className="text-xs">
               <summary className="min-h-11 cursor-pointer py-2 text-muted underline underline-offset-2">Le retuvieron algo</summary>
               <div className="grid gap-1">
-                <input name="retTipo" aria-label={`Tipo de retención de ${concepto}`} placeholder="Tipo de retención" maxLength={40} className={campo} />
+                <ElegirTipoRetencion concepto={concepto} />
                 <input name="retImporte" inputMode="decimal" aria-label={`Importe retenido de ${concepto}, en pesos`} placeholder="Importe retenido" className={campo} />
                 <input name="retCertificado" aria-label={`Número de certificado de la retención de ${concepto}`} placeholder="Certificado (opcional)" maxLength={60} className={campo} />
               </div>

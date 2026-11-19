@@ -131,6 +131,15 @@ export interface RetencionLeida {
 export const MEDIO_RETENCION = "RETENCION";
 
 /**
+ * O36: la nota del cobro RETENCION que muestra la ficha. Los tipos sin repetir; si un tipo ya dice «Retención…» (el
+ * genérico del catálogo), va solo; si el negocio cargó otro nombre en la lista, lleva delante «Retención sufrida · ».
+ */
+export function notaDeRetencion(tipos: readonly string[]): string {
+  const texto = [...new Set(tipos)].join(", ");
+  return (/^retenci[oó]n/i.test(texto) ? texto : `Retención sufrida · ${texto}`).slice(0, 200);
+}
+
+/**
  * Lee las retenciones del formulario (listas paralelas `retTipo`, `retImporte`, `retCertificado`). Una fila vacía se
  * ignora; una con importe y sin tipo (o tipo fuera del catálogo) es un error; con tipo y sin importe, también.
  */

@@ -507,7 +507,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                   <>
                     {/* O36: la retención no entró al banco y no se anula sola: cae con el cobro que la trajo (acciones-ficha). */}
                     <span>{fechaCorta(c.createdAt)} · {c.nota || "Retención sufrida"} · <strong>{pesos(c.monto)}</strong></span>
-                    {!c.anuladoEl && <span className="text-muted">Se anula con su cobro</span>}
+                    {!c.anuladoEl && vista.editaPagos && <span className="text-muted">Se anula con su cobro</span>}
                   </>
                 ) : (
                   <>
