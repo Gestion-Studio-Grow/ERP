@@ -44,7 +44,11 @@ for (const n of NEGOCIOS) {
     slug: n.slug,
     owner: { name: EQUIPO[0][1], email: email("direccion"), password: CLAVE },
     blueprint: "productora",
-    platform: { status: "ACTIVE", subdomain: n.slug, modules: defaultModulesForBlueprint("productora"), accentPreset: "azul", frontTheme: "light" },
+    // MIA-194 · punto 1: con Cuentas a cobrar y a pagar prendidas, como queda MIA cuando el dueño las prenda (Adenda 2, Gate 2);
+    // sin ellas, Dirección y Administración rebotaban (visibles.test.ts, C-CF1: sin módulo, «edicion»). Cuentas a pagar
+    // depende de `catalog` (modules/descriptors/nativos.ts:250): sin él la activación la descarta; el panel cerrado de la
+    // productora no muestra Catálogo, así que sólo destraba la dependencia.
+    platform: { status: "ACTIVE", subdomain: n.slug, modules: [...defaultModulesForBlueprint("productora"), "catalog", "cuentas-a-cobrar", "cuentas-a-pagar"], accentPreset: "azul", frontTheme: "light" },
   });
   const tenantId = r.tenantId;
   // Como la consola al prender «Trabaja por apps» (igual que la demo de MIA).

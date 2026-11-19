@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { pesos } from "./core";
 import {
   appDeGestionVisible,
   calendarioIcs,
@@ -21,6 +22,9 @@ import {
   proyeccionDeCaja,
   resumenCuotas,
   totalesFicha,
+  costoParaMostrar,
+  margenParaMostrar,
+  faltaCambioDeVenta,
   ventaTotalItem,
   type ItemFicha,
   mailDeAviso,
@@ -53,7 +57,7 @@ test("sin recargo propio usa el general; un precio fijado a mano manda", () => {
 
 test("totales de la ficha", () => {
   const t = totalesFicha([item({}), item({ id: "i2", costo: 200, recargoPct: 0 })], TC, 35);
-  assert.deepEqual(t, { items: 2, venta: 350, costo: 300, margen: 50, margenPct: 14.29 });
+  assert.deepEqual(t, { items: 2, venta: 350, costo: 300, margen: 50, margenPct: 14.29, costoCargado: true });
 });
 
 test("el plan genera anticipo y saldo del proveedor y del cliente", () => {
@@ -421,4 +425,38 @@ test("MIA-089 · T: el pipeline pesa la venta y, sin ítems, lo estimado (la mis
   assert.equal(ventaOEstimado(0, 1_000_000, "ARS", {}), 1_000_000, "un lead sin ítems pesa lo estimado: era la diferencia de 1.000.000");
   assert.equal(ventaOEstimado(0, 1000, "USD", { USD: 1250 }), 1_250_000, "en dólares, al cambio");
   assert.equal(ventaOEstimado(0, null, "ARS", {}), 0);
+});
+
+// MIA-194 · punto 2 (recorrido MIA-193): venta $ 1.000 sin ningún costo cargado daba «Costo $ 0» y «Margen $ 1.000 (100%)».
+// Sin costo cargado no hay margen que mostrar. Esperados a mano.
+test("MIA-194 · sin costo cargado no se muestra un margen; con un costo, sí", () => {
+  const sinCosto = totalesFicha([item({ costo: 0, precio: 1000 })], TC, 35);
+  assert.equal(sinCosto.venta, 1000);
+  assert.equal(sinCosto.costoCargado, false);
+  assert.equal(costoParaMostrar(sinCosto), "Sin cargar");
+  assert.equal(margenParaMostrar(sinCosto, (n) => `$ ${n}`), "Falta el costo");
+  // En USD, igual: sin costo, no hay margen.
+  const enUsd = totalesFicha([item({ costo: 0, moneda: "USD", precio: 2 })], TC, 35);
+  assert.equal(margenParaMostrar(enUsd, (n) => `US$ ${n}`), "Falta el costo");
+  // Un solo ítem con costo alcanza: ese es el margen que se ve (1.000 − 400 = 600, 60 %).
+  const conCosto = totalesFicha([item({ costo: 0, precio: 600 }), item({ id: "i2", costo: 400, precio: 400 })], TC, 35);
+  assert.equal(conCosto.costoCargado, true);
+  assert.equal(costoParaMostrar(conCosto), pesos(400));
+  assert.equal(margenParaMostrar(conCosto, (n) => `$ ${n}`), "$ 600 (60%)");
+  // Sin ítems, tampoco.
+  assert.equal(margenParaMostrar(totalesFicha([], TC, 35), (n) => `$ ${n}`), "Falta el costo");
+});
+
+// MIA-194 · punto 3 (recorrido MIA-193): «Falta el tipo de cambio de USD: cargalo en Monedas y gastos fijos.» no llevaba a ningún
+// lado. Quien abre Administración recibe el enlace a la pestaña; quien no, a quién pedírselo. Esperados a mano.
+test("MIA-194 · sin tipo de cambio, el aviso lleva a Monedas y gastos fijos (o dice a quién pedírselo)", () => {
+  assert.deepEqual(faltaCambioDeVenta("USD", true), {
+    ok: false,
+    error: "Falta el tipo de cambio de USD: cargalo en Monedas y gastos fijos.",
+    enlace: { href: "/admin/proyectos/administracion?tab=monedas", texto: "Ir a Monedas y gastos fijos" },
+  });
+  assert.deepEqual(faltaCambioDeVenta("EUR", false), {
+    ok: false,
+    error: "Falta el tipo de cambio de EUR: pedile a Administración que lo cargue en Monedas y gastos fijos.",
+  });
 });

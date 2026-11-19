@@ -11,7 +11,7 @@
 //   4. Siembra idempotente de 3 productoras vacías «de prueba» (`sembrar-e2e.mts`).
 //   5. Prueba de aislamiento como `app_rls`: `select current_user` y leer otro negocio da 0 filas.
 //   6. Con `--start`: `next start` (antes, `npm run build`) con DATABASE_URL y OPERATOR_DATABASE_URL = app_rls,
-//      RLS_ENFORCEMENT=on y el negocio resuelto por host (`<slug>.localhost`).
+//      RLS_ENFORCEMENT=on, el negocio resuelto por host (`<slug>.localhost`) y el reloj del servidor fijo (`reloj-fijo.mjs`).
 //
 //   node scripts/proyectos/ambiente-e2e.mjs            # base + siembra + prueba
 //   node scripts/proyectos/ambiente-e2e.mjs --start    # además levanta la app compilada (puerto 3218)
@@ -22,7 +22,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -136,10 +136,14 @@ const envApp = {
   OPERATOR_PASSWORD: process.env.OPERATOR_PASSWORD ?? "operador-e2e-local",
   MODULE_REGISTRY_ENABLED: "on",
   PORT: String(APP_PORT),
+  // MIA-194 · punto 7: el reloj del SERVIDOR arranca en la misma hora que el navegador del recorrido (`RELOJ` de
+  // `sembrar-e2e.mts`) y corre desde ahí. `E2E_RELOJ=` (vacío) lo apaga y usa la hora real.
+  E2E_RELOJ: process.env.E2E_RELOJ ?? "2026-11-02T10:00:00-03:00",
+  NODE_OPTIONS: [process.env.NODE_OPTIONS, `--import=${pathToFileURL(path.join(ROOT, "scripts/proyectos/reloj-fijo.mjs")).href}`].filter(Boolean).join(" "),
 };
 for (const v of ["FORCE_TENANT_SLUG", "TENANT_HOST_MAP", "DEMO_MODE_ENABLED"]) delete process.env[v];
 const app = spawn("npx", ["next", "start", "-p", String(APP_PORT)], { cwd: ROOT, stdio: "inherit", env: { ...process.env, ...envApp } });
-log(`app en http://prueba-uno.localhost:${APP_PORT}/admin (también prueba-dos, prueba-tres)`);
+log(`app en http://prueba-uno.localhost:${APP_PORT}/admin (también prueba-dos, prueba-tres) · reloj del servidor: ${envApp.E2E_RELOJ || "hora real"}`);
 const cerrar = () => {
   app.kill("SIGTERM");
   process.exit(0);

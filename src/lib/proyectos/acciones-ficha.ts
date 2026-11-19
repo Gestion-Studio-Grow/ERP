@@ -26,7 +26,7 @@ import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
 import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, CUOTA_ENLAZADA, listoAnulado, listoMarcada, listoParcial } from "./avisos-cuota";
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
-import { cambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
+import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
@@ -38,7 +38,7 @@ import { anularRetencionesDelCobroTx, guardarFotoTx, hayM8, revertirCuentaTx } f
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
-import type { ModuloGestion } from "./gestion-core";
+import type { EnlaceDeArreglo, ModuloGestion } from "./gestion-core";
 import { siHayM1, tomarCuotas } from "./comprobantes.server";
 import { contextoDelPrecio, frenoDelPrecioTx, grabarFotoTx } from "./precio-proyecto.server";
 import { esCancelado } from "./cancelacion-core";
@@ -48,7 +48,7 @@ import { grabarFechaReal, hayM7b } from "./etapas-m7b.server";
 /** `aviso`: salió bien, pero hay algo que mirar (p. ej. «recalculá el plan» si se facturó una cuota en el medio). */
 /** `listo`: el cartel de éxito (se muestra aparte, porque el renglón que lo pidió suele desaparecer al refrescar). */
 /** `confirmar`: no se grabó porque hace falta un sí explícito; es el texto de la casilla que `FormAccion` muestra. */
-export type ResultadoFicha<T = object> = ({ ok: true; aviso?: string; listo?: string } & T) | { ok: false; error: string; confirmar?: string };
+export type ResultadoFicha<T = object> = ({ ok: true; aviso?: string; listo?: string } & T) | { ok: false; error: string; confirmar?: string; enlace?: EnlaceDeArreglo };
 
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30; // los que viven en la base; los que están en la nube tienen su propio tope
@@ -548,7 +548,7 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
       // El precio se escribe en la moneda de venta y se guarda en pesos, con un cambio que desde acá queda fijo: lo tipeado no se mueve solo.
       const monedaVenta = it.presupuesto.proyecto.moneda;
       const cambio = cambioDeVenta(monedaVenta, it.presupuesto.tcVenta, monedaVenta === "ARS" ? {} : await tiposDeCambio(tenantId));
-      if (!(cambio > 0)) return mal(`Falta el tipo de cambio de ${monedaVenta}: cargalo en Monedas y gastos fijos.`);
+      if (!(cambio > 0)) return faltaCambioDeVenta(monedaVenta, puede(a, "empresa", "ver"));
       if (monedaVenta !== "ARS" && it.presupuesto.tcVenta == null) congelarCambio = cambio;
       data = n > 0 ? { precio: redondear(n * cambio), recargoPct: null } : { precio: 0 };
       despues = n;

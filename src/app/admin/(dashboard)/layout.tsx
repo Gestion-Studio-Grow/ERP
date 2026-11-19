@@ -30,6 +30,7 @@ import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
 import { actorActual } from "@/lib/proyectos/gestion.server";
 import { appDeGestionVisible, appEnLaBarra, ROL_LABEL } from "@/lib/proyectos/gestion-core";
+import { destinoSinAcceso } from "@/lib/proyectos/puerta-de-gestion";
 import { prisma } from "@/lib/prisma";
 import { BarraGestion } from "./proyectos/_barra";
 import { appDeRuta } from "@/apps/rutas";
@@ -285,7 +286,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (actor) {
     const pathname = (await headers()).get("x-pathname");
     const app = pathname ? appDeRuta(pathname) : null;
-    if (app && !abribles.some((a) => a.id === app.id)) redirect("/admin/proyectos/inicio");
+    if (app && !abribles.some((a) => a.id === app.id)) redirect(destinoSinAcceso(app.id)); // con el aviso de qué no se abrió (MIA-194)
     // Fuera de /admin/proyectos (caja, facturación…) el buscador y los avisos siguen a mano; adentro los pone su propio layout.
     if (pathname && !pathname.startsWith("/admin/proyectos")) {
       const avisos = await prisma.proyectoAviso.count({ where: { tenantId: actor.tenantId, destinatario: actor.user.id, leidoEl: null } });

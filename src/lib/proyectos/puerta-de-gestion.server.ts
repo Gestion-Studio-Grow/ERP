@@ -7,7 +7,7 @@ import { getNegocioApps } from "@/apps/contexto.server";
 import { appDelPanelCerrado } from "@/apps/visibles";
 import type { ModuloGestion } from "./gestion-core";
 import { actorActual } from "./gestion.server";
-import { puertaDeGestionAbierta, SIN_PUERTA_DE_GESTION } from "./puerta-de-gestion";
+import { destinoSinAcceso, puertaDeGestionAbierta, SIN_PUERTA_DE_GESTION } from "./puerta-de-gestion";
 
 async function abierta(modulo: ModuloGestion, nivel: "ver" | "editar"): Promise<boolean> {
   const user = await requireUser();
@@ -23,9 +23,9 @@ async function abierta(modulo: ModuloGestion, nivel: "ver" | "editar"): Promise<
   return puertaDeGestionAbierta(panel.id, actor, modulo, nivel);
 }
 
-/** Para una página: sin el permiso, de vuelta a Proyectos (la misma salida que el layout y que `exigirVer`). */
-export async function exigirPuertaDeGestion(modulo: ModuloGestion, nivel: "ver" | "editar"): Promise<void> {
-  if (!(await abierta(modulo, nivel))) redirect("/admin/proyectos/inicio");
+/** Para una página: sin el permiso, de vuelta a Inicio con el aviso de qué app no se abrió (la misma salida que el layout). */
+export async function exigirPuertaDeGestion(modulo: ModuloGestion, nivel: "ver" | "editar", app: string): Promise<void> {
+  if (!(await abierta(modulo, nivel))) redirect(destinoSinAcceso(app));
 }
 
 /** Para una acción: el motivo para mostrar, o null si pasa. La acción vuelve sin escribir nada. */

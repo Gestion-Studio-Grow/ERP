@@ -8,7 +8,7 @@ import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, ca
 import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, yaVencio, type MedioPago } from "@/lib/proyectos/core";
 import { avanceDeCobro, contar, conteoPorEstado } from "@/lib/proyectos/ficha-core";
 import { ofreceNuevaVersion } from "@/lib/proyectos/presupuesto-vista-core";
-import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, TIPOS_EVENTO } from "@/lib/proyectos/gestion-core";
+import { cambioDeVenta, costoParaMostrar, margenParaMostrar, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, TIPOS_EVENTO } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { prisma } from "@/lib/prisma";
 import { puede, type Actor } from "@/lib/proyectos/gestion.server";
@@ -221,8 +221,8 @@ export async function PestanaFicha({ a, cab, vista }: { a: Actor; cab: Cabecera;
       <dl className="mb-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <Numero titulo="Ítems" valor={String(t.items)} />
         <Numero titulo="Venta total" valor={importeDeVenta(t.venta, proyecto.moneda, cambioVenta)} />
-        {verCosto && <Numero titulo="Costo total" valor={pesos(t.costo)} />}
-        {verMargen && <Numero titulo="Margen" valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} alerta={t.margen < 0} />}
+        {verCosto && <Numero titulo="Costo total" valor={costoParaMostrar(t)} />}
+        {verMargen && <Numero titulo="Margen" valor={margenParaMostrar(t, pesos)} alerta={t.costoCargado && t.margen < 0} />}
       </dl>
       {faltanCambio.length > 0 && <p role="alert" className="mb-3 rounded-lg border border-line p-3 text-sm font-medium text-danger">Falta el tipo de cambio de {faltanCambio.join(", ")}: esos ítems están valiendo cero. Cargalo en Administración, Monedas y gastos fijos.</p>}
       {!viva && <p className="mb-3 text-sm text-muted">Este proyecto todavía no tiene ficha.</p>}

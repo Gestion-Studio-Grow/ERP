@@ -996,7 +996,10 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+/* MIA-194 · 5: al volver con Shift+Tab, Chromium deja el foco en una subparte interna del campo de fecha: el campo
+   no cuenta como :focus ni :focus-visible, sólo como :focus-within. Una fecha se escribe con el teclado: anillo siempre. */
+input:is([type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"]):focus-within {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   border-radius: 3px;

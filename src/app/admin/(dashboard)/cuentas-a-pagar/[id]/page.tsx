@@ -33,7 +33,7 @@ const volver = (
 export default async function CuentaAPagarDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("cuentas-a-pagar");
   // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · ver» del rol de Proyectos, también sin el layout.
-  await exigirPuertaDeGestion("empresa", "ver");
+  await exigirPuertaDeGestion("empresa", "ver", "cuentas-a-pagar");
   const tenantId = await getCurrentTenantId();
   // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
   const enLibro = await cuentasCorrientesDe(tenantId);

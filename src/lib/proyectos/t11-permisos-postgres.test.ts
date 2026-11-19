@@ -163,7 +163,7 @@ const llamarPagina = (p: P, ruta: keyof P["paginas"]) => {
   return () => pagina(ruta.endsWith("[id]") ? params(id) : { searchParams: Promise.resolve({}) });
 };
 
-test("C-CF2 · las 5 páginas sin el header: abren Dirección (con y sin ficha) y Administración; los demás vuelven a Proyectos", async (t) => {
+test("C-CF2 · las 5 páginas sin el header: abren Dirección (con y sin ficha) y Administración; los demás vuelven a Proyectos con el aviso", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   for (const ruta of Object.keys(p.paginas) as (keyof P["paginas"])[]) {
@@ -173,7 +173,9 @@ test("C-CF2 · las 5 páginas sin el header: abren Dirección (con y sin ficha) 
     }
     for (const quien of NO_ABREN) {
       const r: SalidaDeAccion<unknown> = await p.pedido(p.a, p.ids.a.usuarios[quien], llamarPagina(p, ruta));
-      assert.deepEqual([r.tipo, (r as { destino?: string }).destino], ["redireccion", "/admin/proyectos/inicio"], `${quien} · ${ruta}`);
+      // MIA-194 · punto 1: no es un rebote mudo; Inicio sabe de qué app vino y muestra el aviso (`textoSinAcceso`).
+      const app = ruta.startsWith("/admin/cuentas-a-cobrar") ? "cuentas-a-cobrar" : ruta.startsWith("/admin/cuentas-a-pagar") ? "cuentas-a-pagar" : "flujo-de-fondos";
+      assert.deepEqual([r.tipo, (r as { destino?: string }).destino], ["redireccion", `/admin/proyectos/inicio?sin-acceso=${app}`], `${quien} · ${ruta}`);
     }
     // Sin ficha (la recepción): ni el rol del ERP la deja entrar.
     const r: SalidaDeAccion<unknown> = await p.pedido(p.a, p.a.recepcion.id, llamarPagina(p, ruta));

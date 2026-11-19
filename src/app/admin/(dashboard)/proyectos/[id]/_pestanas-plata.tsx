@@ -11,7 +11,7 @@ import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, red
 import { MEDIO_RETENCION } from "@/lib/proyectos/moneda-bancos-core";
 import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, perdidoAdmite, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
-import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, totalesFicha } from "@/lib/proyectos/gestion-core";
+import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, margenParaMostrar, MONEDAS, totalesFicha } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { textoPagado } from "@/lib/proyectos/cobranza-core";
@@ -102,7 +102,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                 </div>
                 <dl className="mb-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                   <Numero titulo="Total sin IVA" valor={importeDeVenta(t.venta, p.moneda, cambio)} />
-                  {verMargen && <Numero titulo={editable ? "Margen" : enviado ? "Margen al enviar" : "Margen al cambio de hoy"} valor={`${importeDeVenta(enviado?.margen ?? t.margen, p.moneda, cambio)} (${porcentaje(enviado?.pct ?? t.margenPct)})`} />}
+                  {verMargen && <Numero titulo={editable ? "Margen" : enviado ? "Margen al enviar" : "Margen al cambio de hoy"} valor={margenParaMostrar(enviado && fotoGuardada ? { margen: enviado.margen, margenPct: enviado.pct, costoCargado: fotoGuardada.some((i) => (i.costo as number) > 0) } : t, (n) => importeDeVenta(n, p.moneda, cambio))} />}
                   <Numero titulo="Fecha" valor={fechaCorta(v.enviadoEl ?? v.createdAt)} />
                   <Numero titulo="Quién" valor={v.creadoPor ?? "—"} />
                 </dl>

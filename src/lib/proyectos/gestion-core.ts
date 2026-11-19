@@ -3,7 +3,7 @@
 // docs/benchmark/heka-especificacion.md.
 
 import { anticipoDeLaLinea, DIAS_POR_DEFECTO, type DiasDelPlan } from "./presupuesto-core";
-import { pesos, redondear, yaVencio } from "./core";
+import { pesos, porcentaje, redondear, yaVencio } from "./core";
 
 const DIA = 86_400_000;
 
@@ -108,13 +108,42 @@ export interface TotalesFicha {
   costo: number;
   margen: number;
   margenPct: number;
+  /** ¿Algún ítem tiene costo? Sin costo, el margen sería la venta entera (100 %): no se muestra (MIA-194 · punto 2). */
+  costoCargado: boolean;
+}
+
+/** La celda «Costo»: sin costo cargado no es $ 0, es que falta. PURA. */
+export function costoParaMostrar(t: Pick<TotalesFicha, "costo" | "costoCargado">): string {
+  return t.costoCargado ? pesos(t.costo) : "Sin cargar";
+}
+
+/** La celda «Margen» con el importe en la moneda que muestre la pantalla; sin costo cargado, no hay margen. PURA. */
+export function margenParaMostrar(t: Pick<TotalesFicha, "margen" | "margenPct" | "costoCargado">, importe: (n: number) => string): string {
+  return t.costoCargado ? `${importe(t.margen)} (${porcentaje(t.margenPct)})` : "Falta el costo";
+}
+
+/** Un enlace que acompaña a un error de la ficha: el lugar donde se arregla (MIA-194 · punto 3). */
+export interface EnlaceDeArreglo {
+  href: string;
+  texto: string;
+}
+
+/**
+ * Sin tipo de cambio de la moneda de venta no se puede escribir un precio. Quien abre Administración («Empresa · ver») recibe el
+ * enlace a Monedas y gastos fijos; quien no, a quién pedírselo (un enlace que rebota no ayuda). PURA.
+ */
+export function faltaCambioDeVenta(moneda: string, abreAdministracion: boolean): { ok: false; error: string; enlace?: EnlaceDeArreglo } {
+  return abreAdministracion
+    ? { ok: false, error: `Falta el tipo de cambio de ${moneda}: cargalo en Monedas y gastos fijos.`, enlace: { href: "/admin/proyectos/administracion?tab=monedas", texto: "Ir a Monedas y gastos fijos" } }
+    : { ok: false, error: `Falta el tipo de cambio de ${moneda}: pedile a Administración que lo cargue en Monedas y gastos fijos.` };
 }
 
 export function totalesFicha(items: readonly ItemFicha[], tc: Readonly<Record<string, number>>, recargoGeneral: number): TotalesFicha {
   const venta = redondear(items.reduce((s, i) => s + ventaTotalItem(i, tc, recargoGeneral), 0));
   const costo = redondear(items.reduce((s, i) => s + costoTotalItem(i, tc), 0));
   const margen = redondear(venta - costo);
-  return { items: items.length, venta, costo, margen, margenPct: venta > 0 ? redondear((margen / venta) * 100) : 0 };
+  const costoCargado = items.some((i) => costoTotalItem(i, tc) > 0);
+  return { items: items.length, venta, costo, margen, margenPct: venta > 0 ? redondear((margen / venta) * 100) : 0, costoCargado };
 }
 
 // ── Cuotas: lo que la ficha genera sola ─────────────────────────────────────

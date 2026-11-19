@@ -3,11 +3,12 @@
 // La tabla de la ficha del evento. Cada campo se guarda al salir de él; al guardar, el servidor regenera las cuotas y devuelve los
 // totales nuevos. Lo que este rol no ve ni siquiera llega acá: si falta el dato, falta la columna.
 
+import Link from "next/link";
 import { useState, useTransition } from "react";
 import { buttonClasses, cn } from "@/components/ui";
 import { agregarItemFicha, borrarItemFicha, guardarCampoItem } from "@/lib/proyectos/acciones-ficha";
 import { pesos, porRubro } from "@/lib/proyectos/core";
-import { enMonedaDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, RUBROS, ventaEn } from "@/lib/proyectos/gestion-core";
+import { enMonedaDeVenta, type EnlaceDeArreglo, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, RUBROS, ventaEn } from "@/lib/proyectos/gestion-core";
 import type { FilaFicha } from "@/lib/proyectos/ficha-core";
 import { textoCostoUnitario } from "@/lib/proyectos/presupuesto-vista-core";
 import { campo } from "../_vista";
@@ -45,7 +46,7 @@ export function TablaFicha({
   const venta = (n: number) => ventaEn(n, moneda, cambio);
   const simbolo = moneda === "USD" ? "US$" : "$";
   const [, iniciar] = useTransition();
-  const [estado, setEstado] = useState<{ tipo: "guardando" | "guardado" | "error"; texto: string } | null>(null);
+  const [estado, setEstado] = useState<{ tipo: "guardando" | "guardado" | "error"; texto: string; enlace?: EnlaceDeArreglo } | null>(null);
   const [armado, setArmado] = useState<string | null>(null);
 
   const guardar = (id: string, nombre: string, valor: string) => {
@@ -53,7 +54,7 @@ export function TablaFicha({
     iniciar(async () => {
       try {
         const r = await guardarCampoItem({ id, campo: nombre, valor });
-        setEstado(r.ok ? { tipo: "guardado", texto: nombre === "costoReal" ? "Guardado." : "Guardado. Las cuotas quedaron al día." } : { tipo: "error", texto: r.error });
+        setEstado(r.ok ? { tipo: "guardado", texto: nombre === "costoReal" ? "Guardado." : "Guardado. Las cuotas quedaron al día." } : { tipo: "error", texto: r.error, enlace: r.enlace });
       } catch {
         setEstado({ tipo: "error", texto: "No se pudo guardar. Revisá la conexión y probá de nuevo." });
       }
@@ -84,7 +85,11 @@ export function TablaFicha({
         </FormAccion>
       )}
 
-      <p aria-live="polite" className={cn("min-h-5 text-sm", estado?.tipo === "error" ? "font-medium text-danger" : "text-muted")}>{estado?.texto}</p>
+      <p aria-live="polite" className={cn("min-h-5 text-sm", estado?.tipo === "error" ? "font-medium text-danger" : "text-muted")}>
+        {estado?.texto}
+        {/* MIA-194 · punto 3: el error dice dónde se arregla y lleva ahí. */}
+        {estado?.enlace && <> <Link href={estado.enlace.href} className="inline-flex min-h-11 items-center text-strong underline underline-offset-2">{estado.enlace.texto}</Link></>}
+      </p>
 
       {filas.length === 0 ? (
         <p className="text-sm text-muted">Todavía no hay ítems. Lo que cargues acá arma la planilla de venta, los cobros y los pagos.</p>

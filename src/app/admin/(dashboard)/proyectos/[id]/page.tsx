@@ -5,7 +5,7 @@ import { buttonClasses, cn, Pestanas } from "@/components/ui";
 import { etapaLabel, etapaSiguiente, etapasDe, fechaCorta, pesos, porcentaje, waLink } from "@/lib/proyectos/core";
 import { iniciales } from "@/lib/proyectos/ficha-core";
 import { cabeceraFicha, vistaDe } from "@/lib/proyectos/ficha.server";
-import { cambioDeVenta, ventaEn } from "@/lib/proyectos/gestion-core";
+import { cambioDeVenta, costoParaMostrar, margenParaMostrar, ventaEn } from "@/lib/proyectos/gestion-core";
 import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { ChatProyecto } from "../_chat";
 import { PestanaDiseno } from "../_pestana-diseno";
@@ -86,8 +86,8 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-sm sm:grid-cols-3">
           <Numero titulo="Venta" valor={p.moneda === "ARS" ? pesos(t.venta) : `${ventaEn(t.venta, p.moneda, cambioDeVenta(p.moneda, cab.base?.tcVenta, tc))} (≈ ${pesos(t.venta)})`} />
-          {verCosto && <Numero titulo="Costo" valor={pesos(t.costo)} />}
-          {verMargen && <Numero titulo="Margen" valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} alerta={t.margen < 0} />}
+          {verCosto && <Numero titulo="Costo" valor={costoParaMostrar(t)} />}
+          {verMargen && <Numero titulo="Margen" valor={margenParaMostrar(t, pesos)} alerta={t.costoCargado && t.margen < 0} />}
         </dl>
         <ol className="mt-3 flex flex-wrap gap-1.5" aria-label="Etapas">
           {etapas.map((e, i) => (
