@@ -4,7 +4,8 @@
 // C-O15: fuera del rango (sin margen, § 3) espera a Dirección; con rango abierto, dentro del rango se aplica; con el cliente
 //        aprobado, sólo Dirección y con motivo (Producción y Comercial, rechazados).
 // C-O16: el plan de cobro y el tope salen del total congelado (× IVA), no de los ítems; cambiar ítems, % o el margen general
-//        no los mueve. El cobro que pasa el tope se rechaza, también con N a la vez, con doble envío y con reintento.
+//        no los mueve. El cobro que pasa el tope se rechaza, también con N a la vez, con doble envío y con reintento, en
+//        los tres caminos que cobran: «Registrar cobro», «Marcar cobrado» y la cuota de cobro a mano.
 // C-O18: la foto se escribe en la misma transacción que la aprobación, una sola aunque aprueben N a la vez; no se modifica;
 //        cambiar 3 parámetros y el equipo después la deja idéntica.
 // C-O50: reparto por persona y concepto (el redondeo no se reparte; suma ≤ 100 / = 100 con la empresa); carrera de N guardados.
@@ -255,6 +256,54 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   assert.deepEqual(await cobranza().then((c) => [c.total, c.porCobrar]), [1_802_900, 0]);
   assert.equal((await cobrar("1")).ok, false, "cobrado el total congelado, no entra un peso más");
   assert.deepEqual(await cobrado(), { n: 5, total: 1_802_900 });
+
+  // ── C-O16 · «Marcar cobrado» (`marcarCuota`) contra el mismo tope congelado (vuelta 2, MIA-159) ──
+  // Preparación por la base: se anulan los 5 cobros de arriba (cobrado 0) y se suma una cuota de cobro cargada a mano antes
+  // de aprobar (sin tope entonces), la más vieja. Las cuotas esperan 2.252.900 y el tope congelado (1.802.900) recorta la
+  // más nueva: la 2ª queda en 451.450. Sin la base congelada el tope sería el de los ítems (3.630.000) y no recortaría nada.
+  const anularCobros = () => duenio.proyectoPago.updateMany({ where: { tenantId: a.id, proyectoId: p.id, anuladoEl: null }, data: { anuladoEl: new Date() } });
+  await anularCobros();
+  assert.deepEqual(await cobrado(), { n: 0, total: 0 });
+  const [c1, c2] = await duenio.proyectoCuota.findMany({ where: { tenantId: a.id, proyectoId: p.id, tipo: "COBRO", anuladoEl: null }, orderBy: { venceEl: "asc" }, select: { id: true, venceEl: true } });
+  const vieja = await duenio.proyectoCuota.create({ data: { tenantId: a.id, proyectoId: p.id, tipo: "COBRO", concepto: "Seña cargada antes de aprobar", monto: 450_000, venceEl: new Date(c1.venceEl.getTime() - DIA) }, select: { id: true } });
+  const marcar = (id: string, monto?: string) => direccion(() => ficha.marcarCuota(form({ id, medio: "TRANSFERENCIA", ...(monto && { monto }) })));
+  // 5 a la vez: la vieja y la 1ª enteras, y tres partes de 448.550 sobre la 2ª → de la 2ª entra una sola parte: 1.800.000.
+  const marcas = await Promise.all([marcar(vieja.id), marcar(c1.id), marcar(c2.id, "448550"), marcar(c2.id, "448550"), marcar(c2.id, "448550")]);
+  assert.equal(marcas.filter((r) => r.ok).length, 3, JSON.stringify(marcas));
+  assert.ok(marcas[0].ok && marcas[1].ok, JSON.stringify(marcas));
+  assert.deepEqual(await cobrado(), { n: 3, total: 1_800_000 });
+  // Al borde: falta 2.900, todo en la 2ª. Una parte de 2.901 se rechaza y no escribe; 2.900 entra y la salda.
+  assert.equal((await marcar(c2.id, "2901")).ok, false);
+  assert.deepEqual(await cobrado(), { n: 3, total: 1_800_000 });
+  assert.equal((await marcar(c2.id, "2900")).ok, true);
+  assert.deepEqual(await cobrado(), { n: 4, total: 1_802_900 });
+  assert.deepEqual(await cobranza().then((c) => [c.total, c.porCobrar]), [1_802_900, 0]);
+
+  // ── C-O16 · cuota de cobro a mano (`crearMovimientoManual`) contra el mismo tope congelado ──
+  // Preparación por la base: se anulan los cobros y las cuotas de cobro. No queda nada esperado y el lugar para cuotas a
+  // mano es todo el tope congelado (1.802.900); sin la base congelada sería el de los ítems (3.630.000).
+  await anularCobros();
+  await duenio.proyectoCuota.updateMany({ where: { tenantId: a.id, proyectoId: p.id, tipo: "COBRO", anuladoEl: null }, data: { anuladoEl: new Date() } });
+  const vence = new Date(Date.now() + 30 * DIA).toISOString().slice(0, 10);
+  const aMano = (monto: string, extra: Record<string, string> = {}) => direccion(() => ficha.crearMovimientoManual(form({ proyectoId: p.id, tipo: "COBRO", concepto: "Cuota a mano O16", monto, venceEl: vence, ...extra })));
+  const esperado = async () => {
+    const qs = await enA((tx) => tx.proyectoCuota.findMany({ where: { proyectoId: p.id, tipo: "COBRO", anuladoEl: null }, select: { monto: true } }));
+    return { n: qs.length, total: qs.reduce((s, x) => s + x.monto, 0) };
+  };
+  const cincoAMano = await Promise.all(Array.from({ length: 5 }, () => aMano("450000")));
+  assert.equal(cincoAMano.filter((r) => r.ok).length, 4, JSON.stringify(cincoAMano));
+  assert.match(cincoAMano.find((r) => !r.ok)?.error ?? "", /No entra otra cuota|falta cobrar/);
+  assert.deepEqual(await esperado(), { n: 4, total: 1_800_000 });
+  assert.equal((await aMano("2901")).ok, false);
+  assert.deepEqual(await esperado(), { n: 4, total: 1_800_000 });
+  // 2.900 con doble envío (la misma clave, a la vez) y un reintento: una sola cuota.
+  const claveMano = `o16-mano-${p.id}`.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+  const dobleMano = await Promise.all([aMano("2900", { claveEnvio: claveMano }), aMano("2900", { claveEnvio: claveMano })]);
+  assert.ok(dobleMano.every((r) => r.ok), JSON.stringify(dobleMano));
+  assert.equal((await aMano("2900", { claveEnvio: claveMano })).ok, true, "el reintento no graba otra");
+  assert.deepEqual(await esperado(), { n: 5, total: 1_802_900 });
+  assert.equal((await aMano("1")).ok, false, "esperado todo el total congelado, no entra un peso más");
+  assert.deepEqual(await esperado(), { n: 5, total: 1_802_900 });
 
   // ── R5: el negocio B no ve ni toca nada del A ──
   const deB = await en(b, "duenia", () => precio.guardarPrecio(form({ proyectoId: p.id, total: "1.490.000" })));
