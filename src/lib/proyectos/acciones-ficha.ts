@@ -905,16 +905,20 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
 
 
 /**
+ * O36: los tipos de retención del negocio (`retenciones.tipos`), para la lista del formulario de cobro. La misma puerta que
+ * `marcarCuota`, que es quien la usa: sin permiso, la lista vacía.
+ */
+export async function tiposDeRetencion(): Promise<string[]> {
+  const tenantId = await getCurrentTenantId();
+  if (typeof (await entrar(["pagos", "empresa"])) === "string") return [];
+  return [...(await parametrosDelNegocio(tenantId))["retenciones.tipos"].valor];
+}
+
+/**
  * Marca una cuota del evento como cobrada o pagada, y asienta la plata: un cobro crea el `ProyectoPago` con su movimiento de caja; un
  * pago, el `ProyectoGasto` ya pagado con su asiento. Espera `id` y `medio` en el FormData. A prueba de doble clic: sólo gana quien la
  * encuentra sin pagar. Las cuotas de la empresa, sin proyecto, tienen su propia acción en acciones-empresa.ts.
  */
-/** O36: los tipos de retención del negocio (`retenciones.tipos`), para la lista del formulario de cobro. */
-export async function tiposDeRetencion(): Promise<string[]> {
-  const tenantId = await getCurrentTenantId();
-  return [...(await parametrosDelNegocio(tenantId))["retenciones.tipos"].valor];
-}
-
 export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));

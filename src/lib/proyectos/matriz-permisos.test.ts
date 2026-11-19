@@ -115,8 +115,9 @@ test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
     // MIA-50 T07: +1 ruta (la calculadora pasó a /precio/calculadora; /precio es el tablero) y +3 acciones de acciones-precio (E:cotizaciones V:costos): de fábrica las pasan Dirección y Producción (que edita cotizaciones y ve costos); Administración sólo ve la ruta nueva.
     // MIA-50 T08 (moneda y bancos, #205): +2 acciones para Dirección y Administración.
     // +4 acciones de T09 (acciones-etapas, MIA-151): las 3 de «pipeline» en editar para Comercial y Producción; cancelar, sólo Dirección.
-    // Ola 3 integrada (MIA-167): B + Δ T07 + Δ T08 + Δ T09.
-    { DIRECCION: [43, 155], ADMINISTRACION: [32, 60], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 121], SIN_FICHA: [10, 11] },
+    // MIA-50 T08 vuelta 3: +1 acción (tiposDeRetencion, la puerta de marcarCuota, E:pagos|empresa) para Dirección, Administración y Producción.
+    // Ola 3 integrada (MIA-167, MIA-170): B + Δ T07 + Δ T08 + Δ T09 + Δ T08 vuelta 3.
+    { DIRECCION: [43, 156], ADMINISTRACION: [32, 61], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 122], SIN_FICHA: [10, 11] },
   );
 });
 
