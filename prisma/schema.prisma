@@ -325,6 +325,9 @@ model Tenant {
   proyectoAdicionales        ProyectoAdicional[]
   proyectoAdicionalLineas    ProyectoAdicionalLinea[]
   proyectoPrevisionEstados   ProyectoPrevisionEstado[]
+  proyectoPrecios            ProyectoPrecio[] // M3 · MIA T07
+  proyectoPrecioFotos        ProyectoPrecioFoto[] // M3 · MIA T07
+  proyectoEquipoRepartos     ProyectoEquipoReparto[] // M4 · MIA T07
   inmoPropiedades            InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                  InmoFoto[]
   serviceDetails             ServiceDetail[]
@@ -3629,6 +3632,9 @@ model Proyecto {
   asignacionesRecibidas    AsignacionRecibida[] // GSG-CRM-017: nació de una asignación del ARM (sólo relación)
   lineasDeComprobante      ProyectoComprobanteLinea[] // M1 · T05: lo imputado a este proyecto
   adicionales              ProyectoAdicional[] // M2 · MIA T06
+  precio                   ProyectoPrecio? // M3 · MIA T07: el tablero «por total»
+  preciosFoto              ProyectoPrecioFoto[] // M3 · MIA T07: la foto de cada aprobación del cliente
+  repartos                 ProyectoEquipoReparto[] // M4 · MIA T07
 
   @@unique([tenantId, numero])
   @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId), que no cruzan de negocio
@@ -3678,6 +3684,7 @@ model ProyectoPresupuesto {
   aprobadoInternoEl  DateTime?
   foto               Json? // lo que tenía cada ítem al enviarse: permite comparar versiones
   items              ProyectoItem[]
+  precioFoto         ProyectoPrecioFoto? // M3 · MIA T07: la foto del precio al aprobar el cliente
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 
@@ -4152,6 +4159,7 @@ model ProyectoEquipo {
   personaId  String
   funcion    String          @default("")
   plus       Float           @default(0)
+  repartos   ProyectoEquipoReparto[] // M4 · MIA T07: su porcentaje en cada concepto que se reparte
 
   @@unique([proyectoId, personaId])
   @@index([tenantId, personaId])
@@ -5591,4 +5599,92 @@ model ProyectoPrevisionEstado {
   marcadoEl     DateTime      @default(now())
 
   @@index([tenantId])
+}
+
+// ── M3 · MIA T07 (GSG-MIA-149): el precio «por total» del proyecto y la foto de la aprobación del cliente ──
+// Plata nueva en centavos enteros (BigInt). Sin estas tablas el código lee como antes (`precio-proyecto.server.ts`: `hayM3`).
+
+/// El tablero de precio del proyecto (uno por proyecto): el total escrito a mano, los porcentajes vigentes del proyecto y
+/// lo que espera a Dirección (porcentajes fuera del rango del negocio, redondeo que pasa el tope).
+model ProyectoPrecio {
+  id                    String    @id @default(cuid())
+  tenant                Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId              String
+  proyecto              Proyecto  @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId            String    @unique
+  /// Escrito a mano, sin IVA, en pesos ×100. Null mientras no se escribió.
+  totalVentaCentavos    BigInt?
+  /// Lo que dio el tablero al guardar (con el costo de ese momento): redondeo bruto = total − subtotal; neto = bruto − IIB y GA.
+  subtotalCentavos      BigInt?
+  redondeoBrutoCentavos BigInt?
+  redondeoNetoCentavos  BigInt?
+  /// Los porcentajes vigentes del proyecto: { rentabilidad, margenError, iibGa, comision: { FUNCION: % } }. Null = los del negocio.
+  porcentajes           Json?
+  /// Porcentajes fuera del rango del negocio: no se aplican hasta que Dirección los apruebe.
+  pendientes            Json?
+  pendientesPor         String?
+  pendientesMotivo      String?
+  /// El redondeo bruto que Dirección aprobó al pasar el tope. Vale mientras el redondeo siga siendo ése.
+  topeAprobadoCentavos  BigInt?
+  topeAprobadoPor       String?
+  topeAprobadoEl        DateTime?
+  actualizadoPor        String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([tenantId])
+}
+
+/// La foto del precio al aprobar el cliente: una por versión aprobada. La base rechaza cualquier UPDATE (trigger de M3).
+model ProyectoPrecioFoto {
+  id                    String              @id @default(cuid())
+  tenant                Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId              String
+  proyecto              Proyecto            @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId            String
+  presupuesto           ProyectoPresupuesto @relation(fields: [presupuestoId], references: [id], onDelete: Cascade)
+  presupuestoId         String              @unique
+  version               Int
+  modo                  String // POR_TOTAL · POR_ITEM
+  moneda                String
+  /// Pesos por unidad de la moneda de venta, fijo al enviar (null en pesos).
+  tcVenta               Float?
+  ivaPct                Float
+  costoOriginalCentavos BigInt
+  adicionalesCentavos   BigInt
+  subtotalCentavos      BigInt
+  iibGaCentavos         BigInt
+  /// Sin IVA. Por total: el escrito a mano; por ítem: la venta de los ítems.
+  totalVentaCentavos    BigInt
+  redondeoBrutoCentavos BigInt
+  redondeoNetoCentavos  BigInt
+  /// Porcentajes, tope y modo con que se aprobó, y de dónde salió cada uno (proyecto o negocio; provisional o no).
+  parametros            Json
+  /// El equipo: persona, función, comisión y porcentaje en cada concepto; la empresa con el resto.
+  participantes         Json
+  aprobadoPor           String
+  createdAt             DateTime            @default(now())
+
+  @@index([tenantId, proyectoId])
+}
+
+// ── M4 · MIA T07: el porcentaje de cada persona del equipo en cada concepto que se reparte ──
+/// Una fila por persona y concepto. La empresa recibe el resto (100 − la suma). El redondeo no se reparte: la base lo rechaza.
+model ProyectoEquipoReparto {
+  id         String         @id @default(cuid())
+  tenant     Tenant         @relation(fields: [tenantId], references: [id])
+  tenantId   String
+  proyecto   Proyecto       @relation(fields: [proyectoId], references: [id], onDelete: Cascade)
+  proyectoId String
+  equipo     ProyectoEquipo @relation(fields: [equipoId], references: [id], onDelete: Cascade)
+  equipoId   String
+  /// Id de `reparto.conceptos` (p. ej. DEFENSA). Nunca REDONDEO.
+  concepto   String
+  /// En puntos básicos: 25 % = 2500.
+  puntos     Int
+  creadoPor  String
+  createdAt  DateTime       @default(now())
+
+  @@unique([equipoId, concepto])
+  @@index([tenantId, proyectoId])
 }
