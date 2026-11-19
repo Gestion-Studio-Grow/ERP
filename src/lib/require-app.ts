@@ -35,6 +35,8 @@ import { appPorId, type AppId } from "@/apps/registro";
 import { appCasa, appDelPanelCerrado, explicarNoDisponible, motivoNoDisponible, rutaDeLaCasa, type MotivoNoDisponible, type NegocioApps } from "@/apps/visibles";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { appDeGestionVisible, type RolGestion } from "@/lib/proyectos/gestion-core";
+import type { UsuarioConPermisos } from "@/lib/capabilities";
+import { fueraPorProducto } from "@/lib/fuera-por-producto";
 
 /** URL de "App no disponible" para una app. */
 export function rutaNoDisponible(id: AppId): string {
@@ -92,27 +94,30 @@ export async function requireAppAccion(id: AppId): Promise<SessionUser> {
 
 // ── La regla ENTERA de la pantalla, para las acciones (MIA-ACCIONES-PANEL, certificación CRM-018) ──────────────────
 //
-// `requireApp` es la guardia de la página, pero dos rebotes viven SÓLO en el layout de (dashboard): la CASA (un negocio
-// cuyo panel es una app, Break Point → el club) y la barra del ROL DE GESTIÓN en el panel de Proyectos (una Comercial no
-// abre Caja). Con eso, la pantalla rebotaba y la acción de servidor —que sólo pedía el rol del ERP— escribía igual si
-// alguien la llamaba a mano. `motivoDeLaPantalla` junta las tres reglas; las acciones de Caja, Libro, Cierre del día y
-// Apariencia la exigen con `requirePantallaAccion` (escrituras) o `requirePantalla` (lecturas que alimentan la pantalla).
+// `requireApp` es la guardia de la página, pero tres rebotes viven SÓLO en el layout de (dashboard): el PRODUCTO (Factoque
+// y Contador tienen su casa fuera de /admin, layout.tsx:146-151), la CASA (un negocio cuyo panel es una app, Break Point →
+// el club) y la barra del ROL DE GESTIÓN en el panel de Proyectos (una Comercial no abre Caja). Con eso, la pantalla
+// rebotaba y la acción de servidor —que sólo pedía el rol del ERP— escribía igual si alguien la llamaba a mano.
+// `motivoDeLaPantalla` junta las cuatro reglas; las acciones de Caja, Libro, Cierre del día, Cierre del mes y Apariencia la
+// exigen con `requirePantallaAccion` (escrituras), `requirePantalla` (lecturas que alimentan la pantalla) o
+// `puedeAbrirLaPantalla` (una lectura que no puede redirigir, como la tarjeta de apertura en Vender).
 
-/** Lo que el layout suma a `motivoNoDisponible`: la casa del negocio y la barra del rol de gestión. */
-export type MotivoDeLaPantalla = MotivoNoDisponible | "casa" | "gestion";
+/** Lo que el layout suma a `motivoNoDisponible`: el producto con casa propia, la casa del negocio y la barra de gestión. */
+export type MotivoDeLaPantalla = MotivoNoDisponible | "producto" | "casa" | "gestion";
 
 /** El rol de gestión de quien mira, sólo cuando el panel es el de Proyectos (como el layout); `null` en el resto. */
 export type ActorDelPanel = { rol: RolGestion; permisos: readonly { rol: string; modulo: string; ver: boolean; editar: boolean }[] } | null;
 
 /**
  * Por qué la pantalla de `id` rebota para esta persona, o `null` si se abre. PURA. Es `motivoNoDisponible` (la regla de
- * `requireApp`) más lo que hace el layout: con casa, sólo la casa y las apps de cuenta; en el panel de Proyectos, sólo lo
+ * `requireApp`) más lo que hace el layout: el producto con casa propia (Factoque, Contador) no usa /admin; con casa, sólo la casa y las apps de cuenta; en el panel de Proyectos, sólo lo
  * que el rol de gestión abre (`appDeGestionVisible`, la misma función que arma la barra).
  */
-export function motivoDeLaPantalla(id: AppId, negocio: NegocioApps, actor: ActorDelPanel): MotivoDeLaPantalla | null {
+export function motivoDeLaPantalla(id: AppId, negocio: NegocioApps, actor: ActorDelPanel, usuario: UsuarioConPermisos): MotivoDeLaPantalla | null {
   const app = appPorId(id);
   const motivo = motivoNoDisponible(app, negocio);
   if (motivo !== null) return motivo;
+  if (fueraPorProducto(negocio, usuario)) return "producto";
   const casa = appCasa(negocio);
   if (casa && !rutaDeLaCasa(app.ruta, casa)) return "casa";
   if (actor && !appDeGestionVisible(app.id, actor.rol, actor.permisos)) return "gestion";
@@ -125,12 +130,12 @@ async function primeraAbrible(ids: readonly [AppId, ...AppId[]]): Promise<{ user
   const negocio = await getNegocioApps(user.role, user.overrides);
   // Import tardío: gestion.server lee la base y pide `agenda:read`, y sólo hace falta en el panel de Proyectos.
   const actor: ActorDelPanel = appDelPanelCerrado(negocio)?.id === "proyectos" ? await (await import("@/lib/proyectos/gestion.server")).actorActual() : null;
-  const motivos = ids.map((id) => motivoDeLaPantalla(id, negocio, actor));
+  const motivos = ids.map((id) => motivoDeLaPantalla(id, negocio, actor, user));
   return { user, negocio, motivo: motivos.includes(null) ? null : motivos[0] };
 }
 
 /** Para el texto: la casa se explica como el panel cerrado y la barra de gestión como el rol. */
-const motivoParaExplicar = (m: MotivoDeLaPantalla): MotivoNoDisponible => (m === "casa" ? "panel" : m === "gestion" ? "rol" : m);
+const motivoParaExplicar = (m: MotivoDeLaPantalla): MotivoNoDisponible => (m === "casa" || m === "producto" ? "panel" : m === "gestion" ? "rol" : m);
 
 /**
  * La acción de servidor de una pantalla: pasa si la persona puede abrir ALGUNA de `ids` (una acción que comparten dos
@@ -152,6 +157,14 @@ export async function requirePantalla(...ids: [AppId, ...AppId[]]): Promise<Sess
   const { user, motivo } = await primeraAbrible(ids);
   if (motivo !== null) redirect(rutaNoDisponible(ids[0]));
   return user;
+}
+
+/**
+ * Igual, para una lectura que NO puede redirigir ni tirar (la tarjeta de apertura en Vender: la pantalla de vender no se
+ * cae por ella): `true` si la persona abre ALGUNA de `ids`. Sin la app, la lectura devuelve vacío.
+ */
+export async function puedeAbrirLaPantalla(...ids: [AppId, ...AppId[]]): Promise<boolean> {
+  return (await primeraAbrible(ids)).motivo === null;
 }
 
 /** `requirePantallaAccion` devuelta como resultado: `{ error }` con el texto listo, o el usuario. */
