@@ -7,8 +7,8 @@
 // Cada export de este archivo es un endpoint. Por eso ninguno recibe un negocio: el negocio
 // es SIEMPRE el de la sesión (`getCurrentTenantId`), y lo único que llega del formulario es
 // el mes ("AAAA-MM", validado) y lo que la persona escribió. La guarda es la misma de la
-// página (`requireAppAccion("cierre-del-mes")`: rol, módulo, rubro), que no redirige a mitad
-// de un formulario: devuelve el mensaje.
+// pantalla entera (`requirePantallaAccion("cierre-del-mes")`: rol, módulo, rubro, casa, rol de
+// gestión y producto), que no redirige a mitad de un formulario: devuelve el mensaje.
 //
 // La fila de AuditLog del cierre NO es sólo bitácora: decide si el mes está congelado. Por
 // eso sólo se escribe desde acá, después de volver a leer y validar todo en el servidor
@@ -20,7 +20,7 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
-import { AppNoDisponibleError, pantallaAccion, requireAppAccion } from "@/lib/require-app";
+import { AppNoDisponibleError, pantallaAccion, requirePantallaAccion } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { bordesDelMes, esMesKey, etiquetaDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
 import { CIERRE_DIARIO_ACTION, CIERRE_DIARIO_ENTITY, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
@@ -57,7 +57,8 @@ const RUTA = "/admin/cierre-mes";
 /** La guarda de la app, devuelta como mensaje en vez de tirar (un formulario no redirige). */
 async function exigirApp(): Promise<{ ok: true; user: SessionUser } | { ok: false; error: string }> {
   try {
-    return { ok: true, user: await requireAppAccion("cierre-del-mes") };
+    // La regla entera de la pantalla (casa, rol de gestión, producto), no sólo la de `requireApp` (MIA-141, hueco 2).
+    return { ok: true, user: await requirePantallaAccion("cierre-del-mes") };
   } catch (e) {
     if (e instanceof AppNoDisponibleError) return { ok: false, error: e.message };
     throw e;
