@@ -32,7 +32,8 @@ const PATRONES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/sinRendiciones\(\w+, "(\w+)"\)/g, (m) => `REND:${m[1]}`],
   [/puedeReintegrarRendicion\(/g, () => "ROL:aprueba"],
   [/cambiaLosPermisos\(/g, () => "MATRIZ"],
-  [/(?:exigir|sin)PuertaDeGestion\("(\w+)", "(ver|editar)"\)/g, (m) => `${m[2] === "ver" ? "V" : "E"}:${m[1]}`],
+  // MIA-196: el 3er argumento de `exigirPuertaDeGestion` (MIA-194) es la app del aviso de salida, no una puerta: se acepta y se ignora.
+  [/(?:exigir|sin)PuertaDeGestion\("(\w+)", "(ver|editar)"(?:, "[\w-]+")?\)/g, (m) => `${m[2] === "ver" ? "V" : "E"}:${m[1]}`],
 ];
 const puertasEn = (codigo: string) => PATRONES.flatMap(([re, f]) => [...codigo.matchAll(re)].map(f));
 

@@ -48,6 +48,11 @@ const ESCRITORES_PERMITIDOS: Record<string, string> = {
     "el QA de CH-008 («No vino» libera el hueco), SÓLO contra su base efímera local (entorno-ch.mjs → crearBaseEfimera): prende «agenda-practica» y «agenda-interaccion» para recorrer la barra y la grilla",
   "src/tenants/ch/e2e/preparar-mostrador-ch.mjs":
     "los recorridos del mostrador de CH (npm run test:ch-mostrador-e2e), SÓLO contra su base efímera local (crearBaseEfimera): prende el diseño nuevo para recorrer el cajón",
+  // MIA-196 · La siembra no puede pasar por la consola: la escritura real (interruptores-escritura.server.ts) sólo la importa la
+  // action detrás de requireOperator (test de abajo) y provision-tenant.ts todavía no prende interruptores. Se admite con la
+  // misma regla que la prueba local del CRM: sólo contra una base de esta máquina, y lo fija «escritores locales» de abajo.
+  "scripts/proyectos/sembrar-e2e.mts":
+    "la siembra del ambiente E2E de Proyectos (MIA-193, la corre ambiente-e2e.mjs), SÓLO contra una base de esta máquina (baseLocalParaSeed lanza antes de crear el PrismaClient): prende «inicio-por-apps» en sus 3 productoras de prueba, como la consola",
   "src/tenants/magra/e2e/mostrador.e2e.mjs":
     "el recorrido del mostrador de MAGRA (npm run test:mostrador-e2e), SÓLO contra su base efímera local (crearBaseEfimera): prende el diseño nuevo para recorrer «Cobrar en el mostrador»",
 };
@@ -128,6 +133,23 @@ test("TRINQUETE: los escritores de QA (scripts/qa, */e2e/*) sólo escriben contr
     const c = codigo(f.src);
     assert.match(c, /base-efimera|PGlite/i, `${a} no pasa por la base efímera ni por PGlite`);
     assert.doesNotMatch(c, /new\s+PrismaClient\b/, `${a} arma su propio PrismaClient (saltea la guarda de base local)`);
+  }
+});
+
+/** MIA-196 · Escritores admitidos que arman su propio cliente de base: sólo pasan si la guarda de base local corta antes. */
+const ESCRITORES_LOCALES = ["scripts/crm-comercial/preparar-local.ts", "scripts/proyectos/sembrar-e2e.mts"];
+
+test("TRINQUETE: los escritores locales (siembra E2E, CRM) se niegan a una base que no sea de esta máquina", () => {
+  for (const a of ESCRITORES_LOCALES) {
+    assert.ok(a in ESCRITORES_PERMITIDOS, `${a} no está en la lista de escritores`);
+    const f = TODOS.find((t) => t.archivo === a);
+    assert.ok(f, `falta ${a}`);
+    const c = codigo(f.src);
+    const guarda = c.search(/baseLocalParaSeed\(\s*(process\.env\.DATABASE_URL|url)\s*\)/);
+    assert.ok(guarda >= 0, `${a} no mira baseLocalParaSeed sobre la base a la que escribe`);
+    assert.match(c.slice(guarda, guarda + 300), /if\s*\(\s*!\s*\w+\.ok\s*\)\s*(throw|salir\()/, `${a}: la guarda no corta (throw o salir) cuando la base no es local`);
+    const cliente = c.search(/new\s+PrismaClient\b/);
+    if (cliente >= 0) assert.ok(guarda < cliente, `${a} crea el PrismaClient antes de mirar la guarda`);
   }
 });
 

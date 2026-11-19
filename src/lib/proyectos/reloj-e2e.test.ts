@@ -33,3 +33,14 @@ test("sin E2E_RELOJ, la hora real; con un valor que no es fecha, no arranca", ()
   assert.notEqual(mal.status, 0);
   assert.match(mal.stderr, /E2E_RELOJ/);
 });
+
+// MIA-196 (reserva de MIA-195): guarda propia. Aunque estén prendidas la precarga y `E2E_RELOJ`, el reloj no arranca en Vercel ni
+// con NODE_ENV=production: el proceso termina con error y nunca corre con la hora corrida.
+test("con VERCEL o con NODE_ENV=production, la precarga se niega aunque haya E2E_RELOJ", () => {
+  for (const extra of [{ VERCEL: "1" }, { NODE_ENV: "production" }, { VERCEL: "1", NODE_ENV: "production" }]) {
+    const r = spawnSync(process.execPath, ["--import", pathToFileURL(RELOJ).href, "-e", "console.log(Date.now())"], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", E2E_RELOJ: "2026-11-02T10:00:00-03:00", ...extra } as unknown as NodeJS.ProcessEnv });
+    assert.notEqual(r.status, 0, `${JSON.stringify(extra)}: arrancó (salida ${r.stdout.trim()})`);
+    assert.equal(r.stdout, "", `${JSON.stringify(extra)}: llegó a correr el código`);
+    assert.match(r.stderr, /reloj-fijo.*(Vercel|producción)/, `${JSON.stringify(extra)}: ${r.stderr.slice(0, 200)}`);
+  }
+});
