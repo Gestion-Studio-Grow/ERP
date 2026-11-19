@@ -90,6 +90,7 @@ export const PUERTAS_DE_ACCIONES: Readonly<Record<string, string>> = {
   "acciones-ficha#registrarRespuesta": "E:cotizaciones",
   "acciones-ficha#guardarTextos": "E:cotizaciones",
   "acciones-ficha#marcarCuota": "E:pagos|empresa",
+  "acciones-ficha#tiposDeRetencion": "E:pagos|empresa",
   "acciones-ficha#crearMovimientoManual": "E:pagos",
   "acciones-ficha#quitarMovimiento": "E:pagos",
   "acciones-ficha#recalcularCuotas": "E:pagos",
