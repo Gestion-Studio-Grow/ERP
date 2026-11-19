@@ -82,7 +82,7 @@ export async function TabResultado({ tenantId, mes: pedido }: { tenantId: string
             </ul>
           )}
           <p className={cn("mt-2 border-t border-line pt-2 text-sm font-medium", r.desvioFijos > 0 ? "text-danger" : "text-strong")}>
-            {r.desvioFijos > 0 ? `Se gastó ${pesos(r.desvioFijos)} más de lo previsto` : r.desvioFijos < 0 ? `Se gastó ${pesos(-r.desvioFijos)} menos de lo previsto` : "Lo real coincide con lo previsto"}
+            {r.administracion.length === 0 ? "Sin gastos reales cargados todavía: no hay desvío que medir." : r.desvioFijos > 0 ? `Se gastó ${pesos(r.desvioFijos)} más de lo previsto` : r.desvioFijos < 0 ? `Se gastó ${pesos(-r.desvioFijos)} menos de lo previsto` : "Lo real coincide con lo previsto"}
           </p>
         </section>
       </div>
