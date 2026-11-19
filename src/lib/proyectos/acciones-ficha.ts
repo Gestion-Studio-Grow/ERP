@@ -34,7 +34,7 @@ import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendic
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { ModuloGestion } from "./gestion-core";
-import { siHayM1 } from "./comprobantes.server";
+import { siHayM1, tomarCuotas } from "./comprobantes.server";
 
 /** `aviso`: salió bien, pero hay algo que mirar (p. ej. «recalculá el plan» si se facturó una cuota en el medio). */
 /** `listo`: el cartel de éxito (se muestra aparte, porque el renglón que lo pidió suele desaparecer al refrescar). */
@@ -831,6 +831,8 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
 
 // ── Finanzas ────────────────────────────────────────────────────────────────
 
+const CUOTA_ENLAZADA = "Esta cuota está enlazada a un comprobante del proveedor: se paga con una orden de pago, en Proveedores › Órdenes de pago.";
+
 /**
  * Marca una cuota del evento como cobrada o pagada, y asienta la plata: un cobro crea el `ProyectoPago` con su movimiento de caja; un
  * pago, el `ProyectoGasto` ya pagado con su asiento. Espera `id` y `medio` en el FormData. A prueba de doble clic: sólo gana quien la
@@ -854,7 +856,9 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   if (c.anuladoEl) return mal("Esa cuota ya no corre: la ficha la dejó afuera.");
   if (c.pagadoEl) return mal("Esa cuota ya estaba marcada.");
   // MIA-50 T05: la cuota enlazada a un comprobante se paga con una orden de pago (si no, se pagaría dos veces).
-  if (c.tipo !== "COBRO" && (await siHayM1(() => prisma.proyectoCuotaComprobante.count({ where: { tenantId, cuotaId: id } })))) return mal("Esta cuota está enlazada a un comprobante del proveedor: se paga con una orden de pago, en Proveedores › Órdenes de pago.");
+  // Afuera, para contestar rápido; `null` = sin M1 (la tabla no existe y adentro no se cuenta). Adentro se mira de nuevo.
+  const enlaces = c.tipo !== "COBRO" ? await siHayM1(() => prisma.proyectoCuotaComprobante.count({ where: { tenantId, cuotaId: id } })) : null;
+  if (enlaces) return mal(CUOTA_ENLAZADA);
   const tc = await tiposDeCambio(tenantId);
   const esCobro = c.tipo === "COBRO";
   // Un cobro se lleva sólo lo que le falta a la cuota: lo cobrado a mano por fuera ya se descontó de las más viejas.
@@ -888,7 +892,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const cuenta = await cuentaParaCuota(tenantId, formData, { tipo: c.tipo, monto: cobra, moneda: c.moneda, importeEnPesos: importe });
   if (typeof cuenta === "string") return mal(cuenta);
   let faltaAhora = pendiente;
-  const ganada = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<boolean | "cambio" | "tope" | "repetido" | "perdido"> => {
+  const ganada = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<boolean | "cambio" | "tope" | "repetido" | "perdido" | "enlazada"> => {
     // En fila con los otros cobros y pagos del proyecto (y sus anulaciones), y el pendiente leído de nuevo ADENTRO: si
     // entró o se anuló algo mientras tanto, se asentaría otro importe. Si cambió, no se graba nada (la cuenta y el importe
     // salieron del de afuera).
@@ -898,6 +902,12 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     const ahora = esCobro ? await pendienteDeLaCuota(tenantId, proyectoId, id, tc, margenPct, tx) : { pendiente: await pendienteDelPago(tenantId, c, tc, tx), cob: null };
     if (ahora === null) return false;
     faltaAhora = ahora.pendiente;
+    // CERT-4: un pago toma la cuota (después de la traba de la cobranza) con el candado de `enlazarCuota` y cuenta el
+    // enlace adentro. Si el enlace entró mientras tanto, se paga con una orden de pago, no a mano (si no, sale dos veces).
+    if (!esCobro) {
+      await tomarCuotas(tx, tenantId, [id]);
+      if (enlaces !== null && (await tx.proyectoCuotaComprobante.count({ where: { tenantId, cuotaId: id } })) > 0) return "enlazada";
+    }
     // Una parte sólo tiene que seguir entrando en lo que falta; todo, tiene que ser exactamente lo que se leyó afuera.
     if (parcial === null ? Math.abs(ahora.pendiente - pendiente) > 0.005 : parcial > ahora.pendiente - 0.005) return "cambio";
     if (ahora.cob && pasaElTope(ahora.cob, importe)) return "tope";
@@ -949,6 +959,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   if (ganada === "cambio") return mal(avisoSaldoCambio(pendiente, faltaAhora, c.moneda, esCobro));
   if (ganada === "tope") return mal(avisoTopeMarcar(importe, leido.cob));
   if (ganada === "perdido") return mal(PERDIDO_NO_COBRA);
+  if (ganada === "enlazada") return mal(CUOTA_ENLAZADA);
   if (ganada === "repetido") return { ok: true, listo: esCobro ? "Ese cobro ya estaba registrado: no se asentó dos veces." : "Ese pago ya estaba registrado: no se asentó dos veces." };
   if (!ganada) return mal("Esa cuota ya estaba marcada.");
   await auditAdmin({ action: parcial !== null ? (esCobro ? "proyecto.cuota.cobrar-parte" : "proyecto.cuota.pagar-parte") : esCobro ? "proyecto.cuota.cobrar" : "proyecto.cuota.pagar", entity: "ProyectoCuota", entityId: id, changes: { importe, medio } });

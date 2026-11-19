@@ -23,7 +23,7 @@ import { marcaDeGastoProyecto } from "./marcas";
 import { esClaveRepetida } from "./rendiciones-core";
 import { claveDeEnvio } from "./pago-columnas";
 import { errorDeAprobacion, errorDeOrden, numeroDeOrden, SERIE_ORDEN_PAGO, type ComprobanteParaOrden, type LineaDeOrden } from "./orden-pago-core";
-import { SIN_M1 } from "./comprobantes.server";
+import { SIN_M1, tomarCuotas } from "./comprobantes.server";
 import { centavosDelTexto } from "./comprobantes-core";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -104,6 +104,8 @@ export async function crearOrdenPago(d: { supplierId: string; medio: string; cla
           // Candado en orden fijo (sin abrazo mortal): la segunda orden espera y lee el saldo ya tomado por la primera.
           await tx.$queryRaw`SELECT "id" FROM "ProyectoComprobante" WHERE "tenantId" = ${tenantId} AND "id" IN (${Prisma.join(ids)}) ORDER BY "id" FOR UPDATE`;
         }
+        // CERT-4b: después, las cuotas de la orden (el candado de `marcarCuota` y `enlazarCuota`): una pagada no entra.
+        const cuotasTomadas = await tomarCuotas(tx, tenantId, lineas.flatMap((l) => (l.cuotaId ? [l.cuotaId] : [])));
         const filas = await tx.proyectoComprobante.findMany({
           where: { tenantId, id: { in: ids } },
           select: {
@@ -126,6 +128,7 @@ export async function crearOrdenPago(d: { supplierId: string; medio: string; cla
                 id: cuota.id,
                 montoCentavos: centavosDe(cuota.monto),
                 enOrdenesCentavos: c.pagos.filter((p) => p.cuotaId === cuota.id).reduce((s, p) => s + n(p.importeCentavos), 0),
+                pagada: cuotasTomadas.get(cuota.id)?.pagado ?? false,
               })),
             },
           ]),
@@ -218,13 +221,17 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
         const filas = await tx.$queryRaw<{ anuladoEl: Date | null }[]>`
           SELECT "anuladoEl" FROM "ProyectoComprobante" WHERE "tenantId" = ${tenantId} AND "id" IN (${Prisma.join(comprobanteIds)})
           ORDER BY "id" FOR UPDATE`;
-        if (filas.some((f) => f.anuladoEl !== null)) return { pagada: false, anulado: true, proyectos: [] as (string | null)[] };
+        if (filas.some((f) => f.anuladoEl !== null)) return { pagada: false, anulado: true, cuotaPagada: false, proyectos: [] as (string | null)[] };
       }
+      // CERT-4b: las cuotas de la orden, con su candado y después de los comprobantes. Una que ya figura pagada (a mano,
+      // antes de este arreglo o por una carrera) no se paga otra vez: la orden queda pendiente para anularla.
+      const tomadas = await tomarCuotas(tx, tenantId, cuotaIds);
+      if ([...tomadas.values()].some((q) => q.pagado)) return { pagada: false, anulado: false, cuotaPagada: true, proyectos: [] as (string | null)[] };
       const u = await tx.proyectoOrdenPago.updateMany({
         where: { tenantId, id, estado: "PENDIENTE" },
         data: { estado: "PAGADA", aprobadaPorId: user.id, aprobadaNombre: user.name, pagadaEl: new Date() },
       });
-      if (u.count === 0) return { pagada: false, anulado: false, proyectos: [] as (string | null)[] };
+      if (u.count === 0) return { pagada: false, anulado: false, cuotaPagada: false, proyectos: [] as (string | null)[] };
       const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
       await asentarEnCajaTx(tx, "pago", {
         tenantId,
@@ -252,9 +259,10 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
         }
       }
       await registrarCambio(tx, { tenantId, entidad: "ProyectoOrdenPago", entidadId: id, campo: "Orden de pago pagada", despues: MEDIO_LABEL[medio], autor: user.name });
-      return { pagada: true, anulado: false, proyectos };
+      return { pagada: true, anulado: false, cuotaPagada: false, proyectos };
     });
     if (r.anulado) return { ok: false, error: "Uno de los comprobantes de esta orden está anulado: no se paga. Anulá la orden." };
+    if (r.cuotaPagada) return { ok: false, error: "Una cuota de esta orden ya está pagada: no se paga dos veces. Anulá la orden." };
     if (!r.pagada) return { ok: false, error: "Esa orden ya estaba pagada o anulada." };
     await auditAdmin({ action: "proyecto.orden-pago.pagar", entity: "ProyectoOrdenPago", entityId: id, changes: { medio } });
     refrescar(r.proyectos);

@@ -5,7 +5,7 @@
 
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { esTablaInexistente } from "@/lib/rendiciones/pin-core";
 import { parametrosDelNegocio } from "./parametros/leer.server";
 import { defDe } from "./parametros/catalogo";
@@ -27,6 +27,19 @@ export async function siHayM1<T>(leer: () => Promise<T>): Promise<T | null> {
     throw e;
   }
 }
+/**
+ * MIA-50 T05 · vuelta 2 (CERT-4): el candado de la cuota de pago. Lo toman, en la transacción, todos los caminos que la
+ * pagan o la atan a un comprobante: `enlazarCuota`, `marcarCuota` (pago), `crearOrdenPago` y `aprobarYPagarOrden`.
+ * Orden fijo: primero el comprobante (si hay), después la cuota, por id. Devuelve lo que se mira con el candado tomado.
+ */
+export async function tomarCuotas(tx: Prisma.TransactionClient, tenantId: string, ids: readonly string[]): Promise<Map<string, { pagado: boolean; anulado: boolean }>> {
+  if (ids.length === 0) return new Map();
+  const orden = [...new Set(ids)].sort();
+  const filas = await tx.$queryRaw<{ id: string; pagadoEl: Date | null; anuladoEl: Date | null }[]>`
+    SELECT "id", "pagadoEl", "anuladoEl" FROM "ProyectoCuota" WHERE "tenantId" = ${tenantId} AND "id" IN (${Prisma.join(orden)}) ORDER BY "id" FOR UPDATE`;
+  return new Map(filas.map((f) => [f.id, { pagado: f.pagadoEl !== null, anulado: f.anuladoEl !== null }]));
+}
+
 export const SIN_M1 = "Los comprobantes de proveedor necesitan la actualización de la base M1, que todavía no está aplicada. Lo demás funciona igual.";
 
 /** Lo que la carga y la imputación leen del catálogo de parámetros (R8): nada de esto queda escrito en el código. */

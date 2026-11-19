@@ -33,7 +33,7 @@ import {
   type TratamientoIva,
 } from "./comprobantes-core";
 import { errorDeImputacion, filaDeLinea, type Destino, type LineaEntrada } from "./imputacion-core";
-import { parametrosDeComprobantes, SIN_M1 } from "./comprobantes.server";
+import { parametrosDeComprobantes, SIN_M1, tomarCuotas } from "./comprobantes.server";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -76,6 +76,9 @@ async function bloquearComprobante(tx: Prisma.TransactionClient, tenantId: strin
     SELECT "anuladoEl" FROM "ProyectoComprobante" WHERE "tenantId" = ${tenantId} AND "id" = ${id} FOR UPDATE`;
   return filas.length === 0 ? null : { anulado: filas[0].anuladoEl !== null };
 }
+
+const YA_PAGADA = "Esa cuota ya está pagada.";
+const CON_PARTES = "Esa cuota ya tiene partes pagadas desde el calendario: terminala ahí, no con una orden de pago.";
 
 /** «2026-11-19» → la fecha al mediodía de Argentina (no se corre de día con el huso). */
 function fechaDelForm(s: string): Date | null {
@@ -305,14 +308,23 @@ export async function enlazarCuota(formData: FormData): Promise<Resultado> {
     if (q.proyectoId && !(await proyectoVisible(a, q.proyectoId))) return { ok: false, error: "Esa cuota de pago no existe." };
     if (q.supplierId !== c.supplierId) return { ok: false, error: "La cuota es de otro proveedor." };
     if (q.moneda !== c.moneda) return { ok: false, error: `La cuota está en ${q.moneda} y el comprobante en ${c.moneda}: no se enlazan.` };
-    if (q.pagadoEl) return { ok: false, error: "Esa cuota ya está pagada." };
-    const pendiente = await pendienteDelPago(tenantId, q, await tiposDeCambio(tenantId));
-    if (pendiente < q.monto) return { ok: false, error: "Esa cuota ya tiene partes pagadas desde el calendario: terminala ahí, no con una orden de pago." };
+    if (q.pagadoEl) return { ok: false, error: YA_PAGADA };
+    const tc = await tiposDeCambio(tenantId);
+    if ((await pendienteDelPago(tenantId, q, tc)) < q.monto) return { ok: false, error: CON_PARTES };
     try {
       // La suma contra el total, con el comprobante tomado: el segundo enlace a la vez espera y ve el primero (CERT-3).
       const error = await tenantTransaction(async (tx) => {
         const actual = await bloquearComprobante(tx, tenantId, c.id);
         if (!actual || actual.anulado) return "Ese comprobante no existe o está anulado.";
+        // CERT-4: después, la cuota, con el candado que toma `marcarCuota` al pagarla a mano. Pagada (toda o una parte)
+        // mientras tanto → no se enlaza. Lo de afuera era sólo para contestar rápido.
+        const cuota = (await tomarCuotas(tx, tenantId, [q.id])).get(q.id);
+        if (!cuota || cuota.anulado) return "Esa cuota de pago no existe.";
+        if (cuota.pagado) return YA_PAGADA;
+        if ((await pendienteDelPago(tenantId, { ...q, pagadoEl: null }, tc, tx)) < q.monto) return CON_PARTES;
+        // `marcarCuota` corre en Serializable: su foto puede ser de antes de este enlace. Una versión nueva de la fila de
+        // la cuota hace que, al tomar el candado después, Postgres la aborte y el reintento vea el enlace.
+        await tx.$executeRaw`UPDATE "ProyectoCuota" SET "pagadoEl" = "pagadoEl" WHERE "tenantId" = ${tenantId} AND "id" = ${q.id}`;
         const ya = await tx.proyectoCuotaComprobante.findMany({ where: { tenantId, comprobanteId: c.id }, select: { cuota: { select: { monto: true } } } });
         const enlazado = ya.reduce((s, x) => s + centavosDe(x.cuota.monto), 0);
         if (enlazado + centavosDe(q.monto) > Number(c.totalCentavos)) return "Las cuotas enlazadas pasarían el total del comprobante.";
