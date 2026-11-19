@@ -65,9 +65,10 @@ async function preparar(t: import("node:test").TestContext) {
   const comp = await import("./acciones-comprobantes");
   const ordenes = await import("./acciones-orden-pago");
   const ficha = await import("./acciones-ficha");
+  const empresa = await import("./acciones-empresa");
   const server = await import("./comprobantes.server");
   const datos = await import("./datos.server");
-  const empresa = await import("./empresa.server");
+  const empresaServer = await import("./empresa.server");
   const fichaServer = await import("./ficha.server");
   const gestion = await import("./gestion.server");
   const libro = await import("@/lib/libro-caja-actions");
@@ -119,10 +120,10 @@ async function preparar(t: import("node:test").TestContext) {
       return fichaServer.datosFinanzas(ac, cab!, fichaServer.vistaDe(ac));
     });
     const rent = (await enSesion(() => datos.reporteProyectos())).find((x) => x.id === id);
-    const dir = (await enSesion(() => empresa.proyectosConNumeros(a.id))).find((x) => x.id === id);
+    const dir = (await enSesion(() => empresaServer.proyectosConNumeros(a.id))).find((x) => x.id === id);
     return { ficha: f!.real, pestana: pestana.real, rentabilidad: rent!.real, direccion: dir!.costoReal };
   };
-  return { base, duenio, m1, a, b, comp, ordenes, ficha, server, libro, proyecto, proveedor, form, como, enSesion, admin, cargar, egresosDeOrden, reales };
+  return { base, duenio, m1, a, b, comp, ordenes, ficha, empresa, server, libro, proyecto, proveedor, form, como, enSesion, admin, cargar, egresosDeOrden, reales };
 }
 
 type P = NonNullable<Awaited<ReturnType<typeof preparar>>>;
@@ -552,4 +553,135 @@ test("CERT-4b · una cuota enlazada que ya figura pagada a mano: la orden de pag
   assert.match((aprobada as { error: string }).error, /pagada/);
   assert.deepEqual(await p.egresosDeOrden(pid), [], "a mano: 0 egresos ($ 300 no sale dos veces)");
   assert.equal((await p.m1((tx) => tx.proyectoOrdenPago.findUniqueOrThrow({ where: { id: pid }, select: { estado: true } }))).estado, "PENDIENTE");
+});
+
+// ── Vuelta 3 (certificación GSG-MIA-137, M4c): la cuota de la EMPRESA (sin proyecto) ────────────────────────────────
+// Esperados a mano, antes de correr (R7). Comprobante C de $ 400 y cuota de empresa de $ 300 del mismo proveedor. Una cuota
+// de empresa se puede enlazar (decisión de ORQ-007, opción 1); enlazada, se paga sólo con la orden de pago. Por C salen
+// $ 400 en total, nunca $ 700 (300 a mano desde Administración + 400 de una orden sin cuota).
+
+/** Lo que salió de la caja por la cuota de empresa pagada a mano (`marcarCuotaEmpresa`), en pesos. */
+async function egresosDeCuotaEmpresa(p: P, cuotaId: string): Promise<number> {
+  const movs = await p.duenio.cashMovement.findMany({ where: { createdBy: `gasto-proyecto:cuota-${cuotaId}`, type: "EGRESO" }, select: { amount: true } });
+  return movs.reduce((s, m) => s + Number(m.amount), 0);
+}
+const cuotaDeEmpresa = async (p: P, supplierId: string) =>
+  (await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: null, supplierId, tipo: "PAGO", concepto: "Cuota empresa cert", monto: 300, venceEl: new Date(AHORA + 10 * DIA) }, select: { id: true } })).id;
+
+test("M4c · cuota de empresa enlazada: a mano desde Administración no se paga (1 y 5 a la vez); la orden sin cuota deja $ 400, no $ 700", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const pr = await p.proyecto();
+  const s = await p.proveedor();
+  const c = await p.cargar({ supplierId: s, tipo: "C", neto: "400", iva: "0", total: "400", destino: pr, categoria: "Catering" });
+  const q = await cuotaDeEmpresa(p, s);
+  const en = await p.enSesion(() => p.comp.enlazarCuota(p.form({ comprobanteId: c, cuotaId: q })));
+  assert.equal(en.ok, true, JSON.stringify(en));
+
+  const marcar = () => p.enSesion(() => p.empresa.marcarCuotaEmpresa(p.form({ id: q, medio: "TRANSFERENCIA" })));
+  const una = await marcar();
+  assert.equal(una.ok, false, JSON.stringify(una));
+  assert.match((una as { error: string }).error, /orden de pago/);
+  const cinco = await Promise.all([1, 2, 3, 4, 5].map(marcar));
+  assert.deepEqual(cinco.map((r) => r.ok), [false, false, false, false, false]);
+  assert.equal((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true } })).pagadoEl, null, "a mano: sigue sin pagar");
+  assert.equal(await egresosDeCuotaEmpresa(p, q), 0, "a mano: 0 pesos a mano");
+
+  // La orden sin cuota sobre C, por su saldo (400,00 = 40000 centavos), aprobada por otra persona.
+  const o = await p.enSesion(() => p.ordenes.crearOrdenPago({ supplierId: s, medio: "TRANSFERENCIA", lineas: [{ comprobanteId: c, cuotaId: null, importeCentavos: 40000 }] }));
+  assert.equal(o.ok, true, JSON.stringify(o));
+  const oid = (o as { id: string }).id;
+  const ap = await p.admin(() => p.ordenes.aprobarYPagarOrden(p.form({ id: oid })));
+  assert.equal(ap.ok, true, JSON.stringify(ap));
+  const deLaOrden = (await p.egresosDeOrden(oid)).filter((m) => m.type === "EGRESO").reduce((x, m) => x + Number(m.amount), 0);
+  assert.equal(Math.round((deLaOrden + (await egresosDeCuotaEmpresa(p, q))) * 100), 40000, "a mano: por C salen 400,00");
+});
+
+test("M4c · enlazar la cuota de empresa de 300 y pagarla a mano desde Administración a la vez, 20 veces → nunca las dos", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const pr = await p.proyecto();
+  const s = await p.proveedor();
+  const malas: string[] = [];
+  const ganan = { enlazar: 0, marcar: 0 };
+  for (let ronda = 0; ronda < 20; ronda++) {
+    // `marcarCuotaEmpresa` lee menos afuera que `enlazarCuota`: sin demora gana siempre el pago. Las rondas pares demoran el
+    // enlace y las impares el pago (0 a 120 ms, fijo por ronda): se prueban los dos órdenes, y el cruce con un candado tomado.
+    const demora = (Math.floor(ronda / 2) % 5) * 30;
+    const tarde = <R>(ms: number, fn: () => Promise<R>) => new Promise<void>((listo) => setTimeout(listo, ms)).then(fn);
+    const c = await p.cargar({ supplierId: s, tipo: "C", neto: "400", iva: "0", total: "400", destino: pr, categoria: "Catering" });
+    const q = await cuotaDeEmpresa(p, s);
+    const [en, mk] = await Promise.all([
+      tarde(ronda % 2 === 0 ? demora : 0, () => p.enSesion(() => p.comp.enlazarCuota(p.form({ comprobanteId: c, cuotaId: q })))),
+      tarde(ronda % 2 === 1 ? demora : 0, () => p.enSesion(() => p.empresa.marcarCuotaEmpresa(p.form({ id: q, medio: "TRANSFERENCIA" })))),
+    ]);
+    const cuota = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true } });
+    const enlazada = await p.m1((tx) => tx.proyectoCuotaComprobante.count({ where: { cuotaId: q } }));
+    const aMano = await egresosDeCuotaEmpresa(p, q);
+    const foto = { ronda, demora, enlazar: en.ok, marcar: mk.ok, pagada: !!cuota.pagadoEl, enlazada, aMano };
+    // a mano: gana una sola; enlazada ⇒ 0 pesos a mano y sin pagar; pagada a mano ⇒ 300 y 0 enlaces.
+    if (en.ok === mk.ok || (enlazada > 0 && (aMano > 0 || cuota.pagadoEl)) || (cuota.pagadoEl && aMano !== 300)) malas.push(JSON.stringify(foto));
+    if (en.ok !== mk.ok) ganan[en.ok ? "enlazar" : "marcar"]++;
+  }
+  t.diagnostic(`gana enlazar ${ganan.enlazar}, gana marcar ${ganan.marcar}`);
+  assert.deepEqual(malas, [], "a mano: una gana y la otra se rechaza; nunca enlazada y pagada a mano");
+});
+
+test("M4c · la escritura nula de `enlazarCuota`: el pago que sacó su foto antes del enlace y espera la cuota no la paga (orden fijo, sin demoras)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const pr = await p.proyecto();
+  const s = await p.proveedor();
+  const c = await p.cargar({ supplierId: s, tipo: "C", neto: "400", iva: "0", total: "400", destino: pr, categoria: "Catering" });
+  const q = await cuotaDeEmpresa(p, s);
+  // Dos conexiones crudas: «traba» frena el INSERT del enlace (SHARE no deja pasar ROW EXCLUSIVE; sí las lecturas) y
+  // «mira» espera, en pg_locks, que cada acción quede donde corresponde. El orden, entonces, es siempre el mismo:
+  //   1. enlazarCuota toma el comprobante y la cuota (y, si está, hace la escritura nula) y espera la traba en el INSERT;
+  //   2. marcarCuotaEmpresa abre su Serializable (la foto es de antes del enlace) y espera la cuota;
+  //   3. se suelta la traba: el enlace se graba y suelta la cuota.
+  // Con la escritura nula, la cuota tiene una versión nueva → 40001 → el reintento ve el enlace y no paga.
+  // Sin ella, el pago toma la cuota sin error, cuenta 0 enlaces en su foto y paga: $ 300 a mano con la cuota enlazada.
+  const traba = new pg.Client({ connectionString: p.base.urlDuenio });
+  const mira = new pg.Client({ connectionString: p.base.urlDuenio });
+  await traba.connect();
+  await mira.connect();
+  t.after(async () => {
+    await traba.end().catch(() => undefined);
+    await mira.end().catch(() => undefined);
+  });
+  /** Espera (sin reloj: por vueltas) a que haya `n` esperas de candado de este tipo en esta base. */
+  const esperarEsperas = async (relacion: boolean, n: number) => {
+    for (let vuelta = 0; vuelta < 500; vuelta++) {
+      const { rows } = await mira.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
+          WHERE a.datname = current_database() AND NOT l.granted AND (l.locktype = 'relation') = $1`,
+        [relacion],
+      );
+      if (rows[0].n >= n) return;
+      await new Promise<void>((listo) => setTimeout(listo, 10));
+    }
+    assert.fail(`no llegó la espera (${relacion ? "el INSERT del enlace" : "la cuota"})`);
+  };
+  await traba.query("BEGIN");
+  await traba.query(`LOCK TABLE "ProyectoCuotaComprobante" IN SHARE MODE`);
+  let soltada = false;
+  const soltar = async () => {
+    if (soltada) return;
+    soltada = true;
+    await traba.query("COMMIT");
+  };
+  t.after(soltar);
+
+  const enlazar = p.enSesion(() => p.comp.enlazarCuota(p.form({ comprobanteId: c, cuotaId: q })));
+  await esperarEsperas(true, 1);
+  const marcar = p.enSesion(() => p.empresa.marcarCuotaEmpresa(p.form({ id: q, medio: "TRANSFERENCIA" })));
+  await esperarEsperas(false, 1);
+  await soltar();
+  const [en, mk] = await Promise.all([enlazar, marcar]);
+
+  assert.equal(en.ok, true, JSON.stringify(en));
+  assert.equal(mk.ok, false, `a mano: el pago se rechaza (${JSON.stringify(mk)})`);
+  assert.match((mk as { error: string }).error, /orden de pago/);
+  assert.equal((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true } })).pagadoEl, null, "a mano: sin pagar");
+  assert.equal(await egresosDeCuotaEmpresa(p, q), 0, "a mano: 0 pesos a mano");
 });

@@ -22,7 +22,7 @@ import { configProyectos } from "./datos.server";
 import { cobranzaConCuotas, envioYaGrabado, estaPerdido, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
 import { claveDeEnvio } from "./pago-columnas";
 import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
-import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, listoAnulado, listoMarcada, listoParcial } from "./avisos-cuota";
+import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, CUOTA_ENLAZADA, listoAnulado, listoMarcada, listoParcial } from "./avisos-cuota";
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
@@ -831,7 +831,6 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
 
 // ── Finanzas ────────────────────────────────────────────────────────────────
 
-const CUOTA_ENLAZADA = "Esta cuota está enlazada a un comprobante del proveedor: se paga con una orden de pago, en Proveedores › Órdenes de pago.";
 
 /**
  * Marca una cuota del evento como cobrada o pagada, y asienta la plata: un cobro crea el `ProyectoPago` con su movimiento de caja; un
