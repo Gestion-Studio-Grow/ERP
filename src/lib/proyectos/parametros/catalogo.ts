@@ -90,6 +90,7 @@ export interface Valores {
   "iva.porComprobante": Record<string, string>;
   "moneda.habilitadas": string[];
   "moneda.cambioDelCosto": string;
+  "moneda.cotizacionDelProyecto": string;
   "moneda.quienCotiza": string;
   "retenciones.tipos": string[];
   "retenciones.cuentanComoCobrado": boolean;
@@ -214,7 +215,11 @@ export const CATALOGO: readonly DefParametro[] = [
   },
   {
     clave: "moneda.cambioDelCosto", grupo: "moneda", nombre: "Cambio que vale para el costo", seNota: "El costo en pesos de lo que se compra en otra moneda", usa: "T08",
-    def: { tipo: "opcion", opciones: [{ id: "MANUAL", label: "El que se carga a mano" }, { id: "DEL_COMPROBANTE", label: "El del día del comprobante" }, { id: "DEL_PAGO", label: "El del día del pago" }] }, rubro: "MANUAL", provisional: true, fuente: "Diseño del módulo: a confirmar con el negocio",
+    def: { tipo: "opcion", opciones: [{ id: "MANUAL", label: "El que se carga a mano" }, { id: "DEL_COMPROBANTE", label: "El del día del comprobante" }, { id: "DEL_PAGO", label: "El del día del pago" }] }, rubro: "DEL_COMPROBANTE", provisional: true, fuente: "Diseño del módulo: a confirmar con el negocio",
+  },
+  {
+    clave: "moneda.cotizacionDelProyecto", grupo: "moneda", nombre: "Cómo se carga la cotización", seNota: "El costo en pesos de lo que se compra en otra moneda", usa: "T08",
+    def: { tipo: "opcion", opciones: [{ id: "A_MANO_CON_FECHA", label: "A mano, con su fecha" }] }, rubro: "A_MANO_CON_FECHA", provisional: true, fuente: "Diseño del módulo: a confirmar con el negocio",
   },
   { clave: "moneda.quienCotiza", grupo: "moneda", nombre: "Quién carga la cotización", seNota: "El costo en pesos de lo que se compra en otra moneda", usa: "T08", def: { tipo: "opcion", opciones: ROLES_QUE_CIERRAN }, rubro: "ADMINISTRACION", provisional: true, fuente: "Sin fuente: a confirmar" },
   // ── Retenciones ──

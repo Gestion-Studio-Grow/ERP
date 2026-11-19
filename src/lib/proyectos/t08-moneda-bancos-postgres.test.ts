@@ -17,7 +17,9 @@
 //         100; 95 + 7 sobre 100 se rechaza; anular el cobro anula también la retención y la cuota vuelve.
 //  C-O35  cuota de $ 1.000 enlazada a la factura de $ 1.210 (tramo anticipo): facturado 1.210; cobro parcial de 400 →
 //         cobrado 400 y le faltan 600; una segunda factura a la misma cuota no; la factura de otro negocio no existe.
-//  C-O31  comprobante de US$ 1.000 a $ 1.000 (a mano) imputado a P → real $ 1.000.000; la orden se paga con el cambio
+//  C-O31  por defecto el cambio del costo es «el de la fecha del comprobante» y la cotización se carga a mano, con fecha:
+//         comprobante del 10/11 de US$ 1.000 con el cambio de ese día ($ 1.000) imputado a P → real $ 1.000.000; uno del
+//         05/11 (sin cambio cargado) se rechaza diciéndolo; la orden se paga con el cambio
 //         de hoy $ 1.100 → caja −$ 1.100.000, diferencia de cambio $ 100.000 en Administración, real de P sigue igual.
 //
 // La base es una por archivo y los tests corren en orden: C-O39 va primero (antes de que otro cargue un cambio de USD).
@@ -29,6 +31,7 @@ import assert from "node:assert/strict";
 import pg from "pg";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type NegocioDePrueba } from "@/test/base-efimera";
+import { CATALOGO } from "@/lib/proyectos/parametros/catalogo";
 
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
@@ -351,16 +354,24 @@ test("C-O31 · costo en US$ al cambio del comprobante; la diferencia del pago va
   if (!p) return;
   const pr = await p.proyecto();
   const s = (await p.duenio.supplier.create({ data: { tenantId: p.a.id, name: `Proveedor T08 ${sig()}` }, select: { id: true } })).id;
-  // MANUAL (provisional por defecto): el cambio lo escribe quien carga. US$ 1.000 a $ 1.000.
-  const sinCambio = await p.enSesion(() => p.comp.cargarComprobante(p.form({ supplierId: s, fecha: "2026-11-10", tipo: "C", numero: `0001-${String(sig()).padStart(8, "0")}`, neto: "1000", iva: "0", total: "1000", moneda: "USD", destino: pr, categoria: "Catering" })));
-  assert.equal(sinCambio.ok, false, "a mano y sin cambio: no");
-  const r = await p.enSesion(() => p.comp.cargarComprobante(p.form({ supplierId: s, fecha: "2026-11-10", tipo: "C", numero: `0001-${String(sig()).padStart(8, "0")}`, neto: "1000", iva: "0", total: "1000", moneda: "USD", cambio: "1000", destino: pr, categoria: "Catering" })));
+  // El catálogo trae el valor del plan, provisional: el cambio del costo es el del día del comprobante y la cotización
+  // del proyecto la carga a mano, con fecha, Administración.
+  const def = (clave: string) => CATALOGO.find((d) => d.clave === clave);
+  assert.deepEqual([def("moneda.cambioDelCosto")?.rubro, def("moneda.cambioDelCosto")?.provisional], ["DEL_COMPROBANTE", true]);
+  assert.deepEqual([def("moneda.cotizacionDelProyecto")?.rubro, def("moneda.cotizacionDelProyecto")?.provisional], ["A_MANO_CON_FECHA", true]);
+  // Sin cambio de USD cargado para el 05/11 (ni antes): rechazo que lo dice, aunque se escriba uno a mano.
+  const sinCambio = await p.enSesion(() => p.comp.cargarComprobante(p.form({ supplierId: s, fecha: "2026-11-05", tipo: "C", numero: `0001-${String(sig()).padStart(8, "0")}`, neto: "1000", iva: "0", total: "1000", moneda: "USD", cambio: "999", destino: pr, categoria: "Catering" })));
+  assert.equal(sinCambio.ok, false, "sin cambio para la fecha del comprobante: no");
+  assert.match((sinCambio as { error: string }).error, /No hay cambio de USD cargado/);
+  // Administración carga el cambio del 10/11 ($ 1.000); el comprobante de ese día lo toma solo: US$ 1.000 → $ 1.000.000.
+  p.ok(await p.cambio("USD", "2026-11-10", "1000"));
+  const r = await p.enSesion(() => p.comp.cargarComprobante(p.form({ supplierId: s, fecha: "2026-11-10", tipo: "C", numero: `0001-${String(sig()).padStart(8, "0")}`, neto: "1000", iva: "0", total: "1000", moneda: "USD", destino: pr, categoria: "Catering" })));
   p.ok(r);
   const cid = (r as unknown as { id: string }).id;
   const foto = await p.leer((tx) => tx.proyectoMovMoneda.findFirstOrThrow({ where: { origenTipo: "COMPROBANTE", origenId: cid } }));
-  assert.deepEqual([Number(foto.cambioCentavos), Number(foto.pesosCentavos), foto.criterio, foto.criterioProvisional], [100000, 100000000, "MANUAL", true]);
+  assert.deepEqual([Number(foto.cambioCentavos), Number(foto.pesosCentavos), foto.cambioDia, foto.criterio, foto.criterioProvisional], [100000, 100000000, "2026-11-10", "DEL_COMPROBANTE", true]);
   const real = async () => (await p.enSesion(() => p.datos.fichaProyecto(pr)))!.real.costoReal;
-  assert.equal(await real(), 1_000_000, "a mano: 1.000 × 1.000");
+  assert.equal(await real(), 1_000_000, "del comprobante: 1.000 × 1.000");
   // Hoy el dólar está a 1.100: la orden por el total sale a $ 1.100.000 y la diferencia (100.000) va a Administración.
   p.ok(await p.cambio("USD", "2026-11-19", "1100"));
   const o = await p.enSesion(() => p.ordenes.crearOrdenPago({ supplierId: s, medio: "TRANSFERENCIA", lineas: [{ comprobanteId: cid, cuotaId: null, importeCentavos: 100000 }] }));
@@ -370,7 +381,7 @@ test("C-O31 · costo en US$ al cambio del comprobante; la diferencia del pago va
   const egresos = await p.duenio.cashMovement.findMany({ where: { proyectoOrdenPagoId: oid }, select: { type: true, amount: true } });
   assert.deepEqual(egresos.map((e) => [e.type, Number(e.amount)]), [["EGRESO", 1_100_000]]);
   const dif = await p.enSesion(() => p.mb.diferenciasDeCambio(p.a.id));
-  assert.equal(dif.totalCentavos, 10_000_000, "a mano: 1.000 × (1.100 − 1.000) = $ 100.000");
+  assert.equal(dif.totalCentavos, 10_000_000, "1.000 × (1.100 − 1.000) = $ 100.000");
   assert.equal(await real(), 1_000_000, "la defensa del proyecto no cambia al pagar");
   // Anular la orden: su diferencia deja de contar.
   p.ok(await p.admin(() => p.ordenes.anularOrden(p.form({ id: oid }))));
