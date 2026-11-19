@@ -8,7 +8,9 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { centavosDe } from "@/lib/dinero/redondeo";
-import { costoRealDeProyectos } from "./comprobantes.server";
+import { costoRealDeProyectos, cuotasEnlazadas } from "./comprobantes.server";
+import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { faltaDelPago, porPagarDeCuotas } from "./pago-parcial-core";
 import { cobranzasDelNegocio, tiposDeCambio } from "./cobranza.server";
 import { configProyectos } from "./datos.server";
 import { aCobrarPorCuota } from "./moneda-bancos.server";
@@ -44,7 +46,12 @@ export interface Medicion {
   facturado: number;
   cobrado: number;
   porCobrar: number;
-  costoDetalle: { lineasDeComprobante: string[]; gastos: string[]; cuotasPrevistas: string[] };
+  /**
+   * Lo que formó el costo real al congelar. MIA-189: `costos` guarda cuánto contó cada cosa (centavos), por una clave que
+   * sobrevive a reimputar (`comprobante:`, `gasto:`, `cuota:` + id); `cuotasEnSuMoneda`, lo que le faltaba a cada cuota en
+   * su moneda. Las cabeceras de antes no los tienen (sólo los ids).
+   */
+  costoDetalle: { lineasDeComprobante: string[]; gastos: string[]; cuotasPrevistas: string[]; costos?: Record<string, number>; cuotasEnSuMoneda?: Record<string, number> };
   parametros: { valores: Record<(typeof CLAVES)[number], string>; provisionales: string[] };
   calculo: LiquidacionCalculada;
   comparaciones: Comparacion[];
@@ -78,6 +85,11 @@ export async function medirProyecto(db: Db, tenantId: string, proyectoId: string
   const valores = Object.fromEntries(CLAVES.map((k) => [k, String(params[k].valor)])) as Medicion["parametros"]["valores"];
   const provisionales = CLAVES.filter((k) => params[k].provisional);
   const costoReal = centavosDe(real.costoReal);
+  const porClave = await costosPorClave(db, tenantId, proyectoId, tc);
+  // Lo congelado por clave tiene que sumar el costo real congelado, o el ajuste no cuadraría después. Si no suma (no
+  // debería: es la misma cuenta), no se guarda y el ajuste cruza por id, como antes de MIA-189.
+  const cuadra = [...porClave.values()].reduce((s, x) => s + x.costo, 0) === costoReal;
+  if (!cuadra) console.error(`[liquidación] ${proyectoId}: lo que forma el costo real no suma ${costoReal}; se congela sin el detalle por clave.`);
   const foto = { presupuestoId: f.presupuestoId, version: f.version, totalVenta: n(f.totalVentaCentavos), costoOriginal: n(f.costoOriginalCentavos), adicionales: n(f.adicionalesCentavos), redondeoBruto: n(f.redondeoBrutoCentavos), participantes };
   const calculo = calculoDeLaFoto(f, costoReal, valores["reparto.defensaNegativa"]);
   const comprobantes = centavosDe(real.imputado);
@@ -90,7 +102,15 @@ export async function medirProyecto(db: Db, tenantId: string, proyectoId: string
     facturado,
     cobrado,
     porCobrar: centavosDe(cob?.porCobrar ?? 0),
-    costoDetalle: { lineasDeComprobante: lineas.map((l) => l.id).sort(), gastos: gastos.filter((g) => !g.anuladoEl).map((g) => g.id).sort(), cuotasPrevistas: previstas.map((q) => q.id).sort() },
+    costoDetalle: {
+      lineasDeComprobante: lineas.map((l) => l.id).sort(),
+      gastos: gastos.filter((g) => !g.anuladoEl).map((g) => g.id).sort(),
+      cuotasPrevistas: previstas.map((q) => q.id).sort(),
+      ...(cuadra && {
+        costos: Object.fromEntries([...porClave].filter(([, x]) => x.costo !== 0).map(([k, x]) => [k, x.costo])),
+        cuotasEnSuMoneda: Object.fromEntries([...porClave].flatMap(([k, x]) => (x.enSuMoneda !== undefined && x.costo !== 0 ? [[k, x.enSuMoneda]] : []))),
+      }),
+    },
     parametros: { valores, provisionales },
     calculo,
     comparaciones: comparacionesDeRevision({ costoReal, comprobantes, facturado, cobrado }),
@@ -141,34 +161,84 @@ export async function liquidacionDelProyecto(db: Db, tenantId: string, proyectoI
   });
 }
 
+/** Lo que cuenta hoy cada cosa que forma el costo real (centavos), por clave estable; `enSuMoneda`, lo que le falta a una cuota. */
+type PorClave = Map<string, { costo: number; origen: string; enSuMoneda?: number }>;
+
+/**
+ * MIA-189 · Lo que forma HOY el costo real del proyecto, cosa por cosa, con la misma cuenta que `costoRealDeProyectos`:
+ * cada comprobante (la suma de sus líneas en el proyecto; anulado, 0), cada gasto (su neto; anulado, 0) y cada cuota a
+ * pagar real (lo que le falta, en pesos; pagada, anulada o enlazada a un comprobante, 0). La clave de un comprobante es el
+ * comprobante, no la línea: reimputar borra las líneas y crea otras, y el comprobante sigue siendo el mismo.
+ * `alCongelar`: la cuota que sigue debiendo lo mismo en su moneda vale lo congelado (el cambio del día no es un costo
+ * nuevo). `comprobantesExtra`: los congelados que ya no tienen líneas en el proyecto (para nombrarlos).
+ */
+export async function costosPorClave(db: Db, tenantId: string, proyectoId: string, tc: Readonly<Record<string, number>>, alCongelar?: { costos: Record<string, number>; cuotasEnSuMoneda: Record<string, number> }, comprobantesExtra: readonly string[] = []): Promise<PorClave> {
+  const [lineas, gastos, cuotas] = await Promise.all([
+    db.proyectoComprobanteLinea.findMany({ where: { tenantId, proyectoId }, orderBy: { id: "asc" }, select: { comprobanteId: true, costoCentavos: true } }),
+    db.proyectoGasto.findMany({ where: { tenantId, proyectoId }, orderBy: { id: "asc" }, select: { id: true, neto: true, descripcion: true, comprobante: true, anuladoEl: true } }),
+    db.proyectoCuota.findMany({ where: { tenantId, proyectoId, tipo: "PAGO", prevista: false }, orderBy: { id: "asc" }, select: { id: true, tipo: true, monto: true, moneda: true, concepto: true, pagadoEl: true, anuladoEl: true } }),
+  ]);
+  const ids = [...new Set([...lineas.map((l) => l.comprobanteId), ...comprobantesExtra])];
+  const [comprobantes, enlazadas, pagados] = await Promise.all([
+    db.proyectoComprobante.findMany({ where: { tenantId, id: { in: ids } }, select: { id: true, tipo: true, numero: true, anuladoEl: true, supplier: { select: { name: true } } } }),
+    cuotasEnlazadas(tenantId, [proyectoId], db),
+    pagosParcialesDeCuotas(tenantId, cuotas, tc, db),
+  ]);
+  const salida: PorClave = new Map();
+  for (const c of [...comprobantes].sort((x, y) => (x.id < y.id ? -1 : 1))) {
+    const costo = c.anuladoEl ? 0 : lineas.filter((l) => l.comprobanteId === c.id).reduce((s, l) => s + n(l.costoCentavos), 0);
+    salida.set(`comprobante:${c.id}`, { costo, origen: `${c.anuladoEl ? "Anulado · " : ""}${c.supplier.name} · ${c.tipo} ${c.numero}` });
+  }
+  for (const g of gastos) salida.set(`gasto:${g.id}`, { costo: g.anuladoEl ? 0 : centavosDe(g.neto), origen: `${g.anuladoEl ? "Anulado · " : ""}Gasto · ${g.descripcion}${g.comprobante ? ` · ${g.comprobante}` : ""}` });
+  for (const q of cuotas) {
+    const clave = `cuota:${q.id}`;
+    const quitada = !!q.anuladoEl || !!q.pagadoEl || enlazadas.has(q.id);
+    const enSuMoneda = quitada ? 0 : faltaDelPago(q.monto, pagados.get(q.id) ?? 0);
+    const igual = alCongelar && alCongelar.cuotasEnSuMoneda[clave] === enSuMoneda && clave in alCongelar.costos;
+    const costo = quitada ? 0 : igual ? alCongelar.costos[clave] : centavosDe(porPagarDeCuotas([q], pagados, tc));
+    const motivo = q.anuladoEl ? "Anulada · " : q.pagadoEl ? "Pagada · " : enlazadas.has(q.id) ? "Enlazada a un comprobante · " : "";
+    salida.set(clave, { costo, origen: `${motivo}Cuota a pagar · ${q.concepto}`, enSuMoneda });
+  }
+  return salida;
+}
+
 /**
  * Lo que forma el costo real y cuyo costo de HOY difiere de lo que ya cuenta la liquidación aprobada (lo congelado más lo
- * que movieron los ajustes, `yaAjustado`): un comprobante imputado después de congelar suma (T12, O24) y uno congelado, o
- * ya ajustado, que se anula después resta (MIA-184, B). MIA-186 (3): lo mismo con los gastos del proyecto, tengan o no
- * número de comprobante (el congelado los guarda en `gastos`). Anulado, cuesta 0. Sólo las diferencias distintas de cero.
- * Una cabecera vieja sin la lista de gastos no ajusta gastos (no se puede saber cuáles contó).
+ * que movieron los ajustes, `yaAjustado`, por la misma clave): un comprobante imputado después de congelar suma (T12, O24),
+ * uno congelado o ya ajustado que se anula resta (MIA-184, B), y lo mismo con los gastos (MIA-186, 3). MIA-189: se cruza
+ * por comprobante (reimputar sin cambios no mueve nada; con cambios, sólo la diferencia) y entran las cuotas a pagar (una
+ * quitada después de congelar resta). Sólo las diferencias distintas de cero.
+ * Una cabecera de antes de MIA-189 (sin `costos`): lo congelado es lo de HOY de lo que nombra por id (como antes; reimputar
+ * o quitar una cuota no se ve). Sin la lista de gastos, no ajusta gastos.
  */
 export async function comprobantesParaAjuste(db: Db, tenantId: string, proyectoId: string, costoDetalle: unknown, yaAjustado: ReadonlyMap<string, number> = new Map()): Promise<{ id: string; costo: number; origen: string }[]> {
   const detalle = costoDetalle as Partial<Medicion["costoDetalle"]> | null;
-  const congeladas = new Set((detalle?.lineasDeComprobante ?? []) as string[]);
-  const gastosCongelados = Array.isArray(detalle?.gastos) ? new Set(detalle.gastos) : null;
-  const [filas, gastos] = await Promise.all([
-    db.proyectoComprobanteLinea.findMany({
-      where: { tenantId, proyectoId },
-      orderBy: { id: "asc" },
-      select: { id: true, costoCentavos: true, comprobante: { select: { tipo: true, numero: true, anuladoEl: true, supplier: { select: { name: true } } } } },
-    }),
-    gastosCongelados ? db.proyectoGasto.findMany({ where: { tenantId, proyectoId }, orderBy: { id: "asc" }, select: { id: true, neto: true, descripcion: true, comprobante: true, anuladoEl: true } }) : [],
-  ]);
-  const diferencia = (id: string, costo: number, congelado: boolean, anulado: boolean, origen: string) => {
-    const hoy = anulado ? 0 : costo;
-    const cuenta = (congelado ? costo : 0) + (yaAjustado.get(id) ?? 0);
-    return hoy === cuenta ? [] : [{ id, costo: hoy - cuenta, origen: `${anulado ? "Anulado · " : ""}${origen}` }];
-  };
-  return [
-    ...filas.flatMap((l) => diferencia(l.id, n(l.costoCentavos), congeladas.has(l.id), !!l.comprobante.anuladoEl, `${l.comprobante.supplier.name} · ${l.comprobante.tipo} ${l.comprobante.numero}`)),
-    ...gastos.flatMap((g) => diferencia(g.id, centavosDe(g.neto), !!gastosCongelados?.has(g.id), !!g.anuladoEl, `Gasto · ${g.descripcion}${g.comprobante ? ` · ${g.comprobante}` : ""}`)),
-  ];
+  const tc = await tiposDeCambio(tenantId, db);
+  let congelado: Record<string, number>;
+  let hoy: PorClave;
+  if (detalle?.costos) {
+    congelado = detalle.costos;
+    const extra = Object.keys(congelado).flatMap((k) => (k.startsWith("comprobante:") ? [k.slice("comprobante:".length)] : []));
+    hoy = await costosPorClave(db, tenantId, proyectoId, tc, { costos: congelado, cuotasEnSuMoneda: detalle.cuotasEnSuMoneda ?? {} }, extra);
+  } else {
+    const conGastos = Array.isArray(detalle?.gastos);
+    const [lineas, gastos] = await Promise.all([
+      db.proyectoComprobanteLinea.findMany({ where: { tenantId, proyectoId, id: { in: (detalle?.lineasDeComprobante ?? []) as string[] } }, select: { comprobanteId: true, costoCentavos: true } }),
+      conGastos ? db.proyectoGasto.findMany({ where: { tenantId, proyectoId, id: { in: detalle!.gastos! } }, select: { id: true, neto: true } }) : Promise.resolve([]),
+    ]);
+    congelado = {};
+    for (const l of lineas) congelado[`comprobante:${l.comprobanteId}`] = (congelado[`comprobante:${l.comprobanteId}`] ?? 0) + n(l.costoCentavos);
+    for (const g of gastos) congelado[`gasto:${g.id}`] = centavosDe(g.neto);
+    hoy = await costosPorClave(db, tenantId, proyectoId, tc);
+    for (const k of [...hoy.keys()]) if (k.startsWith("cuota:") || (!conGastos && k.startsWith("gasto:"))) hoy.delete(k);
+  }
+  const claves = [...new Set([...hoy.keys(), ...Object.keys(congelado)])];
+  return claves.flatMap((id) => {
+    const x = hoy.get(id);
+    const cuenta = (congelado[id] ?? 0) + (yaAjustado.get(id) ?? 0);
+    const costo = (x?.costo ?? 0) - cuenta;
+    return costo === 0 ? [] : [{ id, costo, origen: x?.origen ?? id }];
+  });
 }
 
 // ── T12 · O24: el ajuste por comprobante tardío ──
@@ -219,6 +289,21 @@ export async function propuestaDeAjuste(db: Db, tenantId: string, cab: Liquidaci
     if (!d || lotes.has(d.lote)) continue;
     lotes.add(d.lote);
     for (const c of d.comprobantes) yaAjustado.set(c.id, (yaAjustado.get(c.id) ?? 0) + c.costo);
+  }
+  // MIA-189: un lote de antes guardó el id de la línea o del gasto; se pasa a la clave de hoy (la línea, a su comprobante).
+  const viejas = [...yaAjustado.keys()].filter((k) => !k.includes(":"));
+  if (viejas.length > 0) {
+    const [lineas, gastos] = await Promise.all([
+      db.proyectoComprobanteLinea.findMany({ where: { tenantId, id: { in: viejas } }, select: { id: true, comprobanteId: true } }),
+      db.proyectoGasto.findMany({ where: { tenantId, id: { in: viejas } }, select: { id: true } }),
+    ]);
+    const clave = new Map([...lineas.map((l) => [l.id, `comprobante:${l.comprobanteId}`] as const), ...gastos.map((g) => [g.id, `gasto:${g.id}`] as const)]);
+    for (const k of viejas) {
+      const nueva = clave.get(k);
+      if (!nueva) continue;
+      yaAjustado.set(nueva, (yaAjustado.get(nueva) ?? 0) + yaAjustado.get(k)!);
+      yaAjustado.delete(k);
+    }
   }
   const pendientes = await comprobantesParaAjuste(db, tenantId, cab.proyectoId, cab.costoDetalle, yaAjustado);
   if (pendientes.length === 0) return null;

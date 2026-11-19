@@ -269,7 +269,7 @@ export async function aprobarAjusteTardio(formData: FormData): Promise<Resultado
       const { liq, propuesta: p } = hay;
       if (!p.cierra) throw new Rechazo("La liquidación más los ajustes no da Total venta − costo real al centavo: no se ajusta. Avisá a Gestión Studio Grow.");
       const detalle: DetalleAjuste = { lote: randomUUID(), comprobantes: p.pendientes, costoRealAntes: p.costoRealAntes, costoRealNuevo: p.costoRealNuevo, periodo: claveMes(new Date()) };
-      const motivo = `${p.pendientes.every((c) => c.costo < 0) ? "Anulado después de aprobar" : "Entró después de aprobar"}: ${p.pendientes.map((c) => c.origen).join("; ")}`.slice(0, 300);
+      const motivo = `${p.pendientes.every((c) => c.costo < 0) ? "Bajó o se anuló después de aprobar" : p.pendientes.every((c) => c.costo > 0) ? "Entró después de aprobar" : "Cambió después de aprobar"}: ${p.pendientes.map((c) => c.origen).join("; ")}`.slice(0, 300);
       // MIA-184 (A) y MIA-186 (2): si Dirección eligió compensar, lo positivo de una persona primero cancela su saldo a favor
       // abierto en este proyecto (con la cabecera trabada: los saldos de esta liquidación sólo se tocan bajo este mismo
       // candado) y sólo el resto va a la mensual. Sin elegirlo, el positivo va entero y el saldo queda abierto.

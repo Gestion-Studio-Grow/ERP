@@ -115,7 +115,7 @@ async function armar(base: BaseEfimera) {
   const comprobante = async (proyectoId: string, pesos: number, n: Neg = enAZ) => {
     const numero = `0010-${String(++sig).padStart(8, "0")}`;
     const c = await enT(n.tenantId, (tx) => tx.proyectoComprobante.create({ data: { tenantId: n.tenantId, supplierId: n.provId, tipo: "C", numero, fecha: PASADO, netoCentavos: BigInt($(pesos)), totalCentavos: BigInt($(pesos)), cargadoPorId: n.cargador, cargadoNombre: "Test" }, select: { id: true } }));
-    await enT(n.tenantId, (tx) => tx.proyectoComprobanteLinea.create({ data: { tenantId: n.tenantId, comprobanteId: c.id, destino: "PROYECTO", proyectoId, categoria: "Producción", netoCentavos: BigInt($(pesos)), ivaTratamiento: "COSTO", costoCentavos: BigInt($(pesos)) } }));
+    await enT(n.tenantId, (tx) => tx.proyectoComprobanteLinea.create({ data: { tenantId: n.tenantId, comprobanteId: c.id, destino: "PROYECTO", proyectoId, categoria: "Escenografía y stands", netoCentavos: BigInt($(pesos)), ivaTratamiento: "COSTO", costoCentavos: BigInt($(pesos)) } }));
     return c.id;
   };
   const cobrar = (proyectoId: string, pesos: number, tenantId = a.id) => duenio.proyectoPago.create({ data: { tenantId, proyectoId, medio: "TRANSFERENCIA", monto: pesos } });
@@ -814,4 +814,73 @@ test("MIA-186 · 2 · O26: con saldo abierto, Dirección lo ve al aprobar el pos
   const positivos = await p.enA((tx) => tx.proyectoLiquidacionProyectoAjuste.findMany({ where: { liquidacionId: cab.id, monto: { gt: 0 } }, select: { monto: true, detalle: true } }));
   const core = await import("./liquidacion-proyecto-core");
   assert.deepEqual(positivos.map((x) => core.aPagarDelAjuste(x)).sort((x, y) => x - y), [$(2_500), $(7_500)], "el +2.500 va a pagar entero");
+});
+
+// ── MIA-189 · vuelta 3 de T12 (O24): reimputar y quitar una cuota después de congelar ──
+// Esperados escritos a mano ANTES de correr, en pesos:
+//  1a  Z aprobada (comprobante de 900.000: 55.000 · 30.000 · 505.000 = 590.000). Se reimputa el comprobante SIN cambios (la
+//      misma línea: Z, «Escenografía y stands», 900.000, IVA al costo): el costo real sigue en 900.000 → no hay propuesta de ajuste y
+//      aprobar dice «ya estaba hecho» sin gastar el código. Antes: real 1.800.000 y renglones −225.000 / −675.000.
+//  1b  Se reimputa CON cambios: 890.000 a Z y 10.000 a Administración (Alquiler). Real 890.000 → defensa
+//      1.490.000 − 890.000 − 490.000 = 110.000 → prod 27.500 + 30.000 = 57.500 (Δ +2.500) · com 30.000 (Δ 0) · empresa
+//      82.500 + 65.000 + 65.000 + 300.000 = 512.500 (Δ +7.500). Ajuste = +250.000 c y +750.000 c. Líneas + ajustes =
+//      590.000 + 10.000 = 600.000 = 1.490.000 − 890.000, al centavo.
+//  2   C-O21 con una cuota a pagar de 10.000 (a mano, sin pagar, sin enlazar) en vez del gasto: real 910.000 → 52.500 ·
+//      30.000 · 497.500 = 580.000 aprobada. Se quita la cuota («Quitar» de la ficha): real 900.000 → ajuste +2.500 (prod) y
+//      +7.500 (empresa) → 580.000 + 10.000 = 590.000 = 1.490.000 − 900.000. El mensaje ya no es «ya estaba hecho».
+
+const sumaConAjustes = async (p: NonNullable<Awaited<ReturnType<typeof preparar>>>, proyectoId: string) => {
+  const cab = (await p.liq(proyectoId))[0];
+  const ajustes = await p.enA((tx) => tx.proyectoLiquidacionProyectoAjuste.findMany({ where: { liquidacionId: cab.id }, select: { lineaId: true, monto: true } }));
+  const quien = (id: string | null) => Object.keys(p.totales(cab.lineas.filter((l) => l.id === id)))[0];
+  return {
+    renglones: ajustes.map((x) => [quien(x.lineaId), Number(x.monto)]).sort(),
+    suma: cab.lineas.reduce((s, l) => s + Number(l.total), 0) + ajustes.reduce((s, x) => s + Number(x.monto), 0),
+  };
+};
+
+test("MIA-189 · 1 · reimputar sin cambios un comprobante congelado no propone ajuste; con cambios ajusta sólo la diferencia", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const z = await p.z();
+  await aprobada(p, z.id);
+  const [l] = await p.enA((tx) => tx.proyectoComprobanteLinea.findMany({ where: { proyectoId: z.id }, select: { comprobanteId: true, categoria: true } }));
+  const linea = (proyectoId: string | null, pesos: number, categoria = l.categoria) => ({ destino: proyectoId ? ("PROYECTO" as const) : ("ADMINISTRACION" as const), proyectoId, sector: null, categoria, detalle: "", netoCentavos: $(pesos), ivaCentavos: 0, ivaTratamiento: "COSTO" as const });
+  ok(p.valor(await p.como(p.admin.userId, () => p.comp.imputarComprobante({ comprobanteId: l.comprobanteId, lineas: [linea(z.id, 900_000)] }))) as Res);
+  const cab = (await p.liq(z.id))[0];
+  const propuesta = await p.enA((tx) => p.lectura.propuestaDeAjuste(tx, p.a.id, cab));
+  assert.equal(propuesta && { real: propuesta.costoRealNuevo, renglones: propuesta.renglones.map((x) => x.monto) }, null, "sin cambios no hay ajuste");
+  const [c1, c2] = await p.masCodigos(p.dir);
+  const antes = await p.codigosDe(p.dir);
+  const r1 = p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c1 }))));
+  assert.match(String((r1 as Res).listo ?? ""), /ya estaba hecho/);
+  assert.equal(await p.codigosDe(p.dir), antes, "no gastó el código");
+  // Con cambios: 890.000 a Z y 10.000 a Administración.
+  ok(p.valor(await p.como(p.admin.userId, () => p.comp.imputarComprobante({ comprobanteId: l.comprobanteId, lineas: [linea(z.id, 890_000), linea(null, 10_000, "Alquiler")] }))) as Res);
+  const p2 = await p.enA((tx) => p.lectura.propuestaDeAjuste(tx, p.a.id, cab));
+  assert.deepEqual(p2 && [p2.costoRealAntes, p2.costoRealNuevo], [$(900_000), $(890_000)]);
+  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c2 })))));
+  const r = await sumaConAjustes(p, z.id);
+  assert.deepEqual(r.renglones, [["empresa", $(7_500)], ["prod", $(2_500)]]);
+  assert.equal(r.suma, $(600_000), "liquidación + ajustes = 1.490.000 − 890.000, al centavo");
+});
+
+test("MIA-189 · 2 · C-O21 con una cuota a pagar contada al congelar y quitada después: +2.500 / +7.500 y vuelve a 590.000", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const z = await p.z();
+  const cuota = await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: z.id, tipo: "PAGO", concepto: "Flete", monto: 10_000, moneda: "ARS", venceEl: FUTURO, auto: false }, select: { id: true } });
+  ok(p.valor(await p.como(p.admin.userId, () => p.acc.declararCostosCompletos(p.form({ proyectoId: z.id })))));
+  ok(p.valor(await p.como(p.admin.userId, () => p.acc.revisarLiquidacionProyecto(p.form({ proyectoId: z.id, nota: "Flete a pagar" })))));
+  const [c1, c2] = await p.masCodigos(p.dir);
+  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId: z.id, codigo: c1 })))));
+  assert.deepEqual(p.totales((await p.liq(z.id))[0].lineas), { prod: $(52_500), com: $(30_000), empresa: $(497_500) }, "real 910.000 con la cuota");
+  const ficha = await import("./acciones-ficha");
+  ok(p.valor(await p.como(p.dir, () => ficha.quitarMovimiento(p.form({ proyectoId: z.id, id: cuota.id })))) as Res);
+  const r1 = p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c2 }))));
+  assert.equal(r1.ok, true, JSON.stringify(r1));
+  assert.doesNotMatch(String((r1 as Res).listo ?? ""), /ya estaba hecho/);
+  const r = await sumaConAjustes(p, z.id);
+  assert.deepEqual(r.renglones, [["empresa", $(7_500)], ["prod", $(2_500)]]);
+  assert.equal(r.suma, $(590_000), "liquidación + ajustes = 1.490.000 − 900.000, al centavo");
 });
