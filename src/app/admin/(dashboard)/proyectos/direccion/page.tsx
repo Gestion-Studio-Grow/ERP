@@ -26,7 +26,8 @@ export default async function Direccion({ searchParams }: { searchParams: Promis
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-5">
       <h1 className="mb-4 text-2xl font-bold text-strong">Dirección</h1>
-      <Pestanas pestanas={TABS.map((t) => ({ href: `/admin/proyectos/direccion?tab=${t.id}`, etiqueta: t.label, actual: t.id === tab }))} etiqueta="Vistas de Dirección" conRaya className="mb-4" />
+      {/* MIA-154: a 390 px las vistas bajan a otro renglón; si no, «Resultado» queda fuera de la pantalla aun estando en ella. */}
+      <Pestanas pestanas={TABS.map((t) => ({ href: `/admin/proyectos/direccion?tab=${t.id}`, etiqueta: t.label, actual: t.id === tab }))} etiqueta="Vistas de Dirección" conRaya className="mb-4 flex-wrap" />
       {tab === "tablero" && <TabTablero tenantId={a.tenantId} />}
       {tab === "eventos" && <TabEventos tenantId={a.tenantId} abierto={sp.proyecto} />}
       {tab === "comerciales" && <TabComerciales tenantId={a.tenantId} />}
