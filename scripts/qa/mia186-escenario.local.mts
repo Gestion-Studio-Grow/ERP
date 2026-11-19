@@ -8,6 +8,7 @@ import { PrismaClient } from "../../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { baseLocalParaSeed } from "../../src/lib/seed/guarda-base";
 import { calcularLiquidacion } from "../../src/lib/proyectos/liquidacion-proyecto-core";
+import type { ParticipanteFoto } from "../../src/lib/proyectos/precio-proyecto-core";
 
 const guarda = baseLocalParaSeed(process.env.DATABASE_URL);
 if (!guarda.ok) throw new Error(`Sólo base local: ${guarda.motivo}`);
@@ -30,7 +31,7 @@ const pres = await prisma.proyectoPresupuesto.create({ data: { tenantId, proyect
 await prisma.proyectoItem.create({ data: { tenantId, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 1_490_000 } });
 const e1 = await prisma.proyectoEquipo.create({ data: { tenantId, proyectoId: p.id, personaId: prod.id, funcion: "PRODUCTOR", plus: 0 }, select: { id: true } });
 const e2 = await prisma.proyectoEquipo.create({ data: { tenantId, proyectoId: p.id, personaId: com.id, funcion: "COMERCIAL", plus: 0 }, select: { id: true } });
-const participantes = [
+const participantes: ParticipanteFoto[] = [
   { equipoId: e1.id, personaId: prod.id, nombre: "Productora Demo", funcion: "PRODUCTOR", comisionPct: 10, reparto: { DEFENSA: 25 } },
   { equipoId: e2.id, personaId: com.id, nombre: "Comercial Demo", funcion: "COMERCIAL", comisionPct: 10, reparto: { DEFENSA: 0 } },
   { equipoId: null, personaId: null, nombre: "Empresa", funcion: "EMPRESA", comisionPct: 0, reparto: { DEFENSA: 75, REDONDEO: 100 } },
@@ -41,7 +42,7 @@ await prisma.proyectoPrecioFoto.create({
     tenantId, proyectoId: p.id, presupuestoId: pres.id, version: 1, modo: "POR_TOTAL", moneda: "ARS", ivaPct: 21,
     costoOriginalCentavos: B($(1_000_000)), adicionalesCentavos: B(0), subtotalCentavos: B($(1_425_000)), iibGaCentavos: B(0),
     totalVentaCentavos: B($(1_490_000)), redondeoBrutoCentavos: B($(65_000)), redondeoNetoCentavos: B($(65_000)),
-    parametros, participantes, aprobadoPor: "Dirección",
+    parametros, participantes: JSON.parse(JSON.stringify(participantes)), aprobadoPor: "Dirección",
   },
 });
 const prov = await prisma.supplier.create({ data: { tenantId, name: "Proveedor Demo" }, select: { id: true } });
