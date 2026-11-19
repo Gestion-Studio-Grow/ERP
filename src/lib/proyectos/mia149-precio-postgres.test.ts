@@ -4,8 +4,9 @@
 // C-O15: fuera del rango (sin margen, § 3) espera a Dirección; con rango abierto, dentro del rango se aplica; con el cliente
 //        aprobado, sólo Dirección y con motivo (Producción y Comercial, rechazados).
 // C-O16: el plan de cobro y el tope salen del total congelado (× IVA), no de los ítems; cambiar ítems, % o el margen general
-//        no los mueve. El cobro que pasa el tope se rechaza, también con N a la vez, con doble envío y con reintento, en
-//        los tres caminos que cobran: «Registrar cobro», «Marcar cobrado» y la cuota de cobro a mano.
+//        no los mueve. El cobro que pasa el tope se rechaza, también con N a la vez, en los tres caminos que cobran:
+//        «Registrar cobro», «Marcar cobrado» y la cuota de cobro a mano. El doble envío y el reintento se prueban en
+//        «Registrar cobro» y en la cuota a mano; en «Marcar cobrado», no.
 // C-O18: la foto se escribe en la misma transacción que la aprobación, una sola aunque aprueben N a la vez; no se modifica;
 //        cambiar 3 parámetros y el equipo después la deja idéntica.
 // C-O50: reparto por persona y concepto (el redondeo no se reparte; suma ≤ 100 / = 100 con la empresa); carrera de N guardados.
