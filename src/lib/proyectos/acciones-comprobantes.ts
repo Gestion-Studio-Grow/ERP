@@ -34,6 +34,10 @@ import {
 } from "./comprobantes-core";
 import { errorDeImputacion, filaDeLinea, type Destino, type LineaEntrada } from "./imputacion-core";
 import { parametrosDeComprobantes, SIN_M1, tomarCuotas } from "./comprobantes.server";
+import { leerNumero } from "./core";
+import { parametrosDelNegocio } from "./parametros/leer.server";
+import { aCentavos, diaArgentino, fotoEnPesos, type FotoEnPesos } from "./moneda-bancos-core";
+import { cambioDelMovimiento, guardarFotoTx, hayM6 } from "./moneda-bancos.server";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -115,6 +119,30 @@ export async function cargarComprobante(formData: FormData): Promise<Resultado<{
     const error = errorDeCarga(carga, p.tipos);
     if (error) return { ok: false, error };
 
+    // T08 · O31: un comprobante en otra moneda guarda el cambio con el que se fija su costo, según el parámetro
+    // `moneda.cambioDelCosto` (provisional): «a mano» lo escribe quien carga; «del comprobante», el del día de su fecha.
+    // «Del pago» todavía no tiene cómo re-fijar el costo al pagar: se toma el del comprobante con marca de provisional.
+    const monedaComp = txt(formData.get("moneda")) || "ARS";
+    let fotoComp: { foto: FotoEnPesos; cambioDia: string | null; criterio: string; provisional: boolean } | null = null;
+    if (monedaComp !== "ARS") {
+      const pr = await parametrosDelNegocio(tenantId);
+      if (!pr["moneda.habilitadas"].valor.includes(monedaComp)) return { ok: false, error: `${monedaComp} no es una moneda habilitada del negocio.` };
+      if (!(await hayM6())) return { ok: false, error: "Para cargar un comprobante en otra moneda falta una actualización de la base. Cargalo en pesos." };
+      const criterio = pr["moneda.cambioDelCosto"].valor;
+      let cambioCentavos: number;
+      let cambioDia: string | null = null;
+      if (criterio === "MANUAL") {
+        cambioCentavos = aCentavos(leerNumero(txt(formData.get("cambio"))));
+        if (!(cambioCentavos > 0)) return { ok: false, error: `Escribí el cambio del comprobante (pesos por 1 ${monedaComp}): el negocio lo carga a mano.` };
+      } else {
+        const r = await cambioDelMovimiento(prisma, tenantId, monedaComp, diaArgentino(carga.fecha!));
+        if (!r.ok) return { ok: false, error: r.error };
+        cambioCentavos = r.cambioCentavos;
+        cambioDia = r.dia;
+      }
+      fotoComp = { foto: fotoEnPesos(monedaComp, carga.totalCentavos / 100, cambioCentavos), cambioDia, criterio, provisional: pr["moneda.cambioDelCosto"].provisional || criterio === "DEL_PAGO" };
+    }
+
     const archivo = formData.get("adjunto");
     const adjunto = archivo instanceof File && archivo.size > 0 ? archivo : null;
     const errorAdj = errorDeAdjunto(adjunto ? { tipo: adjunto.type, tamano: adjunto.size } : null);
@@ -159,6 +187,7 @@ export async function cargarComprobante(formData: FormData): Promise<Resultado<{
             tipo,
             numero: carga.numero,
             fecha: carga.fecha!,
+            moneda: monedaComp,
             netoCentavos: BigInt(carga.netoCentavos),
             ivaCentavos: BigInt(carga.ivaCentavos),
             totalCentavos: BigInt(carga.totalCentavos),
@@ -179,6 +208,7 @@ export async function cargarComprobante(formData: FormData): Promise<Resultado<{
           });
         }
         if (linea) await tx.proyectoComprobanteLinea.create({ data: lineaParaGuardar(tenantId, c.id, linea, 0) });
+        if (fotoComp) await guardarFotoTx(tx, tenantId, { origenTipo: "COMPROBANTE", origenId: c.id, foto: fotoComp.foto, cambioDia: fotoComp.cambioDia, criterio: fotoComp.criterio, criterioProvisional: fotoComp.provisional });
         await registrarCambio(tx, { tenantId, proyectoId: linea?.proyectoId ?? null, entidad: "ProyectoComprobante", entidadId: c.id, campo: "Comprobante cargado", despues: `${tipo} ${carga.numero} · ${supplier.name}`, autor: user.name });
         return c.id;
       });

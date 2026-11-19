@@ -13,6 +13,8 @@ import { appsQuePuedeAbrir } from "@/lib/reports/apps-a-mano.server";
 import { AvisoError, EmptyState, PageHeader, buttonClasses, fmtMoneyARS, fmtNumberAR } from "@/components/ui";
 import { DebtListTable, type DebtRowVM } from "@/components/cuentas/DebtListTable";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { proyectosParaCuentas } from "@/lib/proyectos/cuentas-generales.server";
+import { ProyectosEnCuentas } from "@/components/cuentas/ProyectosEnCuentas";
 import { Bloque, LineaDeEstado, Marca, Plata, Renglon, atributosBoton } from "@/components/ui";
 import { diaMes } from "../caja/_renglon/fechas";
 import { agruparCuentas, type CuentaDeBandeja } from "../cuentas-a-cobrar/bandeja-cuentas";
@@ -52,11 +54,14 @@ export default async function CuentasAPagarPage() {
   const tenantId = await getCurrentTenantId();
   // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
   const enLibro = await cuentasCorrientesDe(tenantId);
-  const [{ cuentas, faltanTablas }, abribles, nuevo] = await Promise.all([
+  const [{ cuentas, faltanTablas }, abribles, nuevo, proyectos] = await Promise.all([
     leerCuentasAPagar(prisma, tenantId),
     appsQuePuedeAbrir(user.role, ["recibir-mercaderia", "flujo-de-fondos"]),
     disenoNuevo(),
+    // MIA-50 · CG1: lo de Proyectos (sólo lectura). null sin la app o sin «Empresa · ver».
+    proyectosParaCuentas(tenantId),
   ]);
+  const propias = cuentas.reduce((s, c) => s + (c.saldo > 0 ? c.saldo : 0), 0);
   const ahora = new Date();
   const hoy = todayInBusinessTz();
   const r = resumirAPagar(cuentas, hoy);
@@ -153,6 +158,7 @@ export default async function CuentasAPagarPage() {
             )}
           </div>
         </header>
+        <ProyectosEnCuentas proyectos={proyectos} lado="pagar" propias={propias} />
         {faltanTablas && (
           <AvisoError
             className="mb-6"
@@ -221,6 +227,7 @@ export default async function CuentasAPagarPage() {
         }
       />
 
+      <ProyectosEnCuentas proyectos={proyectos} lado="pagar" propias={propias} />
       {faltanTablas && (
         <AvisoError
           className="mb-6"

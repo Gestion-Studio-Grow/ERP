@@ -32,7 +32,9 @@ import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, ite
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { evaluarPase, textoDelPase, type Pase } from "./compuertas-core";
-import { valorDelNegocio } from "./parametros/leer.server";
+import { parametrosDelNegocio, valorDelNegocio } from "./parametros/leer.server";
+import { aCentavos, leerRetenciones, MEDIO_RETENCION, repartoDelCobro, type RetencionLeida } from "./moneda-bancos-core";
+import { anularRetencionesDelCobroTx, guardarFotoTx, hayM8, revertirCuentaTx } from "./moneda-bancos.server";
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
@@ -923,12 +925,38 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   // otro importe sin preguntar; con el monto escrito, ese monto ES la confirmación. Sin `visto` (otro cliente), como antes.
   const visto = Number(txt(formData.get("visto")) || Number.NaN);
   if (!textoParte && Number.isFinite(visto) && Math.abs(visto - pendiente) > 0.005) return mal(avisoSaldoCambio(visto, pendiente, c.moneda, esCobro));
-  const parcial = parte !== null && redondear(parte) < pendiente - 0.005 ? redondear(parte) : null;
-  const cobra = parcial ?? pendiente;
+  // T08 · O36: retenciones sufridas, en la moneda de la cuota. Entra al banco lo que falta menos lo retenido (o la parte
+  // escrita); lo retenido, si `retenciones.cuentanComoCobrado` (provisional), también cancela la cuota, como un cobro
+  // «RETENCION» que no pasa por la caja ni por el banco. Lo que entra más lo retenido nunca pasa lo que falta.
+  let retenidas: RetencionLeida[] = [];
+  let cuentanComoCobrado = false;
+  let retProvisional = false;
+  if (esCobro && formData.getAll("retImporte").some((v) => String(v).trim())) {
+    if (!(await hayM8())) return mal("Para registrar retenciones falta una actualización de la base. Cobrá sin retenciones o esperá la actualización.");
+    const pr = await parametrosDelNegocio(tenantId);
+    const leidas = leerRetenciones(formData.getAll("retTipo"), formData.getAll("retImporte"), formData.getAll("retCertificado"), pr["retenciones.tipos"].valor);
+    if (!leidas.ok) return mal(leidas.error);
+    retenidas = leidas.retenciones;
+    cuentanComoCobrado = pr["retenciones.cuentanComoCobrado"].valor;
+    retProvisional = pr["retenciones.cuentanComoCobrado"].provisional || pr["retenciones.tipos"].provisional;
+  }
+  const retenidoEnMoneda = redondear(retenidas.reduce((s, r) => s + r.importe, 0));
+  const reparto = retenidas.length > 0 ? repartoDelCobro(pendiente, parte !== null ? redondear(parte) : null, retenidoEnMoneda) : null;
+  if (reparto && !reparto.ok) return mal(reparto.error);
+  if (reparto && !(reparto.entra > 0)) return mal("Lo retenido cubre toda la cuota: registrá al menos lo que entró al banco.");
+  // `cancela`: lo que la cuota da por cobrado con este envío (lo que entra y, si cuenta, lo retenido); `parcial`: eso, si
+  // no llega a lo que falta (la cuota no se marca). `cobra`: lo que entra a la caja y al banco.
+  const cancela = reparto ? redondear(reparto.entra + (cuentanComoCobrado ? retenidoEnMoneda : 0)) : parte !== null ? redondear(parte) : pendiente;
+  const parcial = cancela < pendiente - 0.005 ? cancela : null;
+  const cobra = reparto ? reparto.entra : parcial ?? pendiente;
   // Un id por formulario: el mismo envío dos veces (doble clic, reintento) asienta una sola vez.
   const envio = txt(formData.get("envio")).slice(0, 64);
   const importe = aPesos(cobra, c.moneda, tc);
   if (!(importe > 0)) return mal(`Falta el tipo de cambio de ${c.moneda}: sin él no se puede asentar en pesos.`);
+  // Cada retención en pesos, al mismo cambio que el cobro; el cobro «RETENCION» es su suma (cuadra al centavo).
+  const retEnPesos = retenidas.map((r) => aCentavos(aPesos(r.importe, c.moneda, tc)));
+  const importeRet = retEnPesos.reduce((s, x) => s + x, 0) / 100;
+  const cambioUsado = c.moneda === "ARS" ? 100 : aCentavos(tc[c.moneda] ?? 0);
   const etiqueta = `Proyecto #${proyecto.numero} · ${c.concepto}`;
   const cheque = medio === "CHEQUE" ? " · Cheque" : "";
   // Afuera de la transacción: una lectura por otra conexión, adentro, la traba.
@@ -954,7 +982,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     }
     // Una parte sólo tiene que seguir entrando en lo que falta; todo, tiene que ser exactamente lo que se leyó afuera.
     if (parcial === null ? Math.abs(ahora.pendiente - pendiente) > 0.005 : parcial > ahora.pendiente - 0.005) return "cambio";
-    if (ahora.cob && pasaElTope(ahora.cob, importe)) return "tope";
+    if (ahora.cob && pasaElTope(ahora.cob, cuentanComoCobrado ? redondear(importe + importeRet) : importe)) return "tope";
     // `prevista: false` y el mismo monto/moneda adentro: si la cuota volvió a prevista o el plan le cambió el importe
     // mientras tanto, no se marca (se asentaría el importe viejo y el faltante no quedaría en ninguna cuota).
     // Una parte no marca la cuota: sólo exige que siga igual (viva, real, sin marcar, mismo monto y moneda).
@@ -971,6 +999,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
       const pago = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto: importe, nota: c.concepto.slice(0, 200), cobradoPor: a.nombre }, select: { id: true } });
       asiento = pago.id;
       await asentarEnCajaTx(tx, "cobro", { ...base, type: "VENTA", reason: `${etiqueta}${parcial !== null ? " · parte" : ""}${cheque}`, proyectoPagoId: pago.id, createdBy: a.user.name });
+      await guardarFotoTx(tx, tenantId, { origenTipo: "COBRO", origenId: pago.id, foto: { moneda: c.moneda, originalCentavos: aCentavos(cobra), cambioCentavos: cambioUsado, pesosCentavos: aCentavos(importe) }, cambioDia: null });
       // La cuenta que movió ESTE cobro (una cuota puede tener varios), también «ninguna»: anularlo devuelve exactamente
       // esto. Sin este registro, el cobro es de antes y su cuenta está en la cuota marcada (cert. adversarial F1).
       await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: pago.id, campo: "Cuenta movida", antes: cuenta?.id ?? "ninguna", despues: cuenta?.movido ?? 0, autor: a.nombre });
@@ -984,6 +1013,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
         select: { id: true },
       });
       asiento = gasto.id;
+      await guardarFotoTx(tx, tenantId, { origenTipo: "PAGO", origenId: gasto.id, foto: { moneda: c.moneda, originalCentavos: aCentavos(cobra), cambioCentavos: cambioUsado, pesosCentavos: aCentavos(importe) }, cambioDia: null });
       await asentarEnCajaTx(tx, "pago", { ...base, type: "EGRESO", reason: `${etiqueta}${c.supplier ? ` · ${c.supplier.name}` : ""}${parcial !== null ? " · parte" : ""}${cheque}`, proyectoGastoId: gasto.id, createdBy: marcaDeGastoProyecto(gasto.id) });
       // Como el cobro: la cuenta que movió ESTE pago (una cuota puede tener varias partes); anularlo devuelve exactamente esto.
       await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoGasto", entidadId: gasto.id, campo: "Cuenta movida", antes: cuenta?.id ?? "ninguna", despues: cuenta?.movido ?? 0, autor: a.nombre });
@@ -994,6 +1024,20 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     // Une la cuota con lo que se asentó: al anular el cobro o el gasto, la cuota vuelve a quedar pendiente. En otra
     // moneda guarda además lo que pagó el cliente en ella («5000 USD»): el saldo del proyecto se cuenta en su moneda.
     await registrarCambio(tx, { ...cambio, campo: "Asiento", antes: c.moneda !== "ARS" ? `${textoAlCentavo(cobra)} ${c.moneda}` : null, despues: asiento });
+    if (retenidas.length > 0) {
+      // O36: lo retenido que cuenta como cobrado es otro cobro de la cuota, sin caja ni banco; las retenciones cuelgan
+      // del cobro que entró al banco (anularlo anula las dos cosas) con la marca de provisional de sus parámetros.
+      let retencionPagoId: string | null = null;
+      if (cuentanComoCobrado) {
+        const rp = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio: MEDIO_RETENCION, monto: importeRet, nota: `Retención sufrida · ${retenidas.map((r) => r.tipo).join(", ")}`.slice(0, 200), cobradoPor: a.nombre }, select: { id: true } });
+        retencionPagoId = rp.id;
+        await registrarCambio(tx, { ...cambio, campo: "Asiento", antes: c.moneda !== "ARS" ? `${textoAlCentavo(retenidoEnMoneda)} ${c.moneda}` : null, despues: rp.id });
+      }
+      await tx.proyectoCobroRetencion.createMany({
+        data: retenidas.map((r, i) => ({ tenantId, pagoId: asiento, cuotaId: id, retencionPagoId, tipo: r.tipo, importeCentavos: BigInt(retEnPesos[i]), certificado: r.certificado, cuentaComoCobrado: cuentanComoCobrado, provisional: retProvisional })),
+      });
+      await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: asiento, campo: "Retenciones", despues: retenidas.map((r) => `${r.tipo} ${textoAlCentavo(r.importe)}${r.certificado ? ` (cert. ${r.certificado})` : ""}`).join(" · ").slice(0, 300), autor: a.nombre });
+    }
     await avisar(tx, { tenantId, destinatarios: destinatarios2, tipo: esCobro ? "cobro" : "pago", texto: `${parcial !== null ? (esCobro ? "Se cobró una parte" : "Se pagó una parte") : esCobro ? "Se cobró" : "Se pagó"}: ${c.concepto}`, enlace: `${RAIZ}/${proyectoId}?tab=finanzas` });
     return true;
   }));
@@ -1012,7 +1056,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   if (!esCobro) revalidatePath(`${RAIZ}/proveedores`);
   // Lo que falta después de ESTA parte sale de lo leído adentro, en fila (`faltaAhora`), no de lo leído afuera: con otra
   // parte entrando a la vez, el de afuera es de antes de esa otra (MIA-119).
-  return { ok: true, listo: parcial !== null ? listoParcial(importe, faltaAhora - parcial, c.moneda, esCobro) : listoMarcada(esCobro, importe, { monto: c.monto, cobra, moneda: c.moneda }) };
+  return { ok: true, listo: parcial !== null ? listoParcial(importe, faltaAhora - parcial, c.moneda, esCobro) : listoMarcada(esCobro, importe, { monto: c.monto, cobra: cancela, moneda: c.moneda }) };
 }
 
 /**
@@ -1137,8 +1181,9 @@ async function reabrirCuotaTx(tx: Prisma.TransactionClient, tenantId: string, pr
 export async function anularCobroFicha(formData: FormData): Promise<ResultadoFicha> {
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
-  const pago = await prisma.proyectoPago.findFirst({ where: { id, tenantId }, select: { proyectoId: true, monto: true, proyecto: { select: { numero: true } } } });
+  const pago = await prisma.proyectoPago.findFirst({ where: { id, tenantId }, select: { proyectoId: true, monto: true, medio: true, proyecto: { select: { numero: true } } } });
   if (!pago) return mal("Ese cobro no existe.");
+  if (pago.medio === MEDIO_RETENCION) return mal("Esto es una retención sufrida: se anula junto con su cobro. Anulá el cobro que entró al banco.");
   const a = await entrar("pagos", pago.proyectoId);
   if (typeof a === "string") return mal(a);
   const anulo = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx) => {
@@ -1153,6 +1198,9 @@ export async function anularCobroFicha(formData: FormData): Promise<ResultadoFic
     }
     await registrarCambio(tx, { tenantId, proyectoId: pago.proyectoId, entidad: "ProyectoPago", entidadId: id, campo: "Cobro anulado", antes: pago.monto, autor: a.nombre });
     await reabrirCuotaTx(tx, tenantId, pago.proyectoId, id, a.nombre);
+    // T08: el banco vuelve exacto (O38) y las retenciones de este cobro se anulan con él (O36).
+    await revertirCuentaTx(tx, tenantId, "COBRO", id);
+    for (const r of await anularRetencionesDelCobroTx(tx, tenantId, id, a.nombre)) await reabrirCuotaTx(tx, tenantId, pago.proyectoId, r, a.nombre);
     return true;
   }));
   if (anulo instanceof PeriodoCerradoError) return mal(anulo.message);
@@ -1206,6 +1254,7 @@ export async function anularGastoFicha(formData: FormData): Promise<ResultadoFic
     }
     await registrarCambio(tx, { tenantId, proyectoId: g.proyectoId, entidad: "ProyectoGasto", entidadId: id, campo: "Gasto anulado", antes: redondear(leido.neto + leido.iva), autor: a.nombre });
     await reabrirCuotaTx(tx, tenantId, g.proyectoId, id, a.nombre);
+    await revertirCuentaTx(tx, tenantId, "PAGO", id); // T08 · O38: el banco vuelve exacto
     return { neto: leido.neto, iva: leido.iva };
   }));
   if (anulo instanceof PeriodoCerradoError) return mal(anulo.message);

@@ -35,7 +35,7 @@
  */
 import { pesos, redondear, totales, type Totales } from "./core";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
-import { aPesos, costoTotalItem, enMonedaDeVenta, plataEn, resumenCuotas, ventaTotalItem, type CuotaLeida, type ResumenCuotas } from "./gestion-core";
+import { aPesos, costoTotalItem, enMonedaDeVenta, resumenCuotas, ventaTotalItem, type CuotaLeida, type ResumenCuotas } from "./gestion-core";
 
 /** Una cuota como la lee la cobranza: con `prevista` si se la leyó (las lecturas de Administración ya las filtran). */
 export type CuotaDeCobranza = CuotaLeida & { prevista?: boolean | null };
@@ -366,7 +366,7 @@ export function pagadoDeCuota(q: { id?: string | null; tipo: string; moneda: str
 
 /** «US$ 100 · $ 100.000»: lo pagado, y los pesos asentados si fue en otra moneda. PURA. */
 export function textoPagado(p: PagadoDeCuota): string {
-  return p.pesos === null ? plataEn(p.monto, p.moneda) : `${plataEn(p.monto, p.moneda)} · ${pesos(p.pesos)}`;
+  return p.pesos === null ? pesos(p.monto, p.moneda) : `${pesos(p.monto, p.moneda)} · ${pesos(p.pesos)}`;
 }
 
 /** Lo que falta cobrar de cada cuota, en su moneda (ver `repartoDeCobros`). PURA. */

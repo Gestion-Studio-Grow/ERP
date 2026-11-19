@@ -61,6 +61,8 @@ export const PUERTAS_DE_ACCIONES: Readonly<Record<string, string>> = {
   "acciones-empresa#importarExtracto": "E:empresa",
   "acciones-empresa#conciliarMovimiento": "E:empresa",
   "acciones-empresa#desconciliarMovimiento": "E:empresa",
+  "acciones-empresa#enlazarCuotaFactura": "E:empresa",
+  "acciones-empresa#desenlazarCuotaFactura": "E:empresa",
   "acciones-empresa#guardarTipoCambio": "E:empresa",
   "acciones-empresa#guardarGastoFijo": "E:empresa",
   "acciones-empresa#bajaGastoFijo": "E:empresa",

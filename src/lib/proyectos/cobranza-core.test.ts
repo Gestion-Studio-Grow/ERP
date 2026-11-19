@@ -700,7 +700,8 @@ test("v2 #3/#4: las tres acciones que mueven la cobranza traban el candado como 
   const marcar = fuente("./acciones-ficha.ts", "marcarCuota");
   assert.match(marcar.primera, /^await trabarCobranza\(tx, tenantId, proyectoId\);$/);
   assert.match(marcar.cuerpo, /pendienteDeLaCuota\(tenantId, proyectoId, id, tc, margenPct, tx\)/);
-  assert.match(marcar.cuerpo, /pasaElTope\(ahora\.cob, importe\)/);
+  // O36 (T08): con retención, al tope va la cuota entera (lo que entró + lo retenido), siempre contra `ahora.cob` de la tx.
+  assert.match(marcar.cuerpo, /pasaElTope\(ahora\.cob, (importe|cuentanComoCobrado \? redondear\(importe \+ importeRet\) : importe)\)/);
   const registrar = fuente("./acciones.ts", "registrarCobro");
   assert.match(registrar.primera, /^await trabarCobranza\(tx, tenantId, proyectoId\);$/);
   assert.match(registrar.cuerpo, /cobranzasDelNegocio\(tenantId, tc, config\.margenPct, \[proyectoId\], tx\)/);

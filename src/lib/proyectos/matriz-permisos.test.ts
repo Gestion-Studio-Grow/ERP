@@ -112,7 +112,7 @@ test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
     // +3 rutas del Taller de c94fa459 (imprimir/productora, taller/piezas, taller/valores-hora), anotadas con su guarda (MIA-095).
     // MIA-50 T05: +7 rutas de Compras (comprobantes, órdenes, IVA, vinculadas) y +9 acciones, para quien ve/edita Proveedores o Pagos.
     // +9 acciones de T06 (acciones-presupuesto, MIA-125): Administración suma sólo las 2 de «pagos»; Comercial 8; Diseño, ninguna.
-    { DIRECCION: [42, 146], ADMINISTRACION: [31, 58], COMERCIAL: [24, 86], DISENO: [23, 56], PRODUCCION: [38, 115], SIN_FICHA: [10, 11] },
+    { DIRECCION: [42, 148], ADMINISTRACION: [31, 60], COMERCIAL: [24, 86], DISENO: [23, 56], PRODUCCION: [38, 115], SIN_FICHA: [10, 11] },
   );
 });
 

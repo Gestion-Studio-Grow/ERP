@@ -20,6 +20,8 @@ import { AvisoError, PageHeader, buttonClasses, fmtMoneyARS } from "@/components
 import { DosColumnas, Franja, LineaDeEstado, Marca, Plata, Renglon, chipLinkAtributos } from "@/components/ui";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
+import { paraElFlujo } from "@/lib/proyectos/cuentas-generales";
+import { proyectosParaCuentas } from "@/lib/proyectos/cuentas-generales.server";
 
 export const dynamic = "force-dynamic";
 
@@ -51,8 +53,10 @@ export default async function FlujoPage({ searchParams }: { searchParams: Promis
   const horizonte = leerHorizonte(h);
   const tenantId = await getCurrentTenantId();
   const hoy = todayInBusinessTz();
+  // MIA-50 · CG8: las cuotas de Proyectos con fecha entran en su día (sin calendario, no). null sin la app o sin permiso.
+  const proyectos = paraElFlujo(await proyectosParaCuentas(tenantId));
   const [{ flujo: f, sinCuentasCorrientes }, abribles] = await Promise.all([
-    leerFlujo(prisma, tenantId, hoy, horizonte),
+    leerFlujo(prisma, tenantId, hoy, horizonte, proyectos),
     appsQuePuedeAbrir(user.role, ["cuentas-a-cobrar", "cuentas-a-pagar", "libro-de-caja"]),
   ]);
   const ajustada = f.semanaMasAjustada;

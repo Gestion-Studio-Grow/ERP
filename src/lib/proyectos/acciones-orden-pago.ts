@@ -25,6 +25,8 @@ import { claveDeEnvio } from "./pago-columnas";
 import { errorDeAprobacion, errorDeOrden, numeroDeOrden, SERIE_ORDEN_PAGO, type ComprobanteParaOrden, type LineaDeOrden } from "./orden-pago-core";
 import { SIN_M1, tomarCuotas } from "./comprobantes.server";
 import { centavosDelTexto } from "./comprobantes-core";
+import { fotoEnPesos, type FotoEnPesos } from "./moneda-bancos-core";
+import { cambioDelMovimiento, cambiosDeComprobantes, cuentaDelNegocio, enPesosDelComprobante, fotoDe, guardarFotoTx, hayM8, hoyArgentina, moverCuentaTx, revertirCuentaTx } from "./moneda-bancos.server";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -204,10 +206,28 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
       select: {
         id: true, numero: true, estado: true, totalCentavos: true, medio: true,
         supplier: { select: { name: true } },
-        lineas: { select: { cuotaId: true, comprobanteId: true, comprobante: { select: { cargadoPorId: true } } } },
+        lineas: { select: { cuotaId: true, comprobanteId: true, importeCentavos: true, comprobante: { select: { cargadoPorId: true, moneda: true } } } },
       },
     });
     if (!o) return { ok: false, error: "Esa orden de pago no existe." };
+    // T08 · O31: una orden en otra moneda sale en pesos al cambio del día del pago. La diferencia contra lo que costó
+    // cada comprobante (su foto) es «Diferencia de cambio» de Administración: el costo del proyecto no se mueve.
+    const monedas = [...new Set(o.lineas.map((l) => l.comprobante.moneda))];
+    if (monedas.length > 1) return { ok: false, error: "La orden mezcla comprobantes en monedas distintas: hacé una orden por moneda." };
+    const monedaOrden = monedas[0] ?? "ARS";
+    let fotoOrden: { foto: FotoEnPesos; cambioDia: string | null; diferenciaCentavos: number } = { foto: fotoEnPesos("ARS", n(o.totalCentavos) / 100, 100), cambioDia: null, diferenciaCentavos: 0 };
+    if (monedaOrden !== "ARS") {
+      const cambio = await cambioDelMovimiento(prisma, tenantId, monedaOrden, hoyArgentina());
+      if (!cambio.ok) return { ok: false, error: cambio.error };
+      const foto = fotoEnPesos(monedaOrden, n(o.totalCentavos) / 100, cambio.cambioCentavos);
+      const cambios = await cambiosDeComprobantes(prisma, tenantId, o.lineas.map((l) => ({ id: l.comprobanteId, moneda: l.comprobante.moneda })));
+      const registrado = o.lineas.reduce((s, l) => s + enPesosDelComprobante(n(l.importeCentavos), l.comprobante.moneda, cambios.get(l.comprobanteId)), 0);
+      fotoOrden = { foto, cambioDia: cambio.dia, diferenciaCentavos: foto.pesosCentavos - registrado };
+    }
+    // T08 · O38: la orden pagada por transferencia sale de una cuenta del negocio (una sola vez; vuelve al anular).
+    const cuentaId = String(formData.get("cuentaId") ?? "").trim();
+    if (cuentaId && !(await hayM8())) return { ok: false, error: "Para elegir la cuenta falta una actualización de la base. Pagala sin cuenta." };
+    if (cuentaId && !(await cuentaDelNegocio(prisma, tenantId, cuentaId))) return { ok: false, error: "Esa cuenta no existe." };
     const error = errorDeAprobacion(user.id, [...new Set(o.lineas.map((l) => l.comprobante.cargadoPorId))]);
     if (error) return { ok: false, error };
     if (o.estado !== "PENDIENTE") return { ok: false, error: "Esa orden ya estaba pagada o anulada." };
@@ -238,11 +258,13 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
         sessionId: session?.id ?? null,
         type: "EGRESO",
         method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
-        amount: n(o.totalCentavos) / 100,
+        amount: fotoOrden.foto.pesosCentavos / 100,
         reason: `${numeroDeOrden(o.numero)} · ${o.supplier.name}${medio === "CHEQUE" ? " · Cheque" : ""}`,
         proyectoOrdenPagoId: id,
         createdBy: marcaDeOrden(id),
       });
+      await guardarFotoTx(tx, tenantId, { origenTipo: "ORDEN_PAGO", origenId: id, foto: fotoOrden.foto, cambioDia: fotoOrden.cambioDia, diferenciaCentavos: fotoOrden.diferenciaCentavos });
+      if (cuentaId) await moverCuentaTx(tx, tenantId, { cuentaId, origenTipo: "ORDEN_PAGO", origenId: id, importeEnPesos: -fotoOrden.foto.pesosCentavos / 100 });
       // La cuota cubierta por órdenes pagadas queda pagada; con saldo, sigue abierta.
       const proyectos: (string | null)[] = [];
       if (cuotaIds.length > 0) {
@@ -296,12 +318,15 @@ export async function anularOrden(formData: FormData): Promise<Resultado> {
       const proyectos: (string | null)[] = [];
       if (o.estado === "PAGADA") {
         const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
+        // T08: vuelve lo que salió en pesos (en otra moneda, al cambio del pago) y el banco, exacto.
+        const foto = await fotoDe(tx, tenantId, "ORDEN_PAGO", id);
+        await revertirCuentaTx(tx, tenantId, "ORDEN_PAGO", id);
         await asentarEnCajaTx(tx, "anulación", {
           tenantId,
           sessionId: session?.id ?? null,
           type: "INGRESO",
           method: metodoDeCaja(medio, await transferenciaEnElLibroTx(tx)),
-          amount: n(o.totalCentavos) / 100,
+          amount: (foto ? n(foto.pesosCentavos) : n(o.totalCentavos)) / 100,
           reason: `Anulación ${numeroDeOrden(o.numero)} · ${o.supplier.name}`,
           proyectoOrdenPagoId: id,
           createdBy: marcaDeOrden(id),

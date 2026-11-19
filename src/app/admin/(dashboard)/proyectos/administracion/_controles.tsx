@@ -7,8 +7,7 @@ import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
 import { marcarCuota } from "@/lib/proyectos/acciones-ficha";
 import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista, pagarLiquidacion } from "@/lib/proyectos/acciones-empresa";
-import { MEDIOS, MEDIO_LABEL } from "@/lib/proyectos/core";
-import { plataEn } from "@/lib/proyectos/gestion-core";
+import { MEDIOS, MEDIO_LABEL, pesos } from "@/lib/proyectos/core";
 import { campo } from "../_vista";
 import { useToastSiHay } from "../../ToastProvider";
 import { nuevaClave } from "../[id]/_cliente";
@@ -171,7 +170,18 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
         <>
           <input type="hidden" name="envio" value={envio} />
           <input type="hidden" name="visto" value={String(falta)} />
-          <input name="monto" inputMode="decimal" aria-label={`Monto a ${esCobro ? "cobrar" : "pagar"} de ${concepto}, en ${moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${plataEn(falta, moneda)}`} className={campo} />
+          <input name="monto" inputMode="decimal" aria-label={`Monto a ${esCobro ? "cobrar" : "pagar"} de ${concepto}, en ${moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${pesos(falta, moneda)}`} className={campo} />
+          {esCobro && (
+            // MIA-50 · T08 (O36): lo que el cliente retuvo cuenta como cobrado; el tipo se valida contra el catálogo del negocio.
+            <details className="text-xs">
+              <summary className="min-h-11 cursor-pointer py-2 text-muted underline underline-offset-2">Le retuvieron algo</summary>
+              <div className="grid gap-1">
+                <input name="retTipo" aria-label={`Tipo de retención de ${concepto}`} placeholder="Tipo de retención" maxLength={40} className={campo} />
+                <input name="retImporte" inputMode="decimal" aria-label={`Importe retenido de ${concepto}, en pesos`} placeholder="Importe retenido" className={campo} />
+                <input name="retCertificado" aria-label={`Número de certificado de la retención de ${concepto}`} placeholder="Certificado (opcional)" maxLength={60} className={campo} />
+              </div>
+            </details>
+          )}
         </>
       )}
       <div className="flex gap-1">
