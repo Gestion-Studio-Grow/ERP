@@ -103,7 +103,7 @@ test("O49: resultado del mes — proyectos del mes vivos, administración real p
     [
       { categoria: "Alquiler", costoCentavos: 150000, fecha: new Date("2026-11-03T15:00:00Z") },
       { categoria: "Alquiler", costoCentavos: 50000, fecha: new Date("2026-11-28T15:00:00Z") },
-      { categoria: "Sueldos", costoCentavos: 100000n, fecha: new Date("2026-11-15T15:00:00Z") },
+      { categoria: "Sueldos", costoCentavos: BigInt(100000), fecha: new Date("2026-11-15T15:00:00Z") },
       { categoria: "Luz", costoCentavos: 1000, fecha: new Date("2026-12-01T01:00:00Z") }, // 30/11 22:00 en Argentina: noviembre
       { categoria: "Luz", costoCentavos: 12345, fecha: new Date("2026-10-30T15:00:00Z") }, // octubre: no
     ],

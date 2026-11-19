@@ -19,13 +19,13 @@ import { faltaLaMigracion } from "./rendiciones-core";
 import { esCancelado, pendientesDeCancelar, PREFIJO_CANCELADO, rechazoDeCancelar } from "./cancelacion-core";
 import { fechaDelCampo, leerObligacion } from "./obligaciones-core";
 import { hayM7b } from "./etapas-m7b.server";
+import { centavosDe } from "@/lib/dinero/redondeo";
 
 export type ResultadoEtapas = { ok: true; listo?: string } | { ok: false; error: string };
 
 const RAIZ = "/admin/proyectos";
 const SIN_M7B = "Esta parte todavía no está habilitada en tu negocio (falta una actualización de la base). Avisale a Gestión Studio Grow.";
 const txt = (v: FormDataEntryValue | null | undefined, max = 300): string => String(v ?? "").trim().slice(0, max);
-const centavos = (n: number) => Math.round(n * 100);
 
 async function entrar(modulo: ModuloGestion, proyectoId?: string | null): Promise<Actor | string> {
   let a: Actor;
@@ -37,6 +37,13 @@ async function entrar(modulo: ModuloGestion, proyectoId?: string | null): Promis
   }
   if (proyectoId !== undefined && (!proyectoId || !(await proyectoVisible(a, proyectoId)))) return "Ese proyecto no existe.";
   return a;
+}
+
+/** O04: cancelar es de Dirección con «pipeline» en editar (la matriz de permisos lo lee de acá: `DIR`). */
+async function exigirDireccion(): Promise<Actor | string> {
+  const a = await entrar("pipeline");
+  if (typeof a === "string") return a;
+  return a.rol === "DIRECCION" ? a : "Sólo Dirección puede cancelar un proyecto aprobado.";
 }
 
 // ── O05 · Fecha prevista por etapa ──────────────────────────────────────────
@@ -157,11 +164,11 @@ async function abiertosDeCampo(tenantId: string, proyectoId: string): Promise<{ 
  */
 export async function cancelarProyecto(formData: FormData): Promise<ResultadoEtapas> {
   const id = txt(formData.get("id"), 40);
-  const a = await entrar("pipeline", id);
+  const a = await exigirDireccion();
   if (typeof a === "string") return { ok: false, error: a };
+  if (!id || !(await proyectoVisible(a, id))) return { ok: false, error: "Ese proyecto no existe." };
   const { tenantId } = a;
   const motivo = txt(formData.get("motivo"), 300);
-  if (a.rol !== "DIRECCION") return { ok: false, error: "Sólo Dirección puede cancelar un proyecto aprobado." };
   // Afuera de la transacción: lecturas por otra conexión y la tabla que puede faltar.
   const [m7b, criterio, destinatarios, deCampo] = await Promise.all([
     hayM7b(),
@@ -185,8 +192,8 @@ export async function cancelarProyecto(formData: FormData): Promise<ResultadoEta
       ]);
       const pendientes = pendientesDeCancelar(
         {
-          cobros: { cantidad: cobros.length, total: cobros.reduce((s, c) => s + centavos(c.monto), 0) / 100 },
-          pagos: { cantidad: pagos.length, total: pagos.reduce((s, g) => s + centavos(g.neto) + centavos(g.iva), 0) / 100 },
+          cobros: { cantidad: cobros.length, total: cobros.reduce((s, c) => s + centavosDe(c.monto), 0) / 100 },
+          pagos: { cantidad: pagos.length, total: pagos.reduce((s, g) => s + centavosDe(g.neto) + centavosDe(g.iva), 0) / 100 },
           cuotasPagoMarcadas,
           rendicionesAbiertas: deCampo.rendiciones,
           anticiposAbiertos: deCampo.anticipos,

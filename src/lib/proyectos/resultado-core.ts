@@ -10,8 +10,9 @@
 // ============================================================================
 
 import { claveDia } from "./gestion-lecturas-core";
+import { centavosDe } from "@/lib/dinero/redondeo";
 
-const c = (n: number) => Math.round(n * 100);
+const c = centavosDe;
 const p = (centavos: number) => centavos / 100;
 
 /** El mes (AAAA-MM) de una fecha, en hora de Argentina. */

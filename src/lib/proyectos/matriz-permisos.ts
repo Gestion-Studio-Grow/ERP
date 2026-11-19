@@ -70,6 +70,11 @@ export const PUERTAS_DE_ACCIONES: Readonly<Record<string, string>> = {
   "acciones-empresa#borrarLiquidacion": "E:liquidaciones",
   "acciones-empresa#editarExtrasLiquidacion": "E:liquidaciones",
   "acciones-empresa#marcarLiquidacionVista": "SESION — sólo la liquidación propia (`personaId` del actor)",
+  // MIA-50 T09 · O04, O05, O07.
+  "acciones-etapas#guardarFechasPrevistas": "E:pipeline",
+  "acciones-etapas#crearObligacion": "E:pipeline",
+  "acciones-etapas#marcarObligacionHecha": "E:pipeline",
+  "acciones-etapas#cancelarProyecto": "E:pipeline DIR",
   "acciones-ficha#crearLead": "E:pipeline",
   "acciones-ficha#moverProyecto": "E:pipeline",
   "acciones-ficha#guardarDatos": "E:pipeline",

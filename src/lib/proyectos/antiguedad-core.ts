@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { diasDeAtraso, estadoCuota } from "./gestion-core";
+import { centavosDe } from "@/lib/dinero/redondeo";
 
 export interface Tramo { id: string; etiqueta: string }
 
@@ -33,7 +34,7 @@ export interface CuotaPendiente { tipo: string; importe: number; venceEl: Date }
 export interface FilaTramo extends Tramo { total: number; cantidad: number }
 export interface Antiguedad { tramos: FilaTramo[]; total: number; cantidad: number }
 
-const centavos = (n: number) => Math.round(n * 100);
+const centavos = centavosDe;
 
 /** Una tabla por lado (cobro y pago). Las cuotas con importe 0 o menos (ya cubiertas) no cuentan. */
 export function antiguedadDe(cuotas: readonly CuotaPendiente[], limites: readonly number[], hoy: Date): { COBRO: Antiguedad; PAGO: Antiguedad } {
