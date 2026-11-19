@@ -314,6 +314,13 @@ model Tenant {
   proyectoParametros         ProyectoParametro[]
   proyectoParametroHist      ProyectoParametroHistorial[]
   proyectoVistas             ProyectoVista[]
+  proyectoComprobantes       ProyectoComprobante[] // M1 · T05
+  proyectoComprobanteAdj     ProyectoComprobanteAdjunto[]
+  proyectoComprobanteLineas  ProyectoComprobanteLinea[]
+  proyectoCuotaComprobantes  ProyectoCuotaComprobante[]
+  proyectoOrdenesPago        ProyectoOrdenPago[]
+  proyectoOrdenPagoLineas    ProyectoOrdenPagoLinea[]
+  proyectoNumeradores        ProyectoNumerador[]
   inmoPropiedades            InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                  InmoFoto[]
   serviceDetails             ServiceDetail[]
@@ -1787,6 +1794,9 @@ model CashMovement {
   proyectoLiquidacionId String?
   proyectoAnticipo      ProyectoAnticipo?    @relation(fields: [proyectoAnticipoId, tenantId], references: [id, tenantId], onDelete: Restrict)
   proyectoAnticipoId    String?
+  // M1 · T05: el pago (o su anulación) de una orden de pago. Clave del asiento: una por orden y tipo.
+  proyectoOrdenPago     ProyectoOrdenPago?   @relation(fields: [proyectoOrdenPagoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  proyectoOrdenPagoId   String?
 
   createdBy String // actor "user:<id>"
   createdAt DateTime @default(now())
@@ -1815,6 +1825,7 @@ model CashMovement {
   @@unique([tenantId, proyectoGastoId, type])
   @@unique([tenantId, proyectoLiquidacionId, type])
   @@unique([tenantId, proyectoAnticipoId, type])
+  @@unique([tenantId, proyectoOrdenPagoId, type])
   @@index([tenantId])
   @@index([sessionId, createdAt])
   @@index([orderId])
@@ -2010,6 +2021,8 @@ model Supplier {
   cuotasDeProyecto ProyectoCuota[]
   fichaDeProyecto  ProyectoProveedorFicha?
   tallerPedidos    TallerPedido[] // taller de stands T4: pedidos de materiales
+  comprobantesDeProyecto ProyectoComprobante[] // M1 · T05
+  ordenesDePagoProyecto  ProyectoOrdenPago[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3610,6 +3623,7 @@ model Proyecto {
   updatedAt                DateTime               @updatedAt
   oportunidadesComerciales Oportunidad[] // CRM comercial (GSG-CRM-010): sólo relación, ninguna columna nueva
   asignacionesRecibidas    AsignacionRecibida[] // GSG-CRM-017: nació de una asignación del ARM (sólo relación)
+  lineasDeComprobante      ProyectoComprobanteLinea[] // M1 · T05: lo imputado a este proyecto
 
   @@unique([tenantId, numero])
   @@unique([id, tenantId]) // Rendí: destino de FKs compuestas (id, tenantId), que no cruzan de negocio
@@ -4049,9 +4063,12 @@ model ProyectoCuota {
   clave          String? // de qué ítem y tramo salió: regenerar no duplica
   anuladoEl      DateTime?
   conciliaciones ProyectoMovBanco[]
+  comprobanteEnlace ProyectoCuotaComprobante? // M1 · T05
+  pagosEnOrden      ProyectoOrdenPagoLinea[]
   createdAt      DateTime           @default(now())
 
   @@unique([tenantId, clave])
+  @@unique([id, tenantId]) // M1 · T05: destino de FKs compuestas (no cambia datos: "id" ya es único)
   @@index([tenantId, proyectoId])
   @@index([tenantId, tipo, venceEl])
 }
@@ -5310,4 +5327,165 @@ model AsignacionRecibida {
 
   @@unique([tenantId, origenTenantId, origenOportunidadId])
   @@unique([tenantId, proyectoId])
+}
+
+// ============================================================================
+// M1 · MIA-50 T05 (GSG-MIA-124): comprobantes de proveedor, imputación y órdenes de pago. ADITIVA. Plata en centavos
+// enteros (BigInt: un comprobante puede pasar los 21 millones de pesos). Cada tabla con `tenantId`, política por negocio
+// y FKs compuestas (id, tenantId) que no cruzan de negocio. Sin la migración aplicada, el código lo dice y no se cae.
+// ============================================================================
+
+/// Comprobante de un proveedor. Proveedor, tipo y número no se repiten en el negocio: lo impide la base (O27).
+model ProyectoComprobante {
+  id                      String                      @id @default(cuid())
+  tenant                  Tenant                      @relation(fields: [tenantId], references: [id])
+  tenantId                String
+  supplier                Supplier                    @relation(fields: [supplierId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  supplierId              String
+  tipo                    String // A · B · C · SIN_FACTURA (las claves de `iva.porComprobante`)
+  numero                  String // normalizado: «0001-00001234»
+  fecha                   DateTime
+  moneda                  String                      @default("ARS")
+  netoCentavos            BigInt
+  ivaCentavos             BigInt                      @default(0)
+  totalCentavos           BigInt
+  detalle                 String                      @default("")
+  /// O44: compra a una sociedad vinculada (`sociedades.vinculadas`) y el texto que la identifica en los dos negocios.
+  vinculada               Boolean                     @default(false)
+  referenciaVinculada     String?
+  modeloCompra            String?
+  modeloCompraProvisional Boolean                     @default(false)
+  claveEnvio              String?
+  cargadoPorId            String
+  cargadoNombre           String
+  anuladoEl               DateTime?
+  anuladoPor              String?
+  createdAt               DateTime                    @default(now())
+  adjunto                 ProyectoComprobanteAdjunto?
+  lineas                  ProyectoComprobanteLinea[]
+  cuotas                  ProyectoCuotaComprobante[]
+  pagos                   ProyectoOrdenPagoLinea[]
+
+  @@unique([tenantId, supplierId, tipo, numero])
+  @@unique([tenantId, claveEnvio])
+  @@unique([id, tenantId])
+  @@index([tenantId, fecha])
+  @@index([tenantId, referenciaVinculada])
+}
+
+/// El PDF (o la foto) del comprobante. Uno por comprobante.
+model ProyectoComprobanteAdjunto {
+  id            String              @id @default(cuid())
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  comprobante   ProyectoComprobante @relation(fields: [comprobanteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  comprobanteId String
+  nombre        String
+  tipoMime      String
+  tamanoBytes   Int
+  datos         Bytes
+  createdAt     DateTime            @default(now())
+
+  @@unique([comprobanteId, tenantId])
+  @@index([tenantId])
+}
+
+/// Una línea de imputación: a un proyecto o a administración. La suma de las líneas es el total del comprobante (O28).
+model ProyectoComprobanteLinea {
+  id             String              @id @default(cuid())
+  tenant         Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  comprobante    ProyectoComprobante @relation(fields: [comprobanteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  comprobanteId  String
+  orden          Int                 @default(0)
+  destino        String // PROYECTO · ADMINISTRACION
+  proyecto       Proyecto?           @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  proyectoId     String?
+  sector         String?
+  categoria      String
+  detalle        String              @default("")
+  netoCentavos   BigInt
+  ivaCentavos    BigInt              @default(0)
+  /// O30: CREDITO (el IVA no va al costo) o COSTO (suma al costo). `ivaProvisional`: salió de un parámetro provisional.
+  ivaTratamiento String
+  ivaProvisional Boolean             @default(false)
+  costoCentavos  BigInt
+  /// Columna de «adicional», apagada: la prende T08.
+  adicional      Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+
+  @@index([tenantId, comprobanteId])
+  @@index([tenantId, proyectoId])
+}
+
+/// Enlace entre una cuota de pago prevista y el comprobante que la respalda: enlazada, deja de contar como prevista (O13).
+model ProyectoCuotaComprobante {
+  id            String              @id @default(cuid())
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  cuota         ProyectoCuota       @relation(fields: [cuotaId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  cuotaId       String
+  comprobante   ProyectoComprobante @relation(fields: [comprobanteId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  comprobanteId String
+  creadoPor     String
+  createdAt     DateTime            @default(now())
+
+  @@unique([cuotaId, tenantId])
+  @@index([tenantId, comprobanteId])
+}
+
+/// Orden de pago a un proveedor: número correlativo por negocio; quien cargó un comprobante no la aprueba (O33).
+model ProyectoOrdenPago {
+  id             String                   @id @default(cuid())
+  tenant         Tenant                   @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  numero         Int
+  supplier       Supplier                 @relation(fields: [supplierId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  supplierId     String
+  estado         String                   @default("PENDIENTE") // PENDIENTE · PAGADA · ANULADA
+  totalCentavos  BigInt
+  medio          String                   @default("TRANSFERENCIA")
+  claveEnvio     String?
+  creadaPorId    String
+  creadaNombre   String
+  aprobadaPorId  String?
+  aprobadaNombre String?
+  pagadaEl       DateTime?
+  anuladaEl      DateTime?
+  anuladaPor     String?
+  createdAt      DateTime                 @default(now())
+  lineas         ProyectoOrdenPagoLinea[]
+  asientos       CashMovement[]
+
+  @@unique([tenantId, numero])
+  @@unique([tenantId, claveEnvio])
+  @@unique([id, tenantId])
+  @@index([tenantId, supplierId])
+}
+
+/// Qué cancela la orden: un comprobante (y, si se dice, cuál de sus cuotas) por un importe.
+model ProyectoOrdenPagoLinea {
+  id              String              @id @default(cuid())
+  tenant          Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  orden           ProyectoOrdenPago   @relation(fields: [ordenId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  ordenId         String
+  comprobante     ProyectoComprobante @relation(fields: [comprobanteId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  comprobanteId   String
+  cuota           ProyectoCuota?      @relation(fields: [cuotaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  cuotaId         String?
+  importeCentavos BigInt
+
+  @@index([tenantId, ordenId])
+  @@index([tenantId, comprobanteId])
+}
+
+/// Numeración correlativa por negocio y por serie («orden-pago»): se incrementa en la transacción que crea, sin huecos.
+model ProyectoNumerador {
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+  tenantId String
+  serie    String
+  ultimo   Int    @default(0)
+
+  @@id([tenantId, serie])
 }

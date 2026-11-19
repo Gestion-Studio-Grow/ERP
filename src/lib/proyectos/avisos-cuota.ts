@@ -15,6 +15,9 @@ export function pesosConEquivalente(enPesos: number, cob: Pick<Cobranza, "enMone
 }
 
 /** El cartel de éxito de «Marcar cobrado» / «Marcar pagado». */
+/** Una cuota de pago enlazada a un comprobante se paga con una orden de pago, no a mano (CERT-4 y M4c). */
+export const CUOTA_ENLAZADA = "Esta cuota está enlazada a un comprobante del proveedor: se paga con una orden de pago, en Proveedores › Órdenes de pago.";
+
 export function listoMarcada(esCobro: boolean, importeEnPesos: number, cuota?: { monto: number; cobra: number; moneda: string }): string {
   const listo = `Listo: cuota marcada como ${esCobro ? "cobrada" : "pagada"} (${pesos(importeEnPesos)}).`;
   // P-06: una cuota de cobro que se marca por menos que su importe lo dice, con la diferencia y por qué no se cobra.

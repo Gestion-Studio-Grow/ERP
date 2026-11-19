@@ -26,7 +26,8 @@ import { aplicarAccion } from "@/lib/rendiciones/rendicion";
 import type { RolActor } from "@/lib/rendiciones/tipos";
 import { conReintegros, esLoPropio, etiquetaMes, extrasRecalculados, LIQUIDACION_PROPIA, leerExtras, lineasNuevas, periodoValido, reintegrosCuadran, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
 import type { Resultado } from "./acciones";
-import { listoMarcada } from "./avisos-cuota";
+import { CUOTA_ENLAZADA, listoMarcada } from "./avisos-cuota";
+import { siHayM1, tomarCuotas } from "./comprobantes.server";
 
 const ADMIN = "/admin/proyectos/administracion";
 /** Un extracto de varios meses entra de sobra, y no pasa el límite de lo que recibe una acción del servidor. */
@@ -86,7 +87,11 @@ export async function cuentasParaMarcar(): Promise<{ id: string; nombre: string;
 /** Aborta la transacción de marcar una cuota o de pagar una liquidación: el mensaje es para la persona. */
 class NoSeMarca extends Error {}
 
-/** Marca pagada una cuota de la empresa y asienta el movimiento. El `where` con `pagadoEl: null` es lo que frena el doble clic. */
+/**
+ * Marca pagada una cuota de la empresa y asienta el movimiento. El `where` con `pagadoEl: null` es lo que frena el doble clic.
+ * M4c (vuelta 3 de T05): una cuota de pago de la empresa también se enlaza a un comprobante; enlazada, se paga sólo con la
+ * orden de pago (si no, por el comprobante sale la cuota a mano y además la orden sin cuota).
+ */
 export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<{ listo?: string }>> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
@@ -97,9 +102,17 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
     select: { id: true, tipo: true, concepto: true, monto: true, moneda: true, supplier: { select: { name: true } } },
   });
   if (!c) return { ok: false, error: "Esa cuota no existe." };
-  let hecho: "marcada" | "cambio" | { amount: number } | PeriodoCerradoError;
+  // Sin M1 (Gate 2) no hay enlaces: `null`, y adentro no se cuentan. Lo de afuera es para contestar rápido.
+  const enlaces = c.tipo !== "COBRO" ? await siHayM1(() => prisma.proyectoCuotaComprobante.count({ where: { tenantId: a.tenantId, cuotaId: id } })) : null;
+  if (enlaces) return { ok: false, error: CUOTA_ENLAZADA };
+  let hecho: "marcada" | "cambio" | "enlazada" | { amount: number } | PeriodoCerradoError;
   try {
-    hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<"marcada" | "cambio" | { amount: number }> => {
+    hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<"marcada" | "cambio" | "enlazada" | { amount: number }> => {
+      // CERT-4 / M4c: la cuota, con el candado de `enlazarCuota` y de la orden de pago (sin comprobante acá: no hay otro
+      // candado antes), y el enlace contado adentro. Un enlace que entró después de la foto de esta transacción
+      // (Serializable) dejó una versión nueva de la fila: el candado aborta (40001) y el reintento ve el enlace.
+      await tomarCuotas(tx, a.tenantId, [id]);
+      if (enlaces !== null && (await tx.proyectoCuotaComprobante.count({ where: { tenantId: a.tenantId, cuotaId: id } })) > 0) return "enlazada";
       // Condicionado a lo leído afuera: si en el medio cambiaron el monto, la moneda o el tipo, no se asienta lo viejo.
       const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, pagadoEl: null, anuladoEl: null, tipo: c.tipo, monto: c.monto, moneda: c.moneda }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio } });
       if (r.count === 0) {
@@ -139,6 +152,7 @@ export async function marcarCuotaEmpresa(formData: FormData): Promise<Resultado<
   }
   if (hecho instanceof PeriodoCerradoError) return { ok: false, error: hecho.message };
   if (hecho === "marcada") return { ok: false, error: "Esa cuota ya estaba marcada." };
+  if (hecho === "enlazada") return { ok: false, error: CUOTA_ENLAZADA };
   if (hecho === "cambio") return { ok: false, error: "Esa cuota cambió mientras la marcabas (monto, moneda o tipo). Recargá la página y volvé a marcarla." };
   const { amount } = hecho;
   await auditAdmin({ action: "proyecto.cuota-empresa.pagar", entity: "ProyectoCuota", entityId: id, changes: { amount, medio } });

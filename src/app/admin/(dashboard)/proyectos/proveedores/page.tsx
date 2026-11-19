@@ -12,6 +12,7 @@ import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { iniciales } from "@/lib/proyectos/gestion-lecturas-core";
 import { listaDeProveedores } from "@/lib/proyectos/gestion-lecturas.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
+import { NavCompras } from "./_compras";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Proveedores" };
@@ -30,6 +31,7 @@ export default async function ProveedoresDeProyectos({ searchParams }: { searchP
 
   return (
     <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-5">
+      <NavCompras actual="/admin/proyectos/proveedores" />
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-strong">Proveedores</h1>

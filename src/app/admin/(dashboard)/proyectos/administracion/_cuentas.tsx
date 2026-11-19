@@ -8,6 +8,7 @@ import type { PagadoDeCuota } from "@/lib/proyectos/cobranza-core";
 import { anularCuotaEmpresa, crearPagoEmpresa } from "@/lib/proyectos/acciones-empresa";
 import { quitarMovimiento } from "@/lib/proyectos/acciones-ficha";
 import { textoCubierta } from "@/lib/proyectos/avisos-cuota";
+import { aPagarPorComprobante, siHayM1 } from "@/lib/proyectos/comprobantes.server";
 import { filaDeCuota, vistaAplicable } from "@/lib/proyectos/vistas.server";
 import { agrupar, columnasPermitidas, ordenar, pasaFiltros, AGRUPACIONES, ORDENES, type ListaId, type VistaGuardada } from "@/lib/proyectos/vistas-core";
 import { actorActual, columnasOcultas } from "@/lib/proyectos/gestion.server";
@@ -69,6 +70,8 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
   // MIA-089 · V6: los gastos cargados sin pagar también están en «A pagar»: cada uno con su renglón.
   const gastos = tipo === "PAGO" && (filtro === "pendientes" || filtro === "todos") ? gastosSinPagar.filter((g) => !busqueda || `${g.descripcion} ${g.proyecto.nombre} ${g.supplier?.name ?? ""}`.toLowerCase().includes(busqueda.toLowerCase())) : [];
   const proveedores = tipo === "PAGO" && editaEmpresa ? await proveedoresActivos(tenantId) : [];
+  // MIA-50 T05 · O33: lo que se debe por comprobantes de proveedor (sin M1, nada) se paga con órdenes de pago.
+  const porComprobantes = tipo === "PAGO" ? ((await siHayM1(() => aPagarPorComprobante(tenantId))) ?? []).filter((g) => g.porPagar > 0) : [];
   const conVista = actual.id === vistas[0].id ? "" : `&vista=${encodeURIComponent(actual.id)}`;
   const enlace = (f: FiltroCuota) => `/admin/proyectos/administracion?tab=${tab}&estado=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}${conVista}`;
   const enlaceVista = (v: VistaGuardada) => `/admin/proyectos/administracion?tab=${tab}&vista=${encodeURIComponent(v.id)}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
@@ -98,6 +101,23 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
           <button type="submit" className="min-h-11 rounded-lg border border-line px-3 text-sm text-strong">Buscar</button>
         </form>
       </div>
+
+      {porComprobantes.length > 0 && (
+        <section aria-labelledby="a-pagar-comprobantes" className={cn(tarjeta, "grid gap-2")}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="a-pagar-comprobantes" className="font-semibold text-strong">A pagar por comprobantes de proveedor</h2>
+            <Link href="/admin/proyectos/proveedores/ordenes" className="text-sm underline underline-offset-2">Órdenes de pago</Link>
+          </div>
+          <ul className="grid gap-1 text-sm">
+            {porComprobantes.map((g) => (
+              <li key={g.supplierId} className="flex flex-wrap justify-between gap-2 border-t border-line pt-1">
+                <span className="text-strong">{g.nombre} · {g.comprobantes.length === 1 ? "1 comprobante" : `${g.comprobantes.length} comprobantes`}</span>
+                <span>{pesos(g.porPagar / 100)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {filas.length === 0 && faltantes.length === 0 && gastos.length === 0 ? (
         <p className={cn(tarjeta, "text-sm text-muted")}>{busqueda ? "Nada coincide con esa búsqueda." : tipo === "COBRO" ? "No hay cobros en este filtro." : "No hay pagos en este filtro."}</p>
