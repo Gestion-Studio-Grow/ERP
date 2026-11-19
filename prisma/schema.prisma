@@ -328,6 +328,11 @@ model Tenant {
   proyectoPrecios            ProyectoPrecio[] // M3 · MIA T07
   proyectoPrecioFotos        ProyectoPrecioFoto[] // M3 · MIA T07
   proyectoEquipoRepartos     ProyectoEquipoReparto[] // M4 · MIA T07
+  proyectoCambiosDia         ProyectoCambioDia[] // M6 · MIA T08
+  proyectoMovMonedas         ProyectoMovMoneda[]
+  proyectoMovCuentas         ProyectoMovCuenta[] // M8 · MIA T08
+  proyectoCobroRetenciones   ProyectoCobroRetencion[]
+  proyectoCuotaFacturas      ProyectoCuotaFactura[]
   inmoPropiedades            InmoPropiedad[] // módulo inmobiliaria
   inmoFotos                  InmoFoto[]
   serviceDetails             ServiceDetail[]
@@ -1400,6 +1405,7 @@ model Invoice {
   descripcion      String?
   // R1 · los cobros que este comprobante factura (una factura por cobro; ver CobroFacturado).
   cobrosFacturados CobroFacturado[]
+  cuotasDeProyecto ProyectoCuotaFactura[] // M8 · MIA T08: la cuota de cobro de un proyecto que factura (O35)
 
   @@unique([tenantId, abonoClave]) // 1 factura por (regla, mes); NULLs no colisionan
   @@unique([tenantId, id]) // destino de las llaves foráneas que incluyen el negocio
@@ -4079,6 +4085,7 @@ model ProyectoCuota {
   comprobanteEnlace ProyectoCuotaComprobante? // M1 · T05
   pagosEnOrden      ProyectoOrdenPagoLinea[]
   previsionEstado ProyectoPrevisionEstado? // M2 · MIA T06: el estado que marca Administración
+  facturaEnlace   ProyectoCuotaFactura? // M8 · MIA T08: la factura de esta cuota de cobro, por tramo (O35)
   createdAt      DateTime           @default(now())
 
   @@unique([tenantId, clave])
@@ -4286,8 +4293,10 @@ model ProyectoCuentaBanco {
   moneda      String             @default("ARS")
   saldo       Float              @default(0)
   movimientos ProyectoMovBanco[]
+  movCuentas  ProyectoMovCuenta[] // M8 · MIA T08: lo que movió cada cobro, pago, orden o liquidación (O38)
   createdAt   DateTime           @default(now())
 
+  @@unique([id, tenantId]) // M8 · MIA T08: destino de FKs compuestas ("id" ya es único: no cambia datos)
   @@index([tenantId])
 }
 
@@ -4303,8 +4312,15 @@ model ProyectoMovBanco {
   lote        String              @default("")
   cuota       ProyectoCuota?      @relation(fields: [cuotaId], references: [id], onDelete: SetNull)
   cuotaId     String?
+  /// M8 · MIA T08 (O38): conciliado contra un cobro, un pago, una orden de pago o un pago de liquidación (no una cuota).
+  origenTipo  String?
+  origenId    String?
+  /// M8: fecha, importe, descripción y orden en el archivo: importar el mismo extracto dos veces no duplica.
+  huella      String?
   createdAt   DateTime            @default(now())
 
+  @@unique([tenantId, origenTipo, origenId])
+  @@unique([tenantId, cuentaId, huella])
   @@index([tenantId, cuentaId, fecha])
 }
 
@@ -5687,4 +5703,106 @@ model ProyectoEquipoReparto {
 
   @@unique([equipoId, concepto])
   @@index([tenantId, proyectoId])
+}
+
+// ── M6 · MIA T08 (GSG-MIA-150): historial del tipo de cambio y la moneda de cada movimiento ──
+// Migración 20261120120000_mia_m6_moneda. Plata en centavos enteros. Un movimiento guarda su moneda, el monto original,
+// el cambio aplicado y los pesos en una fila propia: cargar un cambio nuevo no mueve lo ya asentado (O39).
+/// Pesos por unidad de una moneda, por día (AAAA-MM-DD, Argentina). Un día, un cambio por moneda.
+model ProyectoCambioDia {
+  id                String   @id @default(cuid())
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId          String
+  moneda            String
+  dia               String
+  centavosPorUnidad BigInt
+  cargadoPor        String
+  createdAt         DateTime @default(now())
+
+  @@unique([tenantId, moneda, dia])
+}
+
+/// La moneda de un cobro, un pago, un comprobante o una orden de pago, tal como se asentó (O31, O39).
+model ProyectoMovMoneda {
+  id                  String   @id @default(cuid())
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  tenantId            String
+  origenTipo          String // COBRO · PAGO · COMPROBANTE · ORDEN_PAGO
+  origenId            String
+  moneda              String
+  originalCentavos    BigInt
+  /// Pesos (en centavos) por unidad: en pesos, 100.
+  cambioCentavos      BigInt
+  cambioDia           String?
+  pesosCentavos       BigInt
+  /// O31: en la orden de pago, los pesos al cambio del pago menos los del costo. Va a administración, no al proyecto.
+  diferenciaCentavos  BigInt   @default(0)
+  /// Con qué criterio salió el cambio (`moneda.cambioDelCosto`) y si ese parámetro era provisional (R8).
+  criterio            String?
+  criterioProvisional Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  @@unique([tenantId, origenTipo, origenId])
+  @@index([tenantId, origenTipo, createdAt])
+}
+
+// ── M8 · MIA T08 (GSG-MIA-150): cuenta de banco en todo movimiento, retenciones y enlace cuota ↔ factura ──
+// Migración 20261120130000_mia_m8_bancos. Además: "ProyectoMovBanco".origenTipo/origenId/huella y el único (id, tenantId)
+// de "ProyectoCuentaBanco" (arriba, en sus modelos).
+/// Lo que movió en una cuenta de banco cada cobro, pago, orden de pago o pago de liquidación. Anular lo devuelve una vez.
+model ProyectoMovCuenta {
+  id              String              @id @default(cuid())
+  tenant          Tenant              @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  cuenta          ProyectoCuentaBanco @relation(fields: [cuentaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  cuentaId        String
+  origenTipo      String // COBRO · PAGO · ORDEN_PAGO · LIQUIDACION
+  origenId        String
+  /// Con signo, en la moneda de la cuenta: + entra, − sale.
+  importeCentavos BigInt
+  anuladoEl       DateTime?
+  createdAt       DateTime            @default(now())
+
+  @@unique([tenantId, origenTipo, origenId])
+  @@index([tenantId, cuentaId])
+}
+
+/// Una retención sufrida al cobrar (O36): no entra al banco y, si `cuentaComoCobrado`, cancela la cuota como un cobro.
+model ProyectoCobroRetencion {
+  id                String    @id @default(cuid())
+  tenant            Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId          String
+  /// El cobro que entró al banco.
+  pagoId            String
+  cuotaId           String?
+  /// El cobro sin caja ni banco que la cuenta como cobrada (sólo con `retenciones.cuentanComoCobrado`).
+  retencionPagoId   String?
+  tipo              String
+  importeCentavos   BigInt
+  certificado       String?
+  cuentaComoCobrado Boolean
+  /// El parámetro que lo decidió era provisional (R8).
+  provisional       Boolean   @default(false)
+  anuladoEl         DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@index([tenantId, pagoId])
+  @@index([tenantId, cuotaId])
+}
+
+/// Una cuota de cobro y su factura, por tramo (O35). Una factura por cuota; la factura es del mismo negocio (FK compuesta).
+model ProyectoCuotaFactura {
+  id        String        @id @default(cuid())
+  tenant    Tenant        @relation(fields: [tenantId], references: [id])
+  tenantId  String
+  cuota     ProyectoCuota @relation(fields: [cuotaId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  cuotaId   String
+  factura   Invoice       @relation(fields: [facturaId], references: [id], onDelete: Restrict)
+  facturaId String
+  tramo     String // ANTICIPO · SALDO · ADICIONAL
+  creadoPor String
+  createdAt DateTime      @default(now())
+
+  @@unique([cuotaId, tenantId])
+  @@index([tenantId, facturaId])
 }

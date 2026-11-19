@@ -4,6 +4,7 @@ import { aPesos } from "@/lib/proyectos/gestion-core";
 import { ofreceMarcarConciliada, propuestasDeConciliacion } from "@/lib/proyectos/empresa-core";
 import { datosDeBancos } from "@/lib/proyectos/empresa.server";
 import { conciliarMovimiento, crearCuenta, desconciliarMovimiento, guardarSaldo } from "@/lib/proyectos/acciones-empresa";
+import { movimientosParaConciliar, origenesDeMovimientos } from "@/lib/proyectos/moneda-bancos.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { cabezaMovil, celdaMovil, cuerpoMovil, filaMovil, importe, tablaMovil } from "../_tabla";
 import { BotonDosPasos, FormAccion, ImportarExtracto, MarcarCuota } from "./_controles";
@@ -27,8 +28,34 @@ function ElegirCuota({ id, opciones, etiqueta: titulo }: { id: string; opciones:
   );
 }
 
+const ORIGEN: Record<string, string> = { COBRO: "Cobro", PAGO: "Pago de gasto", ORDEN_PAGO: "Orden de pago", LIQUIDACION: "Pago de sueldo" };
+
+type Candidato = Awaited<ReturnType<typeof movimientosParaConciliar>>[number];
+
+/** O38: conciliar el renglón del extracto con lo que ya movió la cuenta (un cobro, un pago, una orden o un sueldo). */
+function ElegirOrigen({ id, opciones }: { id: string; opciones: readonly Candidato[] }) {
+  if (opciones.length === 0) return null;
+  return (
+    <details>
+      <summary className="min-h-11 cursor-pointer py-2 text-sm text-strong">Conciliar con un movimiento de la cuenta</summary>
+      <FormAccion accion={conciliarMovimiento} boton="Conciliar">
+        <input type="hidden" name="id" value={id} />
+        <label className={etiqueta}>Movimiento
+          <select name="origen" required defaultValue="" className={campo}>
+            <option value="" disabled>Elegí uno</option>
+            {opciones.map((o) => <option key={`${o.origenTipo}|${o.origenId}`} value={`${o.origenTipo}|${o.origenId}`}>{ORIGEN[o.origenTipo] ?? o.origenTipo} · {importe(o.importe, "ARS")} · {fechaCorta(o.createdAt)}</option>)}
+          </select>
+        </label>
+      </FormAccion>
+    </details>
+  );
+}
+
 export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenantId: string; editaEmpresa: boolean; editaPagos: boolean }) {
   const { cuentas, movimientos, candidatas, tc } = await datosDeBancos(tenantId);
+  // MIA-50 · T08 (O38): con M8, un renglón también se concilia con un movimiento de la cuenta. Sin M8, vacío.
+  const [origenes, paraConciliar] = await Promise.all([origenesDeMovimientos(tenantId, movimientos.filter((m) => !m.cuotaId).map((m) => m.id)), editaEmpresa ? movimientosParaConciliar(tenantId) : []]);
+  const deLaCuenta = (m: { cuentaId: string; importe: number }) => paraConciliar.filter((o) => o.cuentaId === m.cuentaId && o.importe > 0 === m.importe > 0);
   // Las cuotas se comparan en pesos: el movimiento de una cuenta en dólares, también.
   const propuestas = propuestasDeConciliacion(movimientos.filter((m) => !m.cuotaId).map((m) => ({ ...m, importe: aPesos(m.importe, m.cuenta.moneda, tc) })), candidatas, tc);
   return (
@@ -96,6 +123,7 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
                 const propuesta = propuestas.get(m.id);
                 const cuota = m.cuota;
                 const puedeMarcar = cuota && ofreceMarcarConciliada(cuota, { editaPagos, editaEmpresa });
+                const origen = origenes.get(m.id);
                 return (
                   <tr key={m.id} className={cn("border-t border-line align-top", filaMovil)}>
                     <td data-label="Fecha" className={cn("whitespace-nowrap py-2 pr-3", celdaMovil)}>{fechaCorta(m.fecha)}</td>
@@ -110,16 +138,24 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
                           {puedeMarcar && <MarcarCuota id={cuota.id} deEmpresa={!cuota.proyectoId} etiqueta={cuota.tipo === "COBRO" ? "Marcar cobrada" : "Marcar pagada"} />}
                           {editaEmpresa && <BotonDosPasos accion={desconciliarMovimiento} campos={{ id: m.id }} etiqueta="Deshacer" pregunta="¿Deshacer la conciliación?" />}
                         </div>
+                      ) : origen ? (
+                        <div className="grid justify-items-start gap-1">
+                          <span className="text-strong">{ORIGEN[origen.origenTipo] ?? origen.origenTipo}</span>
+                          <span className="text-xs text-muted">Conciliado con un movimiento de la cuenta</span>
+                          {editaEmpresa && <BotonDosPasos accion={desconciliarMovimiento} campos={{ id: m.id }} etiqueta="Deshacer" pregunta="¿Deshacer la conciliación?" />}
+                        </div>
                       ) : propuesta ? (
                         <div className="grid justify-items-start gap-1">
                           <span className="text-muted">Propuesta: <span className="text-strong">{propuesta.concepto}</span> · vence {fechaCorta(propuesta.venceEl)}</span>
                           {editaEmpresa && <FormAccion accion={conciliarMovimiento} boton="Conciliar"><input type="hidden" name="id" value={m.id} /><input type="hidden" name="cuotaId" value={propuesta.id} /></FormAccion>}
                           {editaEmpresa && <ElegirCuota id={m.id} opciones={candidatas.filter((c) => (c.tipo === "COBRO") === m.importe > 0)} etiqueta="Elegir otra cuota" />}
+                          {editaEmpresa && <ElegirOrigen id={m.id} opciones={deLaCuenta(m)} />}
                         </div>
                       ) : (
                         <div className="grid justify-items-start gap-1">
                           <span className="text-muted">Sin cuota con ese importe</span>
                           {editaEmpresa && <ElegirCuota id={m.id} opciones={candidatas.filter((c) => (c.tipo === "COBRO") === m.importe > 0)} etiqueta="Elegir la cuota a mano" />}
+                          {editaEmpresa && <ElegirOrigen id={m.id} opciones={deLaCuenta(m)} />}
                         </div>
                       )}
                     </td>

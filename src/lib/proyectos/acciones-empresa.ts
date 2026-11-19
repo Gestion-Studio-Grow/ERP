@@ -28,6 +28,10 @@ import { conReintegros, esLoPropio, etiquetaMes, extrasRecalculados, LIQUIDACION
 import type { Resultado } from "./acciones";
 import { CUOTA_ENLAZADA, listoMarcada } from "./avisos-cuota";
 import { siHayM1, tomarCuotas } from "./comprobantes.server";
+import { randomUUID } from "node:crypto";
+import { aCentavos, esDiaValido, esOrigenConciliable, esTramo, huellasDelExtracto, MEDIO_RETENCION, signoDelOrigen, TRAMO_LABEL, type OrigenConciliable } from "./moneda-bancos-core";
+import { hayM6, hayM8, hoyArgentina, moverCuentaTx } from "./moneda-bancos.server";
+import { valorDelNegocio } from "./parametros/leer.server";
 
 const ADMIN = "/admin/proyectos/administracion";
 /** Un extracto de varios meses entra de sobra, y no pasa el límite de lo que recibe una acción del servidor. */
@@ -288,15 +292,26 @@ export async function importarExtracto(formData: FormData): Promise<Resultado<{ 
   const { lineas, ilegibles } = leerExtracto(csv);
   if (lineas.length === 0) return { ok: false, error: `No se entendió ninguna línea (${ilegibles} sin leer). Tiene que tener fecha, descripción e importe.` };
   if (lineas.length > MAX_LINEAS_EXTRACTO) return { ok: false, error: `Un extracto puede tener hasta ${MAX_LINEAS_EXTRACTO} líneas: subilo de a un período por vez.` };
-  const existentes = await prisma.proyectoMovBanco.findMany({ where: { tenantId: a.tenantId, cuentaId, fecha: { gte: new Date(Math.min(...lineas.map((l) => l.fecha.getTime())) - 86_400_000) } }, select: { fecha: true, descripcion: true, importe: true } });
-  const nuevas = lineasNuevas(lineas, existentes);
+  // O38 · M8: cada línea lleva su huella (fecha, descripción, importe y orden en el archivo) y el único
+  // (tenantId, cuentaId, huella) no deja entrar la misma dos veces, ni con dos importaciones a la vez. Lo importado antes
+  // de M8 (sin huella) se compara como siempre, por fecha, descripción e importe.
+  const m8 = await hayM8();
+  const conHuella = huellasDelExtracto(lineas);
+  const desde = new Date(Math.min(...lineas.map((l) => l.fecha.getTime())) - 86_400_000);
+  const existentes = await prisma.proyectoMovBanco.findMany({ where: { tenantId: a.tenantId, cuentaId, fecha: { gte: desde }, ...(m8 ? { huella: null } : {}) }, select: { fecha: true, descripcion: true, importe: true } });
+  const nuevas = lineasNuevas(conHuella, existentes);
   const lote = `Extracto ${new Date().toISOString().slice(0, 16).replace("T", " ")}`;
+  let importadas = 0;
   if (nuevas.length > 0) {
-    await prisma.proyectoMovBanco.createMany({ data: nuevas.map((l) => ({ tenantId: a.tenantId, cuentaId, fecha: l.fecha, descripcion: l.descripcion.slice(0, 300), importe: redondear(l.importe), lote })) });
+    const r = await prisma.proyectoMovBanco.createMany({
+      data: nuevas.map((l) => ({ tenantId: a.tenantId, cuentaId, fecha: l.fecha, descripcion: l.descripcion.slice(0, 300), importe: redondear(l.importe), lote, ...(m8 ? { huella: l.huella } : {}) })),
+      skipDuplicates: m8,
+    });
+    importadas = r.count;
   }
-  await auditAdmin({ action: "proyecto.extracto", entity: "ProyectoCuentaBanco", entityId: cuentaId, changes: { importadas: nuevas.length, repetidas: lineas.length - nuevas.length, ilegibles } });
+  await auditAdmin({ action: "proyecto.extracto", entity: "ProyectoCuentaBanco", entityId: cuentaId, changes: { importadas, repetidas: lineas.length - importadas, ilegibles } });
   revalidatePath(ADMIN);
-  return { ok: true, importadas: nuevas.length, repetidas: lineas.length - nuevas.length, ilegibles };
+  return { ok: true, importadas, repetidas: lineas.length - importadas, ilegibles };
 }
 
 /**
@@ -308,6 +323,10 @@ export async function conciliarMovimiento(formData: FormData): Promise<Resultado
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
   const cuotaId = txt(formData.get("cuotaId"));
+  // El origen llega en dos campos (`origenTipo`, `origenId`) o en uno de la lista de la pantalla (`origen` = «TIPO|id»).
+  const [tipoElegido = "", idElegido = ""] = txt(formData.get("origen")).split("|");
+  const origenTipo = txt(formData.get("origenTipo")) || tipoElegido;
+  if (!cuotaId && origenTipo) return conciliarConMovimiento(a, id, origenTipo, txt(formData.get("origenId")) || idElegido);
   const r = await tenantTransaction(async (tx): Promise<Resultado> => {
     // MIA-111 · opción A de MIA-BANCOS-PERDIDO (PROVISIONAL A CONFIRMAR POR EL DUEÑO): el cobro de un perdido no se
     // concilia (`perdidoAdmite`, la misma regla de la ficha, Cuentas a cobrar y Bancos). En fila con «Marcar perdido»:
@@ -348,10 +367,20 @@ export async function conciliarMovimiento(formData: FormData): Promise<Resultado
 export async function desconciliarMovimiento(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
+  const m8 = await hayM8();
   const r = await tenantTransaction(async (tx): Promise<Resultado> => {
     const m = await tx.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { cuotaId: true } });
     // ADM-143: un id de otro negocio no existe para este; a ése no se le afirma un estado. Lo propio sí lo dice.
     if (!m) return { ok: false, error: "Ese movimiento no existe." };
+    if (!m.cuotaId && m8) {
+      // O38 · M8: conciliado contra un cobro, un pago, una orden o una liquidación: se suelta sólo ese, el que se leyó.
+      const o = await tx.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { origenTipo: true, origenId: true } });
+      if (!o?.origenTipo || !o.origenId) return { ok: false, error: "Ese movimiento no está conciliado." };
+      const u = await tx.proyectoMovBanco.updateMany({ where: { id, tenantId: a.tenantId, origenTipo: o.origenTipo, origenId: o.origenId }, data: { origenTipo: null, origenId: null } });
+      if (u.count === 0) return { ok: false, error: "Ese movimiento cambió mientras tanto. Recargá la página." };
+      await registrarCambio(tx, { tenantId: a.tenantId, entidad: "movimiento", entidadId: id, campo: "conciliación", antes: `${o.origenTipo} ${o.origenId}`, autor: a.nombre });
+      return { ok: true };
+    }
     if (!m.cuotaId) return { ok: false, error: "Ese movimiento no está conciliado." };
     // Sin filtrar por anulada: una cuota anulada también se puede soltar.
     const [c] = await tx.$queryRaw<{ concepto: string; proyectoId: string | null }[]>`
@@ -369,19 +398,151 @@ export async function desconciliarMovimiento(formData: FormData): Promise<Result
 
 // ── Monedas y gastos fijos ──────────────────────────────────────────────────
 
+/**
+ * El cambio de una moneda para un día (O39). Con M6 se guarda en el historial (un día, un cambio por moneda: volver a
+ * cargar el mismo día lo corrige) y lo ya asentado no se mueve: cada cobro, pago y comprobante guardó el suyo. El
+ * cambio «de hoy» de las pantallas (y de las cuotas en dólares) es el último cargado. Sin M6, como antes: sólo dólar, hoy.
+ */
 export async function guardarTipoCambio(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
   const leido = numero(formData.get("porUnidad"));
   const porUnidad = redondear(leido);
-  if (!(porUnidad > 0)) return { ok: false, error: "Escribí cuántos pesos vale un dólar." };
+  const m6 = await hayM6();
+  const mon = m6 ? txt(formData.get("moneda")) || "USD" : "USD";
+  const dia = m6 ? txt(formData.get("fecha")) || hoyArgentina() : hoyArgentina();
+  if (m6) {
+    const habilitadas = await valorDelNegocio(a.tenantId, "moneda.habilitadas");
+    if (mon === "ARS" || !Array.isArray(habilitadas) || !habilitadas.includes(mon)) return { ok: false, error: `${mon} no es una moneda habilitada del negocio.` };
+    if (!esDiaValido(dia)) return { ok: false, error: "La fecha no es válida." };
+    if (dia > hoyArgentina()) return { ok: false, error: "El cambio se carga para hoy o para un día pasado, no para uno futuro." };
+  }
+  if (!(porUnidad > 0)) return { ok: false, error: `Escribí cuántos pesos vale un ${mon === "USD" ? "dólar" : mon}.` };
   // Sin redondear en silencio (UAT-008): el cambio pasa a pesos cada cuota en dólares; con más de dos decimales, se pide.
   if (Math.abs(leido - porUnidad) > 1e-9) return { ok: false, error: `El tipo de cambio se guarda con hasta 2 decimales. Escribilo así, por ejemplo ${String(porUnidad).replace(".", ",")}.` };
-  const previo = await prisma.proyectoTipoCambio.findFirst({ where: { tenantId: a.tenantId, moneda: "USD" }, select: { porUnidad: true } });
-  await prisma.proyectoTipoCambio.upsert({ where: { tenantId_moneda: { tenantId: a.tenantId, moneda: "USD" } }, create: { tenantId: a.tenantId, moneda: "USD", porUnidad }, update: { porUnidad } });
-  await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "tipoCambio", entidadId: "USD", campo: "pesos por dólar", antes: previo?.porUnidad, despues: porUnidad, autor: a.nombre });
-  if (previo?.porUnidad !== porUnidad) await regenerarCuotasDe(a.tenantId, { OR: [{ moneda: "USD" }, { presupuestos: { some: { items: { some: { moneda: "USD" } } } } }] });
+  let esElUltimo = true;
+  if (m6) {
+    const centavos = BigInt(aCentavos(porUnidad));
+    esElUltimo = await tenantTransaction(async (tx) => {
+      await tx.$executeRaw`
+        INSERT INTO "ProyectoCambioDia" ("id", "tenantId", "moneda", "dia", "centavosPorUnidad", "cargadoPor")
+        VALUES (${randomUUID()}, ${a.tenantId}, ${mon}, ${dia}, ${centavos}, ${a.nombre.slice(0, 120)})
+        ON CONFLICT ("tenantId", "moneda", "dia") DO UPDATE SET "centavosPorUnidad" = EXCLUDED."centavosPorUnidad", "cargadoPor" = EXCLUDED."cargadoPor"`;
+      const despues = await tx.proyectoCambioDia.count({ where: { tenantId: a.tenantId, moneda: mon, dia: { gt: dia } } });
+      await registrarCambio(tx, { tenantId: a.tenantId, entidad: "tipoCambio", entidadId: `${mon}-${dia}`, campo: `pesos por unidad (${mon}, ${dia})`, despues: porUnidad, autor: a.nombre });
+      return despues === 0;
+    });
+  }
+  // El cambio «de hoy» (el que usan las cuotas en otra moneda) sólo lo mueve el último día cargado.
+  if (esElUltimo) {
+    const previo = await prisma.proyectoTipoCambio.findFirst({ where: { tenantId: a.tenantId, moneda: mon }, select: { porUnidad: true } });
+    await prisma.proyectoTipoCambio.upsert({ where: { tenantId_moneda: { tenantId: a.tenantId, moneda: mon } }, create: { tenantId: a.tenantId, moneda: mon, porUnidad }, update: { porUnidad } });
+    if (!m6) await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "tipoCambio", entidadId: mon, campo: "pesos por dólar", antes: previo?.porUnidad, despues: porUnidad, autor: a.nombre });
+    if (previo?.porUnidad !== porUnidad) await regenerarCuotasDe(a.tenantId, { OR: [{ moneda: mon }, { presupuestos: { some: { items: { some: { moneda: mon } } } } }] });
+  }
   refrescar();
   return { ok: true };
+}
+
+// ── Conciliación contra un movimiento (O38) y cuota ↔ factura (O35) · MIA T08 ──────────────────────────────────
+
+const ORIGEN_LABEL: Record<OrigenConciliable, string> = { COBRO: "cobro", PAGO: "pago de gasto", ORDEN_PAGO: "orden de pago", LIQUIDACION: "pago de sueldo" };
+
+/** El cobro, pago, orden o liquidación del negocio, vigente y ya movido, con su sentido. null si no existe para éste. */
+async function origenVigente(tx: Prisma.TransactionClient, tenantId: string, tipo: OrigenConciliable, origenId: string): Promise<{ texto: string; proyectoId: string | null } | null> {
+  if (tipo === "COBRO") {
+    const p = await tx.proyectoPago.findFirst({ where: { id: origenId, tenantId, anuladoEl: null, NOT: { medio: MEDIO_RETENCION } }, select: { monto: true, proyectoId: true } });
+    return p ? { texto: `cobro de $ ${p.monto}`, proyectoId: p.proyectoId } : null;
+  }
+  if (tipo === "PAGO") {
+    const g = await tx.proyectoGasto.findFirst({ where: { id: origenId, tenantId, anuladoEl: null, pagadoEl: { not: null } }, select: { descripcion: true, proyectoId: true } });
+    return g ? { texto: `pago de ${g.descripcion}`, proyectoId: g.proyectoId } : null;
+  }
+  if (tipo === "ORDEN_PAGO") {
+    const o = await tx.proyectoOrdenPago.findFirst({ where: { id: origenId, tenantId, estado: "PAGADA" }, select: { numero: true } });
+    return o ? { texto: `orden de pago N° ${o.numero}`, proyectoId: null } : null;
+  }
+  const l = await tx.proyectoLiquidacion.findFirst({ where: { id: origenId, tenantId, estado: "PAGADA" }, select: { total: true } });
+  return l ? { texto: `sueldo de $ ${l.total}`, proyectoId: null } : null;
+}
+
+/**
+ * O38: concilia un movimiento del extracto contra un cobro, un pago, una orden de pago o un pago de sueldo (no sólo
+ * contra cuotas). Un movimiento, un origen y un origen, un movimiento: el único (tenantId, origenTipo, origenId) frena
+ * a dos movimientos que quieren el mismo cobro a la vez, y el update condicionado a «sin conciliar» frena al revés.
+ */
+async function conciliarConMovimiento(a: { tenantId: string; nombre: string }, id: string, tipo: string, origenId: string): Promise<Resultado> {
+  if (!esOrigenConciliable(tipo) || !origenId) return { ok: false, error: "Elegí el cobro o el pago contra el que se concilia." };
+  if (!(await hayM8())) return { ok: false, error: SIN_M8 };
+  try {
+    const r = await tenantTransaction(async (tx): Promise<Resultado> => {
+      const m = await tx.proyectoMovBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { importe: true, cuotaId: true, origenTipo: true } });
+      if (!m) return { ok: false, error: "Ese movimiento no existe." };
+      if (m.cuotaId || m.origenTipo) return { ok: false, error: "Ese movimiento ya estaba conciliado." };
+      const o = await origenVigente(tx, a.tenantId, tipo, origenId);
+      if (!o) return { ok: false, error: `Ese ${ORIGEN_LABEL[tipo]} no existe o está anulado.` };
+      if ((signoDelOrigen(tipo) > 0) !== m.importe > 0) return { ok: false, error: "El movimiento y el cobro o pago van en sentidos opuestos." };
+      if (await tx.proyectoMovBanco.findFirst({ where: { tenantId: a.tenantId, origenTipo: tipo, origenId }, select: { id: true } })) return { ok: false, error: `Ese ${ORIGEN_LABEL[tipo]} ya está conciliado con otro movimiento.` };
+      const u = await tx.proyectoMovBanco.updateMany({ where: { id, tenantId: a.tenantId, cuotaId: null, origenTipo: null }, data: { origenTipo: tipo, origenId } });
+      if (u.count === 0) return { ok: false, error: "Ese movimiento ya estaba conciliado." };
+      await registrarCambio(tx, { tenantId: a.tenantId, proyectoId: o.proyectoId, entidad: "movimiento", entidadId: id, campo: "conciliación", despues: o.texto, autor: a.nombre });
+      return { ok: true };
+    });
+    if (r.ok) revalidatePath(ADMIN);
+    return r;
+  } catch (e) {
+    // Dos movimientos al mismo origen a la vez: el segundo choca con el único y no pasa.
+    if ((e as { code?: string })?.code === "P2002") return { ok: false, error: `Ese ${ORIGEN_LABEL[tipo]} ya está conciliado con otro movimiento.` };
+    throw e;
+  }
+}
+
+const SIN_M8 = "Falta un paso técnico para usar esto (la actualización de bancos de este negocio). Avisale a soporte.";
+
+/**
+ * O35: enlaza una cuota de cobro con su factura, por tramo (anticipo, saldo o adicional). Una factura por cuota; la
+ * factura tiene que ser de este negocio (la de otro «no existe»: no se le afirma nada).
+ */
+export async function enlazarCuotaFactura(formData: FormData): Promise<Resultado> {
+  const a = await exigirEditar("empresa");
+  const cuotaId = txt(formData.get("cuotaId"));
+  const facturaId = txt(formData.get("facturaId"));
+  const tramo = txt(formData.get("tramo"));
+  if (!esTramo(tramo)) return { ok: false, error: "Elegí el tramo: anticipo, saldo o adicional." };
+  if (!(await hayM8())) return { ok: false, error: SIN_M8 };
+  try {
+    const r = await tenantTransaction(async (tx): Promise<Resultado> => {
+      const c = await tx.proyectoCuota.findFirst({ where: { id: cuotaId, tenantId: a.tenantId }, select: { tipo: true, anuladoEl: true, concepto: true, proyectoId: true } });
+      if (!c) return { ok: false, error: "Esa cuota no existe." };
+      if (c.anuladoEl) return { ok: false, error: "Esa cuota está anulada." };
+      if (c.tipo !== "COBRO") return { ok: false, error: "Sólo una cuota de cobro lleva factura." };
+      const f = await tx.invoice.findFirst({ where: { id: facturaId, tenantId: a.tenantId }, select: { id: true, puntoVenta: true, numero: true } });
+      if (!f) return { ok: false, error: "Esa factura no existe." };
+      if (await tx.proyectoCuotaFactura.findFirst({ where: { cuotaId, tenantId: a.tenantId }, select: { id: true } })) return { ok: false, error: "Esa cuota ya tiene una factura enlazada. Desenlazala primero." };
+      await tx.proyectoCuotaFactura.create({ data: { tenantId: a.tenantId, cuotaId, facturaId, tramo, creadoPor: a.nombre.slice(0, 120) } });
+      await registrarCambio(tx, { tenantId: a.tenantId, proyectoId: c.proyectoId, entidad: "cuota", entidadId: cuotaId, campo: "factura", despues: `${TRAMO_LABEL[tramo]} · ${f.numero ? `${String(f.puntoVenta).padStart(4, "0")}-${String(f.numero).padStart(8, "0")}` : "pendiente"}`, autor: a.nombre });
+      return { ok: true };
+    });
+    if (r.ok) refrescar();
+    return r;
+  } catch (e) {
+    if ((e as { code?: string })?.code === "P2002") return { ok: false, error: "Esa cuota ya tiene una factura enlazada. Desenlazala primero." };
+    throw e;
+  }
+}
+
+export async function desenlazarCuotaFactura(formData: FormData): Promise<Resultado> {
+  const a = await exigirEditar("empresa");
+  const cuotaId = txt(formData.get("cuotaId"));
+  if (!(await hayM8())) return { ok: false, error: SIN_M8 };
+  const r = await tenantTransaction(async (tx): Promise<Resultado> => {
+    const e = await tx.proyectoCuotaFactura.findFirst({ where: { cuotaId, tenantId: a.tenantId }, select: { id: true, tramo: true, cuota: { select: { proyectoId: true } } } });
+    if (!e) return { ok: false, error: "Esa cuota no tiene factura enlazada." };
+    await tx.proyectoCuotaFactura.deleteMany({ where: { id: e.id, tenantId: a.tenantId } });
+    await registrarCambio(tx, { tenantId: a.tenantId, proyectoId: e.cuota.proyectoId, entidad: "cuota", entidadId: cuotaId, campo: "factura", antes: e.tramo, despues: "sin factura", autor: a.nombre });
+    return { ok: true };
+  });
+  if (r.ok) refrescar();
+  return r;
 }
 
 /** Alta si no viene `id`; edición si viene. */
@@ -586,7 +747,9 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
         });
         // Después del asiento: si el día está cerrado, `asentarEnCajaTx` ya abortó y el saldo no se tocó.
         if (cuenta) {
-          await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId: a.tenantId }, data: { saldo: { increment: cuenta.movido } } });
+          // T08 · O38: con M8, el movimiento de la cuenta queda registrado (×1) y se puede conciliar con el extracto.
+          if (await hayM8(tx)) await moverCuentaTx(tx, a.tenantId, { cuentaId: cuenta.id, origenTipo: "LIQUIDACION", origenId: id, importeEnPesos: cuenta.movido });
+          else await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId: a.tenantId }, data: { saldo: { increment: cuenta.movido } } });
           deCuenta = ` · ${cuenta.nombre}`;
         }
       }

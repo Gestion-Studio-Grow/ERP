@@ -14,6 +14,7 @@ import { saldoDe, type EstadoOrden } from "./orden-pago-core";
 import { resultadoReal, SIN_IMPUTADO, type GastoCalculable, type Imputado, type ResultadoReal, type Totales } from "./core";
 import { porPagarDeCuotas } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { cambiosDeComprobantes, enPesosDelComprobante } from "./moneda-bancos.server";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 const n = (v: bigint | number): number => Number(v);
@@ -165,16 +166,20 @@ export async function imputadoDeProyectos(tenantId: string, proyectoIds: readonl
   const comprobantes = await siHayM1(() =>
     db.proyectoComprobante.findMany({
       where: { tenantId, anuladoEl: null, lineas: { some: { proyectoId: { in: [...proyectoIds] } } } },
-      select: { ...SELECT_SALDO, lineas: { select: { proyectoId: true, netoCentavos: true, ivaCentavos: true, costoCentavos: true } } },
+      select: { ...SELECT_SALDO, id: true, moneda: true, lineas: { select: { proyectoId: true, netoCentavos: true, ivaCentavos: true, costoCentavos: true } } },
     }),
   );
   if (!comprobantes) return salida;
+  // T08 · O31: un comprobante en otra moneda cuesta en pesos con el cambio con que se fijó su costo (su foto): pagarlo
+  // a otro cambio no mueve el costo del proyecto; la diferencia va a Administración.
+  const cambios = await cambiosDeComprobantes(db, tenantId, comprobantes);
+  const k = (c: { id: string; moneda: string }, centavos: number) => enPesosDelComprobante(centavos, c.moneda, cambios.get(c.id));
   const m = imputadoPorProyecto(
     comprobantes.map((c) => ({
-      totalCentavos: n(c.totalCentavos),
-      pagadoCentavos: cuentasDe(c).pagado,
+      totalCentavos: k(c, n(c.totalCentavos)),
+      pagadoCentavos: k(c, cuentasDe(c).pagado),
       anulado: !!c.anuladoEl,
-      lineas: c.lineas.map((l) => ({ proyectoId: l.proyectoId, netoCentavos: n(l.netoCentavos), ivaCentavos: n(l.ivaCentavos), costoCentavos: n(l.costoCentavos) })),
+      lineas: c.lineas.map((l) => ({ proyectoId: l.proyectoId, netoCentavos: k(c, n(l.netoCentavos)), ivaCentavos: k(c, n(l.ivaCentavos)), costoCentavos: k(c, n(l.costoCentavos)) })),
     })),
   );
   for (const [id, v] of m) salida.set(id, { costo: v.costo / 100, pagado: v.pagado / 100, porPagar: v.porPagar / 100 });

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { cn } from "@/components/ui";
 import { fechaCorta, fechaParaInput, pesos } from "@/lib/proyectos/core";
-import { aPesos, codigoProyecto, diasDeAtraso, estadoCuota, plataEn } from "@/lib/proyectos/gestion-core";
+import { aPesos, codigoProyecto, diasDeAtraso, estadoCuota } from "@/lib/proyectos/gestion-core";
 import { FILTROS_CUOTA, pasaFiltro, type FiltroCuota } from "@/lib/proyectos/empresa-core";
 import { proveedoresActivos, type CuotaDelNegocio, type GastoSinPagar, type SinCalendarioDelNegocio } from "@/lib/proyectos/empresa.server";
 import type { PagadoDeCuota } from "@/lib/proyectos/cobranza-core";
-import { anularCuotaEmpresa, crearPagoEmpresa } from "@/lib/proyectos/acciones-empresa";
+import { anularCuotaEmpresa, crearPagoEmpresa, desenlazarCuotaFactura, enlazarCuotaFactura } from "@/lib/proyectos/acciones-empresa";
+import { aCobrarPorCuota, facturasParaEnlazar, type ACobrarDeCuota } from "@/lib/proyectos/moneda-bancos.server";
+import { TRAMOS_FACTURA, TRAMO_LABEL, type TramoFactura } from "@/lib/proyectos/moneda-bancos-core";
 import { quitarMovimiento } from "@/lib/proyectos/acciones-ficha";
 import { textoCubierta } from "@/lib/proyectos/avisos-cuota";
 import { aPagarPorComprobante, siHayM1 } from "@/lib/proyectos/comprobantes.server";
@@ -43,6 +45,42 @@ function vence(d: Date, vencida: boolean) {
   );
 }
 
+/** O35: la factura enlazada a una cuota de cobro (tramo), con lo facturado, lo cobrado y lo retenido; o el enlace. */
+function FacturaDeCuota({ d, concepto, facturas, edita }: { d: ACobrarDeCuota; concepto: string; facturas: readonly { id: string; texto: string }[]; edita: boolean }) {
+  if (d.factura) {
+    const numero = `${String(d.factura.puntoVenta).padStart(4, "0")}-${d.factura.numero != null ? String(d.factura.numero).padStart(8, "0") : "sin número"}`;
+    return (
+      <div className="mt-1 grid gap-0.5 text-xs">
+        <span className="text-strong">Factura {numero}{d.tramo ? ` · ${TRAMO_LABEL[d.tramo as TramoFactura] ?? d.tramo}` : ""}</span>
+        <span className="tabular-nums text-muted">Facturado {pesos(d.facturado)} · cobrado {pesos(d.cobrado)}{d.retenido > 0 ? ` (retenido ${pesos(d.retenido)})` : ""}</span>
+        {edita && (
+          <FormAccion accion={desenlazarCuotaFactura} boton="Desenlazar" className="mt-1">
+            <input type="hidden" name="cuotaId" value={d.cuotaId} />
+          </FormAccion>
+        )}
+      </div>
+    );
+  }
+  if (!edita || facturas.length === 0) return d.cobrado > 0 ? <span className="mt-1 block text-xs tabular-nums text-muted">Cobrado {pesos(d.cobrado)}{d.retenido > 0 ? ` (retenido ${pesos(d.retenido)})` : ""}</span> : null;
+  return (
+    <details className="mt-1 text-xs">
+      <summary className="cursor-pointer text-muted underline underline-offset-2">Enlazar una factura</summary>
+      <FormAccion accion={enlazarCuotaFactura} boton="Enlazar" className="mt-1 grid gap-1">
+        <input type="hidden" name="cuotaId" value={d.cuotaId} />
+        <label className={etiqueta}>Factura de {concepto}
+          <select name="facturaId" required className={campo} defaultValue="">
+            <option value="" disabled>Elegí una</option>
+            {facturas.map((f) => <option key={f.id} value={f.id}>{f.texto}</option>)}
+          </select>
+        </label>
+        <label className={etiqueta}>Tramo
+          <select name="tramo" className={campo} defaultValue="ANTICIPO">{TRAMOS_FACTURA.map((t) => <option key={t} value={t}>{TRAMO_LABEL[t]}</option>)}</select>
+        </label>
+      </FormAccion>
+    </details>
+  );
+}
+
 /** En la PC la columna de las acciones queda pegada a la derecha; en el celular cada cuota es una ficha apilada, con
  *  el rótulo de cada dato arriba: el importe, el estado y los botones nunca quedan fuera de la vista (plan V2, R6). */
 const fijaDerecha = "sm:sticky sm:right-0 sm:bg-surface-raised max-sm:col-span-2";
@@ -65,6 +103,9 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
   const grupos = agrupar(ordenar(filtradas.map((x) => x.f), actual.orden), actual.agrupacion).map((g) => ({ ...g, filas: g.filas.map((f) => porId.get(f.id)!) }));
   const filas = grupos.flatMap((g) => g.filas);
   const cantColumnas = ve.size;
+  // MIA-50 · T08 (O35): cada cuota de cobro con su factura (tramo), lo facturado, lo cobrado y lo retenido. Sin M8: vacío.
+  const conFactura = tipo === "COBRO" && ve.has("factura");
+  const [o35, facturas] = conFactura ? await Promise.all([aCobrarPorCuota(tenantId, filas.slice(0, MAX_FILAS).map((c) => c.id)), editaEmpresa ? facturasParaEnlazar(tenantId) : []]) : [new Map<string, ACobrarDeCuota>(), []];
   // Lo aprobado que ninguna cuota espera: pendiente y sin fecha, así que sólo en «Pendientes» y «Todos».
   const faltantes = tipo === "COBRO" && (filtro === "pendientes" || filtro === "todos") ? sinCalendario.filter((f) => !busqueda || coincideSinCalendario(f, busqueda)) : [];
   // MIA-089 · V6: los gastos cargados sin pagar también están en «A pagar»: cada uno con su renglón.
@@ -186,12 +227,17 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
                     )}
                     {ve.has("monto") && (
                       <td data-label="Monto" className={cn("whitespace-nowrap py-2 pr-3 font-medium tabular-nums text-strong sm:text-right", celda)}>
-                        {pagado ? plataEn(pagado.monto, pagado.moneda) : plataEn(falta, c.moneda)}
-                        {(pagado ? pagado.moneda !== c.moneda || pagado.monto !== c.monto : falta !== c.monto) && <span className="block text-xs font-normal text-muted">de {plataEn(c.monto, c.moneda)}</span>}
+                        {pagado ? pesos(pagado.monto, pagado.moneda) : pesos(falta, c.moneda)}
+                        {(pagado ? pagado.moneda !== c.moneda || pagado.monto !== c.monto : falta !== c.monto) && <span className="block text-xs font-normal text-muted">de {pesos(c.monto, c.moneda)}</span>}
                       </td>
                     )}
                     {ve.has("enPesos") && <td data-label="En pesos" className={cn("whitespace-nowrap py-2 pr-3 tabular-nums text-muted sm:text-right", celda)}>{referencia > 0 ? pesos(referencia) : "—"}</td>}
-                    {ve.has("factura") && <td data-label="Factura" className={cn("py-2 pr-3", celda)}>{editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}</td>}
+                    {ve.has("factura") && (
+                      <td data-label="Factura" className={cn("py-2 pr-3", celda)}>
+                        {editaEmpresa ? <DatoCuota id={c.id} dato="factura" valor={c.factura ?? ""} etiqueta="Factura" /> : (c.factura ?? "—")}
+                        {o35.has(c.id) && <FacturaDeCuota d={o35.get(c.id)!} concepto={c.concepto} facturas={facturas} edita={editaEmpresa} />}
+                      </td>
+                    )}
                     {ve.has("estado") && <td data-label="Estado" className={cn("whitespace-nowrap py-2 pr-3", celda, vencida && "font-medium text-danger")}>{c.noSeCobra ? "No se cobra" : est === "PAGADA" && c.tipo === "COBRO" ? "Cobrada" : ESTADO_LABEL[est]}</td>}
                     {ve.has("comentario") && <td data-label="Comentario" className={cn("py-2 pr-3", celda)}>{editaEmpresa ? <DatoCuota id={c.id} dato="comentario" valor={c.comentario ?? ""} etiqueta="Comentario" /> : (c.comentario ?? "—")}</td>}
                     <td className={cn("py-2 sm:pl-3", fijaDerecha, vencida && "sm:bg-danger-soft")}>
@@ -225,7 +271,7 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
                       <span className="block max-w-56 text-xs text-muted">Falta cobrarlo y no tiene cuota cargada.</span>
                     </td>
                   )}
-                  {ve.has("monto") && <td data-label="Monto" className={cn("whitespace-nowrap py-2 pr-3 font-medium tabular-nums text-strong sm:text-right", celda)}>{plataEn(f.monto, f.moneda)}</td>}
+                  {ve.has("monto") && <td data-label="Monto" className={cn("whitespace-nowrap py-2 pr-3 font-medium tabular-nums text-strong sm:text-right", celda)}>{pesos(f.monto, f.moneda)}</td>}
                   {ve.has("enPesos") && <td data-label="En pesos" className={cn("whitespace-nowrap py-2 pr-3 tabular-nums text-muted sm:text-right", celda)}>{pesos(f.pesos)}</td>}
                   {ve.has("factura") && <td data-label="Factura" className={cn("py-2 pr-3 text-muted", celda)}>—</td>}
                   {ve.has("estado") && <td data-label="Estado" className={cn("whitespace-nowrap py-2 pr-3", celda)}>Pendiente</td>}

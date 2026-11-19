@@ -35,6 +35,9 @@ import { esClaveRepetida, faltaLaMigracion } from "./rendiciones-core";
 import { etapa2ActivaPara } from "./etapa2.server";
 import { MENSAJE_APAGADO } from "./etapa2-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
+import { cambioDelMovimiento, cuentaDelNegocio, guardarFotoTx, hayM8, hoyArgentina, moverCuentaTx } from "./moneda-bancos.server";
+import { esDiaValido, fotoEnPesos } from "./moneda-bancos-core";
+import { valorDelNegocio } from "./parametros/leer.server";
 
 /** `confirmar`: el servidor no grabó porque necesita un sí explícito; es el texto de la casilla que lo da (ver `FormAccion`). */
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string; confirmar?: string };
@@ -213,10 +216,24 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ li
   const { user, tenantId } = a;
   const proyectoId = txt(formData.get("proyectoId"));
   const medio = txt(formData.get("medio")) as MedioPago;
-  const monto = redondear(numero(formData.get("monto")));
+  const original = redondear(numero(formData.get("monto")));
   if (!MEDIOS.includes(medio)) return { ok: false, error: "Elegí el medio de cobro." };
-  if (!(monto > 0)) return { ok: false, error: "Escribí el monto del cobro." };
+  if (!(original > 0)) return { ok: false, error: "Escribí el monto del cobro." };
   if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
+  // T08 · O39: el cobro en otra moneda se pasa a pesos con el cambio del día del cobro (o el último anterior), y queda
+  // la foto (moneda, original, cambio, pesos): cargar un cambio nuevo después no lo mueve. Sin cambio: rechazo.
+  const monedaCobro = txt(formData.get("moneda")) || "ARS";
+  const dia = txt(formData.get("fecha")) || hoyArgentina();
+  if (!esDiaValido(dia) || dia > hoyArgentina()) return { ok: false, error: "La fecha del cobro no es válida (no puede ser posterior a hoy)." };
+  if (monedaCobro !== "ARS" && !(await valorDelNegocio(tenantId, "moneda.habilitadas")).includes(monedaCobro)) return { ok: false, error: `${monedaCobro} no es una moneda habilitada del negocio.` };
+  const cambio = await cambioDelMovimiento(prisma, tenantId, monedaCobro, dia);
+  if (!cambio.ok) return { ok: false, error: cambio.error };
+  const foto = fotoEnPesos(monedaCobro, original, cambio.cambioCentavos);
+  const monto = foto.pesosCentavos / 100;
+  // T08 · O38: el cobro por transferencia entra a una cuenta del negocio; su saldo sube una sola vez.
+  const cuentaId = txt(formData.get("cuentaId"));
+  if (cuentaId && !(await hayM8())) return { ok: false, error: "Para elegir la cuenta falta una actualización de la base. Registralo sin cuenta." };
+  if (cuentaId && !(await cuentaDelNegocio(prisma, tenantId, cuentaId))) return { ok: false, error: "Esa cuenta no existe." };
   const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
   if (!p) return { ok: false, error: "Ese proyecto ya no existe. Recargá la página." };
   const nota = txt(formData.get("nota")) || null;
@@ -263,7 +280,9 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ li
       if (igual) return { parecido: igual.createdAt };
     }
     const creado = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto, nota, cobradoPor: user.name, ...(conClave && clave && { claveEnvio: clave }) }, select: { id: true } });
-    await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Cobro", despues: `${MEDIO_LABEL[medio]} · ${pesos(monto)}`, autor: user.name });
+    await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Cobro", despues: `${MEDIO_LABEL[medio]} · ${pesos(monto)}${monedaCobro !== "ARS" ? ` (${pesos(original, monedaCobro)})` : ""}`, autor: user.name });
+    await guardarFotoTx(tx, tenantId, { origenTipo: "COBRO", origenId: creado.id, foto, cambioDia: cambio.dia });
+    if (cuentaId) await moverCuentaTx(tx, tenantId, { cuentaId, origenTipo: "COBRO", origenId: creado.id, importeEnPesos: monto });
     if (envio) await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPago", entidadId: creado.id, campo: "Envío", antes: envio, despues: creado.id, autor: user.name });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
     await asentarEnCajaTx(tx, "cobro", {
@@ -452,6 +471,10 @@ export async function pagarGasto(formData: FormData): Promise<Resultado> {
   });
   // Un gasto de un proyecto que esta persona no ve no existe para ella: el mismo texto que un id que no está.
   if (!g || !(await proyectoDelActor(a, g.proyectoId))) return { ok: false, error: "Ese gasto no existe o es de un proyecto que no ves." };
+  // T08 · O38: el pago por transferencia sale de una cuenta del negocio; su saldo baja una sola vez (y vuelve al anular).
+  const cuentaId = txt(formData.get("cuentaId"));
+  if (cuentaId && !(await hayM8())) return { ok: false, error: "Para elegir la cuenta falta una actualización de la base. Pagalo sin cuenta." };
+  if (cuentaId && !(await cuentaDelNegocio(prisma, tenantId, cuentaId))) return { ok: false, error: "Esa cuenta no existe." };
   let pagado: boolean;
   try {
     pagado = await transaccionQueAsienta(async (tx) => {
@@ -460,6 +483,9 @@ export async function pagarGasto(formData: FormData): Promise<Resultado> {
       if (r.count === 0) return false;
       await registrarCambio(tx, { tenantId, proyectoId: g.proyectoId, entidad: "ProyectoGasto", entidadId: id, campo: "Costo real pagado", despues: `${g.descripcion} · ${MEDIO_LABEL[medio]}`, autor: user.name });
       await asentarPagoDeGastoTx(tx, tenantId, g, g.proyecto.numero, medio, g.supplier?.name ?? null);
+      const total = redondear(g.neto + g.iva);
+      await guardarFotoTx(tx, tenantId, { origenTipo: "PAGO", origenId: id, foto: fotoEnPesos("ARS", total, 100), cambioDia: null });
+      if (cuentaId) await moverCuentaTx(tx, tenantId, { cuentaId, origenTipo: "PAGO", origenId: id, importeEnPesos: -total });
       return true;
     });
   } catch (err) {

@@ -8,6 +8,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { pagarGasto, registrarCobro } from "@/lib/proyectos/acciones";
 import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, redondear, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
+import { MEDIO_RETENCION } from "@/lib/proyectos/moneda-bancos-core";
 import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, perdidoAdmite, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
 import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, totalesFicha } from "@/lib/proyectos/gestion-core";
@@ -504,8 +505,18 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
           <ul className="mb-3 grid gap-1 text-sm">
             {d.pagos.map((c) => (
               <li key={c.id} className={cn("flex flex-wrap items-center justify-between gap-2 border-t border-line py-1", c.anuladoEl && "text-muted line-through")}>
-                <span>{fechaCorta(c.createdAt)} · {MEDIO_LABEL[c.medio as MedioPago] ?? c.medio}{c.nota && ` · ${c.nota}`} · <strong>{pesos(c.monto)}</strong></span>
-                {!c.anuladoEl && vista.editaPagos && <BotonConConfirmacion accion={anularCobroFicha} ocultos={{ id: c.id }} texto="Anular" textoConfirma="Sí, anular" etiqueta={`Anular cobro de ${pesos(c.monto)}`} />}
+                {c.medio === MEDIO_RETENCION ? (
+                  <>
+                    {/* O36: la retención no entró al banco y no se anula sola: cae con el cobro que la trajo (acciones-ficha). */}
+                    <span>{fechaCorta(c.createdAt)} · {c.nota || "Retención sufrida"} · <strong>{pesos(c.monto)}</strong></span>
+                    {!c.anuladoEl && vista.editaPagos && <span className="text-muted">Se anula con su cobro</span>}
+                  </>
+                ) : (
+                  <>
+                    <span>{fechaCorta(c.createdAt)} · {MEDIO_LABEL[c.medio as MedioPago] ?? c.medio}{c.nota && ` · ${c.nota}`} · <strong>{pesos(c.monto)}</strong></span>
+                    {!c.anuladoEl && vista.editaPagos && <BotonConConfirmacion accion={anularCobroFicha} ocultos={{ id: c.id }} texto="Anular" textoConfirma="Sí, anular" etiqueta={`Anular cobro de ${pesos(c.monto)}`} />}
+                  </>
+                )}
               </li>
             ))}
           </ul>
