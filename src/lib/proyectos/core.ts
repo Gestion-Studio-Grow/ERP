@@ -67,10 +67,14 @@ export function leerNumero(texto: string): number {
 
 export const redondear = redondearAlCentavo;
 
-export function pesos(n: number): string {
-  // Sin centavos si el importe no los tiene; con ellos, tal cual: un cobro de $ 1.500,75 no se muestra como $ 1.501.
-  const d = admiteCentavos(n) && !Number.isInteger(n) ? 2 : 0;
-  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
+/**
+ * El helper único de plata (MIA-50 adenda 1 § A). Una sola regla: se redondea al centavo y se muestra el redondeado,
+ * sin centavos si da entero (1.500,004 → $ 1.500) y con 2 si no ($ 1.500,75). La moneda es USD si dice «USD»; si no, ARS.
+ */
+export function pesos(n: number, moneda = "ARS"): string {
+  const r = redondear(n);
+  const d = admiteCentavos(r) && !Number.isInteger(r) ? 2 : 0;
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: moneda === "USD" ? "USD" : "ARS", minimumFractionDigits: d, maximumFractionDigits: d }).format(r);
 }
 
 export function porcentaje(n: number): string {

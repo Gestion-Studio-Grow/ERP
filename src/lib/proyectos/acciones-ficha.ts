@@ -30,6 +30,8 @@ import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDir
 import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
+import { evaluarPase, textoDelPase, type Pase } from "./compuertas-core";
+import { valorDelNegocio } from "./parametros/leer.server";
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
@@ -166,24 +168,38 @@ export async function crearLead(formData: FormData): Promise<ResultadoFicha<{ id
  * Con un cobro o un pago registrado no se vuelve a una etapa anterior a Confirmado (pregunta 1 = A, provisional a
  * confirmar por el dueño): primero se anula o se marca perdido.
  */
-export async function moverProyecto(d: { id: string; destino: string; motivo?: string }): Promise<ResultadoFicha> {
+/** El resultado de mover: si la compuerta frena, la lista de lo que falta y si quien mueve puede forzar el paso. */
+export type ResultadoMover = ResultadoFicha | { ok: false; error: string; faltan: string[]; puedeForzar: boolean };
+
+/**
+ * Mueve el proyecto de estado (MIA-50 T02 · O02 y O03). Exige «pipeline» en editar y guarda quién y cuándo. Al pasar de
+ * etapa mide la compuerta (`compuertas-core.ts`): si falta algo, avisa y pasa; si la etapa que se deja frena, no pasa,
+ * salvo que Dirección lo fuerce con motivo, y eso queda en el historial. Ningún valor nuevo de `Proyecto.etapa`.
+ */
+export async function moverProyecto(d: { id: string; destino: string; motivo?: string; forzar?: boolean; motivoForzar?: string }): Promise<ResultadoMover> {
   const id = String(d.id ?? "");
   const a = await entrar("pipeline", id);
   if (typeof a === "string") return mal(a);
   const { tenantId } = a;
   const motivo = String(d.motivo ?? "").trim().slice(0, 300);
+  const motivoForzar = String(d.motivoForzar ?? "").trim().slice(0, 300);
   if (d.destino === PERDIDO && !motivo) return mal("Escribí por qué se perdió.");
   if (d.destino !== PERDIDO && !esEtapa(d.destino)) return mal("Esa etapa no existe.");
+  if (d.forzar && a.rol !== "DIRECCION") return mal("Sólo Dirección puede forzar el paso de etapa.");
+  if (d.forzar && !motivoForzar) return mal("Escribí por qué se fuerza el paso.");
   // Afuera de la transacción: una lectura por otra conexión, adentro, la traba.
   const destinatarios0 = await usuariosDelEquipo(tenantId, id, a.user.id);
+  const etapas = await valorDelNegocio(tenantId, "etapas.lista");
+  const rendicionesPendientes = await rendicionesSinCerrar(tenantId, id);
   const r = await tenantTransaction(
-    async (tx): Promise<string | null | { antes: string; despues: string }> => {
+    async (tx): Promise<string | null | { faltan: string[] } | { antes: string; despues: string; aviso: string | null }> => {
       await trabarCobranza(tx, tenantId, id);
-      const p = await tx.proyecto.findFirst({ where: { id, tenantId }, select: { etapa: true, perdidoEl: true, nombre: true, servicio: true } });
+      const p = await tx.proyecto.findFirst({ where: { id, tenantId }, select: { etapa: true, perdidoEl: true, nombre: true, servicio: true, brief: true, responsable: true, fechaEvento: true, fechaDesarme: true, fechaFin: true } });
       if (!p) return "Ese proyecto no existe.";
       const antes = p.perdidoEl ? "Perdido" : etapaLabel(p.etapa, p.servicio);
       let despues: string;
       let data: Prisma.ProyectoUpdateManyMutationInput;
+      let pase: Pase = { faltan: [], frena: false };
       if (d.destino === PERDIDO) {
         if (p.perdidoEl) return null;
         despues = "Perdido";
@@ -194,22 +210,44 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
         if (p.etapa === destino && !p.perdidoEl) return null;
         if (!p.perdidoEl && generaCuotas(p.etapa) && !generaCuotas(destino) && (await tienePlataRegistrada(tx, tenantId, id)))
           return "Este proyecto ya tiene un cobro o un pago registrado: no vuelve a una etapa anterior a Confirmado. Primero anulá el cobro o el pago, o marcalo como perdido.";
+        if (!p.perdidoEl) {
+          const aprobada = (await tx.proyectoPresupuesto.count({ where: { tenantId, proyectoId: id, estado: "APROBADO" } })) > 0;
+          const finEvento = p.fechaFin ?? p.fechaDesarme ?? p.fechaEvento;
+          pase = evaluarPase(etapas, p.etapa, destino, { brief: p.brief, responsable: p.responsable, aprobada, finEvento, rendicionesPendientes }, new Date());
+          if (pase.frena && !d.forzar) return { faltan: pase.faltan.map((f) => f.texto) };
+        }
         despues = etapaLabel(destino, p.servicio);
         data = { etapa: destino, perdidoEl: null, motivoPerdida: null };
       }
       await tx.proyecto.updateMany({ where: { id, tenantId }, data });
       await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Etapa", antes, despues: motivo && d.destino === PERDIDO ? `Perdido: ${motivo}` : despues, autor: a.nombre });
+      const faltaba = pase.faltan.map((f) => f.texto).join(" ");
+      if (pase.faltan.length > 0)
+        await registrarCambio(tx, pase.frena
+          ? { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Compuerta forzada", antes: faltaba, despues: `Forzó Dirección: ${motivoForzar}`, autor: a.nombre }
+          : { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Compuerta (aviso)", antes: faltaba, despues: `Pasó a ${despues} con faltantes`, autor: a.nombre });
       await avisar(tx, { tenantId, destinatarios: destinatarios0, tipo: "etapa", texto: `${p.nombre} pasó a ${despues}`, enlace: `${RAIZ}/${id}` });
       await regenerarCuotasTx(tx, tenantId, id);
-      return { antes, despues };
+      return { antes, despues, aviso: pase.faltan.length > 0 && !pase.frena ? textoDelPase(etapas, d.destino, pase) : null };
     },
     { tenantId, timeoutMs: 15_000 },
   );
   if (typeof r === "string") return mal(r);
   if (!r) return { ok: true };
+  if ("faltan" in r) return { ok: false, error: "La compuerta de esta etapa frena el paso. Falta:", faltan: r.faltan, puedeForzar: a.rol === "DIRECCION" };
   await auditAdmin({ action: "proyecto.etapa", entity: "Proyecto", entityId: id, changes: { de: r.antes, a: r.despues } });
   refrescar(id);
-  return { ok: true };
+  return r.aviso ? { ok: true, aviso: r.aviso } : { ok: true };
+}
+
+/** Rendiciones de gastos de campo sin cerrar. Sin la tabla (migración sin aplicar), ninguna. */
+async function rendicionesSinCerrar(tenantId: string, proyectoId: string): Promise<number> {
+  try {
+    return await prisma.proyectoRendicion.count({ where: { tenantId, proyectoId, estado: { in: ["borrador", "enviada", "devuelta"] } } });
+  } catch (e) {
+    if (faltaLaMigracion(e)) return 0;
+    throw e;
+  }
 }
 
 /** Si el proyecto tiene plata que ya se movió: un cobro o un pago vivo. Con el candado de la cobranza tomado. */

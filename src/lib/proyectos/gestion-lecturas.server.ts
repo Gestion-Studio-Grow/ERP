@@ -14,7 +14,7 @@ import { datosDelNegocio } from "./datos.server";
 import { leerRef } from "./diseno-core";
 import { aPesos, generaCuotas, rolDelActor } from "./gestion-core";
 import { filtroDeProyectos, puede, tiposDeCambio, type Actor } from "./gestion.server";
-import { claveDia, diasDelRango, enlaceSeguro, laminasPublicas, mediodia, paginacion, tokenDeCalendario, usuarioDelToken, versionesVivas, type EntradaCalendario, type TipoCalendario } from "./gestion-lecturas-core";
+import { claveDia, diasDelRango, enlaceSeguro, laminasPublicas, mediodia, paginacion, tokenDeCalendario, usuarioDelToken, versionesVivas, type EntradaCalendario, type FiltroCalendario, type TipoCalendario } from "./gestion-lecturas-core";
 import { redondear } from "./core";
 import { faltaDelPago } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
@@ -28,11 +28,19 @@ const proyectoActivo = { perdidoEl: null, etapa: { not: "CIERRE" } } satisfies P
 
 // ── Calendario ──────────────────────────────────────────────────────────────
 
+/** La persona por la que se filtra: la ficha (si tiene) y el nombre con que figura como responsable. */
+type Quien = { personaId: string | null; nombre: string };
+
+/** Las personas activas del negocio, para el filtro «Persona» del calendario. */
+export function personasDelCalendario(a: Actor) {
+  return prisma.proyectoPersona.findMany({ where: { tenantId: a.tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true }, take: 200 });
+}
+
 /** Los proyectos donde la persona trabaja: en el equipo o como responsable. Es lo que significa «Sólo lo mío». */
-async function idsDeMisProyectos(a: Actor): Promise<Set<string>> {
+async function idsDeProyectosDe(tenantId: string, quien: Quien): Promise<Set<string>> {
   const [equipo, responsable] = await Promise.all([
-    a.personaId ? prisma.proyectoEquipo.findMany({ where: { tenantId: a.tenantId, personaId: a.personaId }, select: { proyectoId: true } }) : [],
-    prisma.proyecto.findMany({ where: { tenantId: a.tenantId, responsable: a.nombre }, select: { id: true }, take: 500 }),
+    quien.personaId ? prisma.proyectoEquipo.findMany({ where: { tenantId, personaId: quien.personaId }, select: { proyectoId: true } }) : [],
+    prisma.proyecto.findMany({ where: { tenantId, responsable: quien.nombre }, select: { id: true }, take: 500 }),
   ]);
   return new Set([...equipo.map((e) => e.proyectoId), ...responsable.map((p) => p.id)]);
 }
@@ -51,9 +59,14 @@ export function reunionesDelPeriodo(a: Actor, desde: Date, hasta: Date) {
  * Todo lo que tiene fecha entre `desde` y `hasta`, según lo que la persona puede ver. Los pagos y cobros sólo se consultan
  * con permiso `pagos`: sin él, no salen de la base. Lo ya hecho (ítem entregado, tarea cerrada, cuota pagada) no se muestra.
  */
-export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, soloMias: boolean): Promise<EntradaCalendario[]> {
+export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, filtro: boolean | FiltroCalendario): Promise<EntradaCalendario[]> {
   const { tenantId } = a;
-  const visibles = filtroDeProyectos(a);
+  const f: FiltroCalendario = typeof filtro === "boolean" ? { soloMias: filtro, persona: null, etapaId: null, estados: null, proyectoId: null } : filtro;
+  // O06: por persona (otra o yo), por etapa (sus estados) y por proyecto. Lo que no es de un proyecto sale si no se acota.
+  const quien: Quien | null = f.persona ? { personaId: f.persona.id, nombre: f.persona.nombre } : f.soloMias ? { personaId: a.personaId, nombre: a.nombre } : null;
+  const soloMias = !!quien;
+  const acotado = !!(f.estados || f.proyectoId);
+  const visibles: Prisma.ProyectoWhereInput = { ...filtroDeProyectos(a), ...(f.estados ? { etapa: { in: [...f.estados] } } : {}), ...(f.proyectoId ? { id: f.proyectoId } : {}) };
   const rango = { gte: desde, lte: hasta };
   const verPagos = puede(a, "pagos", "ver");
   const verEmpresa = puede(a, "empresa", "ver");
@@ -67,7 +80,7 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, sol
       take: 500,
     }),
     prisma.proyectoReunion.findMany({
-      where: { tenantId, fecha: rango, OR: [{ proyectoId: null }, { proyecto: visibles }] },
+      where: { tenantId, fecha: rango, OR: [...(acotado ? [] : [{ proyectoId: null }]), { proyecto: visibles }] },
       select: { id: true, titulo: true, tipo: true, fecha: true, lugar: true, creadaPor: true, proyectoId: true, proyecto: { select: { nombre: true } } },
       take: 500,
     }),
@@ -83,7 +96,7 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, sol
     }),
     verPagos
       ? prisma.proyectoCuota.findMany({
-          where: { tenantId, venceEl: rango, pagadoEl: null, anuladoEl: null, prevista: false, OR: [{ proyecto: visibles }, ...(verEmpresa ? [{ proyectoId: null }] : [])] },
+          where: { tenantId, venceEl: rango, pagadoEl: null, anuladoEl: null, prevista: false, OR: [{ proyecto: visibles }, ...(verEmpresa && !acotado ? [{ proyectoId: null }] : [])] },
           select: { id: true, tipo: true, concepto: true, monto: true, moneda: true, venceEl: true, proyectoId: true, proyecto: { select: { nombre: true } } },
           take: 800,
         })
@@ -95,7 +108,7 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, sol
           take: 800,
         })
       : [],
-    soloMias ? idsDeMisProyectos(a) : new Set<string>(),
+    quien ? idsDeProyectosDe(tenantId, quien) : new Set<string>(),
   ]);
 
   // Sólo la ficha viva: una versión vieja repetiría las mismas fechas.
@@ -122,13 +135,14 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, sol
     if (p.fechaDesarme && dentro(p.fechaDesarme)) sumar(`desarme-${p.id}`, "MONTAJE", `Desarme: ${p.nombre}`, p.fechaDesarme, p.id, p.nombre);
   }
   for (const r of reuniones) {
-    if (soloMias && r.creadaPor !== a.nombre && !(r.proyectoId && mios.has(r.proyectoId))) continue;
+    if (quien && r.creadaPor !== quien.nombre && !(r.proyectoId && mios.has(r.proyectoId))) continue;
     const tipo = (["REUNION", "MONTAJE", "EVENTO_TENTATIVO"] as const).find((t) => t === r.tipo) ?? "REUNION";
     sumar(`reunion-${r.id}`, tipo, r.lugar ? `${r.titulo} (${r.lugar})` : r.titulo, r.fecha, r.proyectoId, r.proyecto?.nombre ?? null, { conHora: true });
   }
   for (const t of tareas) {
     const suya = (!!a.personaId && t.personaId === a.personaId) || t.responsable === a.nombre;
-    if (soloMias && !suya) continue;
+    const deQuien = !quien || (!!quien.personaId && t.personaId === quien.personaId) || t.responsable === quien.nombre;
+    if (!deQuien) continue;
     if (t.area === "DISENO" && !verDiseno && !suya) continue;
     sumar(`tarea-${t.id}`, "TAREA", t.titulo, t.venceEl!, t.proyectoId, t.proyecto.nombre);
   }

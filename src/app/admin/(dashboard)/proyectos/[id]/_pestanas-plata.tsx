@@ -10,7 +10,7 @@ import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, cr
 import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, redondear, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
 import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, perdidoAdmite, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
-import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, plataEn, totalesFicha, ventaEn } from "@/lib/proyectos/gestion-core";
+import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, MONEDAS, totalesFicha } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { textoPagado } from "@/lib/proyectos/cobranza-core";
@@ -22,6 +22,7 @@ import { BotonConConfirmacion, FormAccion } from "./_cliente";
 import { FormGasto } from "./_gastos";
 import { CopiarLink } from "./_piezas";
 import { PlanillaVenta } from "./_planilla";
+import { importe as importeEn, importeDeVenta } from "../_tabla";
 import { Numero } from "./_pestanas-datos";
 
 const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-strong";
@@ -41,14 +42,14 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
   const comparada = versiones.find((v) => v.id === cambios);
   const anterior = comparada ? versiones.find((v) => v.version < comparada.version) : undefined;
   const diferencia = comparada && anterior ? cambiosEntreVersiones(foto(anterior), foto(comparada)) : null;
-  const enComparada = (n: number) => ventaEn(n, p.moneda, cambioDeVenta(p.moneda, comparada?.tcVenta, tc));
+  const enComparada = (n: number) => importeDeVenta(n, p.moneda, cambioDeVenta(p.moneda, comparada?.tcVenta, tc));
   const viva = versiones[0];
   const hayBorrador = !!viva && sePuedeEditar(viva.estado);
   const planillaViva = viva ? planillaDeVenta(viva.items, tc, recargo) : null;
   const wa = waLink(p.client.phone, `Hola ${p.client.name}! Te compartimos la propuesta de ${negocio.nombre} para "${p.nombre}":`);
 
   return (
-    <div className="grid gap-4">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
       <section className={tarjeta} aria-label="Versiones">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold text-strong">Versiones</h2>
@@ -84,8 +85,8 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                   )}
                 </div>
                 <dl className="mb-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                  <Numero titulo="Total sin IVA" valor={ventaEn(t.venta, p.moneda, cambio)} />
-                  {verMargen && <Numero titulo={editable ? "Margen" : enviado ? "Margen al enviar" : "Margen al cambio de hoy"} valor={`${ventaEn(enviado?.margen ?? t.margen, p.moneda, cambio)} (${porcentaje(enviado?.pct ?? t.margenPct)})`} />}
+                  <Numero titulo="Total sin IVA" valor={importeDeVenta(t.venta, p.moneda, cambio)} />
+                  {verMargen && <Numero titulo={editable ? "Margen" : enviado ? "Margen al enviar" : "Margen al cambio de hoy"} valor={`${importeDeVenta(enviado?.margen ?? t.margen, p.moneda, cambio)} (${porcentaje(enviado?.pct ?? t.margenPct)})`} />}
                   <Numero titulo="Fecha" valor={fechaCorta(v.enviadoEl ?? v.createdAt)} />
                   <Numero titulo="Quién" valor={v.creadoPor ?? "—"} />
                 </dl>
@@ -219,9 +220,9 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   const sinCuota = d.flujo.inicial > 0 && (activo === "todos" || activo === "cobros") ? d.flujo.inicial : 0;
   const verCosto = !vista.ocultas.has("costoTotal");
   const cambioEvento = cambioDeVenta(p.moneda, cab.base?.tcVenta, cab.tc);
-  const enEvento = (n: number) => ventaEn(n, p.moneda, cambioEvento);
+  const enEvento = (n: number) => importeDeVenta(n, p.moneda, cambioEvento);
   // El cashflow se calcula al cambio de hoy, cuota por cuota: se muestra con ese mismo, no con el fijado al vender.
-  const enCaja = (n: number) => ventaEn(n, p.moneda, cambioDeVenta(p.moneda, null, cab.tc));
+  const enCaja = (n: number) => importeDeVenta(n, p.moneda, cambioDeVenta(p.moneda, null, cab.tc));
 
   // minmax(0,1fr): sin eso la columna de la grilla toma el ancho de la tabla (920 px) y en un celular la página
   // entera desborda (QA MIA #7). Así la tabla se desliza adentro de su contenedor con overflow-x-auto.
@@ -305,16 +306,16 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                       </td>
                       <td className="hidden py-1.5 pr-2 sm:table-cell">{contraparte}</td>
                       <td className="py-1.5 pr-2 text-right tabular-nums">
-                        {plataEn(c.monto, c.moneda)}
+                        {importeEn(c.monto, c.moneda)}
                         {/* Lo que le falta: a un cobro, después de lo cobrado aparte o en parte; a un pago, de lo pagado en parte. */}
-                        {!c.pagadoEl && !c.anuladoEl && redondear(c.pendiente) !== c.monto && <span className="block text-xs text-muted">Falta {plataEn(c.pendiente, c.moneda)}</span>}
+                        {!c.pagadoEl && !c.anuladoEl && redondear(c.pendiente) !== c.monto && <span className="block text-xs text-muted">Falta {importeEn(c.pendiente, c.moneda)}</span>}
                         {/* Lo que se pagó tal como entró (el original y los pesos asentados), no lo que vale hoy: eso va en el importe. */}
                         {c.pagado && (c.pagado.pesos !== null || c.pagado.moneda !== c.moneda || c.pagado.monto !== c.monto) && <span className="block text-xs text-muted">Pagó {textoPagado(c.pagado)}</span>}
                       </td>
                       <td className={cn("hidden py-1.5 pr-2 text-right tabular-nums sm:table-cell", importe < 0 ? "text-danger" : "text-strong")}>
                         {enCaja(importe)}
                         {/* La línea es la cuota entera (como la de cobro: lo que entró más lo que falta); lo ya pagado en partes se dice. */}
-                        {c.tipo !== "COBRO" && !c.pagadoEl && !c.anuladoEl && c.cobrado > 0 && <span className="block text-xs text-muted">{plataEn(c.cobrado, c.moneda)} ya pagado en partes</span>}
+                        {c.tipo !== "COBRO" && !c.pagadoEl && !c.anuladoEl && c.cobrado > 0 && <span className="block text-xs text-muted">{importeEn(c.cobrado, c.moneda)} ya pagado en partes</span>}
                       </td>
                       <td className={cn("hidden py-1.5 pr-2 text-right font-medium tabular-nums sm:table-cell", saldo < 0 && "text-danger")}>{enCaja(saldo)}</td>
                       <td className="col-span-2 py-1.5 pr-2">{c.prevista && !c.pagadoEl ? <Badge tone="neutral">Prevista</Badge> : <Badge tone={estado === "PAGADA" ? "success" : estado === "VENCIDA" ? "danger" : "neutral"}>{estado === "PAGADA" ? (c.tipo === "COBRO" ? "Cobrado" : "Pagado") : estado === "VENCIDA" ? "Vencido" : "Pendiente"}</Badge>}</td>
@@ -350,7 +351,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                                   cuota queda marcada. `visto`: lo que faltaba al cargar la pantalla; si cambió, «todo» no se asienta. */}
                               <input type="hidden" name="envio" value={randomUUID()} />
                               <input type="hidden" name="visto" value={String(c.pendiente)} />
-                              <input name="monto" inputMode="decimal" aria-label={`Monto a ${c.tipo === "COBRO" ? "cobrar" : "pagar"} de ${c.concepto}, en ${c.moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${plataEn(c.pendiente, c.moneda)}`} className={cn(campoEnLinea, "w-40")} />
+                              <input name="monto" inputMode="decimal" aria-label={`Monto a ${c.tipo === "COBRO" ? "cobrar" : "pagar"} de ${c.concepto}, en ${c.moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${importeEn(c.pendiente, c.moneda)}`} className={cn(campoEnLinea, "w-40")} />
                               <SubmitButton className={buttonClasses("outline", "md")}>{c.tipo === "COBRO" ? "Marcar cobrado" : "Marcar pagado"}</SubmitButton>
                             </FormAccion>
                             {!c.auto && <BotonConConfirmacion accion={quitarMovimiento} ocultos={{ id: c.id, proyectoId: p.id }} texto="Quitar" textoConfirma="Quitar" etiqueta={`Quitar ${c.concepto}`} />}
