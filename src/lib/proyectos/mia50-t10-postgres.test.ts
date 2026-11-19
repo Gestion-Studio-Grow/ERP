@@ -884,3 +884,28 @@ test("MIA-189 · 2 · C-O21 con una cuota a pagar contada al congelar y quitada 
   assert.deepEqual(r.renglones, [["empresa", $(7_500)], ["prod", $(2_500)]]);
   assert.equal(r.suma, $(590_000), "liquidación + ajustes = 1.490.000 − 900.000, al centavo");
 });
+
+test("MIA-191 · 4a · pagar una cuota congelada (gasto +10.000, cuota −10.000) no propone ajuste, no gasta el código y sigue en 580.000", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const z = await p.z();
+  const cuota = await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: z.id, tipo: "PAGO", concepto: "Flete", monto: 10_000, moneda: "ARS", venceEl: FUTURO, auto: false }, select: { id: true } });
+  ok(p.valor(await p.como(p.admin.userId, () => p.acc.declararCostosCompletos(p.form({ proyectoId: z.id })))));
+  ok(p.valor(await p.como(p.admin.userId, () => p.acc.revisarLiquidacionProyecto(p.form({ proyectoId: z.id, nota: "Flete a pagar" })))));
+  const [c1, c2] = await p.masCodigos(p.dir);
+  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId: z.id, codigo: c1 })))));
+  const ficha = await import("./acciones-ficha");
+  ok(p.valor(await p.como(p.admin.userId, () => ficha.marcarCuota(p.form({ id: cuota.id, medio: "TRANSFERENCIA" })))) as Res);
+  const gastos = await p.enA((tx) => tx.proyectoGasto.findMany({ where: { proyectoId: z.id, anuladoEl: null }, select: { neto: true } }));
+  assert.deepEqual(gastos.map((g) => Number(g.neto)), [10_000], "pagar la cuota asentó el gasto");
+  const cab = (await p.liq(z.id))[0];
+  const propuesta = await p.enA((tx) => p.lectura.propuestaDeAjuste(tx, p.a.id, cab));
+  assert.equal(propuesta && { pendientes: propuesta.pendientes.map((x) => x.costo), renglones: propuesta.renglones.length }, null, "lo pendiente suma 0: no hay propuesta");
+  const antes = await p.codigosDe(p.dir);
+  const r1 = p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c2 }))));
+  assert.match(String((r1 as Res).listo ?? ""), /ya estaba hecho/);
+  assert.equal(await p.codigosDe(p.dir), antes, "no gastó el código");
+  const r = await sumaConAjustes(p, z.id);
+  assert.deepEqual(r.renglones, [], "ningún renglón de ajuste");
+  assert.equal(r.suma, $(580_000), "liquidación = 1.490.000 − 910.000, al centavo");
+});

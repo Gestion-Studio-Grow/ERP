@@ -276,7 +276,7 @@ export interface PropuestaDeAjuste {
 /**
  * Lo que falta ajustar de una liquidación APROBADA: los comprobantes que entraron después de congelar el costo y no cubre
  * ningún ajuste anterior, y lo que cambia cada línea con el costo real nuevo (la foto y el parámetro de defensa negativa
- * son los congelados al declarar). `null` si no hay nada pendiente.
+ * son los congelados al declarar). `null` si no hay nada pendiente o si lo pendiente suma 0 (MIA-191).
  */
 export async function propuestaDeAjuste(db: Db, tenantId: string, cab: LiquidacionGuardada): Promise<PropuestaDeAjuste | null> {
   if (cab.estado !== "APROBADA") return null;
@@ -306,7 +306,10 @@ export async function propuestaDeAjuste(db: Db, tenantId: string, cab: Liquidaci
     }
   }
   const pendientes = await comprobantesParaAjuste(db, tenantId, cab.proyectoId, cab.costoDetalle, yaAjustado);
-  if (pendientes.length === 0) return null;
+  // MIA-191: lo pendiente que suma 0 (pagar una cuota congelada: gasto +X, cuota −X) no cambia el costo real, y la cuenta
+  // sólo depende de él: no hay renglones ni nada que aprobar. No se propone (ni se gasta un código); esas diferencias
+  // siguen sin cubrir y entran, con su suma 0, en el lote del próximo ajuste real.
+  if (pendientes.reduce((s, c) => s + c.costo, 0) === 0) return null;
   const costoRealAntes = n(cab.costoReal) + [...yaAjustado.values()].reduce((s, c) => s + c, 0);
   const costoRealNuevo = costoRealAntes + pendientes.reduce((s, c) => s + c.costo, 0);
   const foto = cab.presupuestoId && cab.fotoVersion !== null ? await db.proyectoPrecioFoto.findFirst({ where: { tenantId, proyectoId: cab.proyectoId, presupuestoId: cab.presupuestoId, version: cab.fotoVersion } }) : null;
