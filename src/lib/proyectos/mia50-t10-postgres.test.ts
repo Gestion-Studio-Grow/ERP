@@ -100,55 +100,61 @@ async function armar(base: BaseEfimera) {
     return f;
   };
   type Tx = Parameters<Parameters<typeof duenio.$transaction>[0]>[0];
-  const enA = <R>(fn: (tx: Tx) => Promise<R>) =>
+  const enT = <R>(tenantId: string, fn: (tx: Tx) => Promise<R>) =>
     duenio.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${a.id}, true)`;
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
       return fn(tx);
     });
+  const enA = <R>(fn: (tx: Tx) => Promise<R>) => enT(a.id, fn);
   const prov = await duenio.supplier.create({ data: { tenantId: a.id, name: "Proveedor T10" }, select: { id: true } });
+  /** T12 · 3(b): el negocio donde se arma Z (por defecto A; el test del alta usa un negocio recién creado). */
+  type Neg = { tenantId: string; clientId: string; prod: { personaId: string }; com: { personaId: string }; provId: string; cargador: string };
+  const enAZ: Neg = { tenantId: a.id, clientId: a.clientes[0], prod, com, provId: prov.id, cargador: dir };
   let sig = 0;
-  const comprobante = async (proyectoId: string, pesos: number) => {
+  const comprobante = async (proyectoId: string, pesos: number, n: Neg = enAZ) => {
     const numero = `0010-${String(++sig).padStart(8, "0")}`;
-    const c = await enA((tx) => tx.proyectoComprobante.create({ data: { tenantId: a.id, supplierId: prov.id, tipo: "C", numero, fecha: PASADO, netoCentavos: BigInt($(pesos)), totalCentavos: BigInt($(pesos)), cargadoPorId: dir, cargadoNombre: "Test" }, select: { id: true } }));
-    await enA((tx) => tx.proyectoComprobanteLinea.create({ data: { tenantId: a.id, comprobanteId: c.id, destino: "PROYECTO", proyectoId, categoria: "Producción", netoCentavos: BigInt($(pesos)), ivaTratamiento: "COSTO", costoCentavos: BigInt($(pesos)) } }));
+    const c = await enT(n.tenantId, (tx) => tx.proyectoComprobante.create({ data: { tenantId: n.tenantId, supplierId: n.provId, tipo: "C", numero, fecha: PASADO, netoCentavos: BigInt($(pesos)), totalCentavos: BigInt($(pesos)), cargadoPorId: n.cargador, cargadoNombre: "Test" }, select: { id: true } }));
+    await enT(n.tenantId, (tx) => tx.proyectoComprobanteLinea.create({ data: { tenantId: n.tenantId, comprobanteId: c.id, destino: "PROYECTO", proyectoId, categoria: "Producción", netoCentavos: BigInt($(pesos)), ivaTratamiento: "COSTO", costoCentavos: BigInt($(pesos)) } }));
   };
-  const cobrar = (proyectoId: string, pesos: number) => duenio.proyectoPago.create({ data: { tenantId: a.id, proyectoId, medio: "TRANSFERENCIA", monto: pesos } });
+  const cobrar = (proyectoId: string, pesos: number, tenantId = a.id) => duenio.proyectoPago.create({ data: { tenantId, proyectoId, medio: "TRANSFERENCIA", monto: pesos } });
 
   let numero = (await duenio.proyecto.count()) + 1000;
   /** Un proyecto Z: foto del precio aprobado, equipo, el comprobante de 900.000, lo facturado y lo cobrado. */
-  const z = async (o: { evento?: Date; facturado?: number; cobrado?: number; gasto?: number; rendicion?: boolean; conAdmin2?: boolean; real?: number; plus?: number; otros?: string[] } = {}) => {
+  const z = async (o: { evento?: Date; facturado?: number; cobrado?: number; gasto?: number; rendicion?: boolean; conAdmin2?: boolean; real?: number; plus?: number; otros?: string[]; en?: Neg } = {}) => {
+    const n = o.en ?? enAZ;
+    const { prod, com } = n;
     const nombre = `Z ${++numero}`;
-    const p = await duenio.proyecto.create({ data: { tenantId: a.id, numero, clientId: a.clientes[0], nombre, servicio: "EVENTOS", etapa: "APROBADO", brief: "Stand", responsable: "Comercial", fechaEvento: o.evento ?? PASADO }, select: { id: true } });
-    const pres = await duenio.proyectoPresupuesto.create({ data: { tenantId: a.id, proyectoId: p.id, version: 1, estado: "APROBADO", token: `t10-${p.id}`, ivaPct: 21 }, select: { id: true } });
-    await duenio.proyectoItem.create({ data: { tenantId: a.id, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 1_490_000 } });
+    const p = await duenio.proyecto.create({ data: { tenantId: n.tenantId, numero, clientId: n.clientId, nombre, servicio: "EVENTOS", etapa: "APROBADO", brief: "Stand", responsable: "Comercial", fechaEvento: o.evento ?? PASADO }, select: { id: true } });
+    const pres = await duenio.proyectoPresupuesto.create({ data: { tenantId: n.tenantId, proyectoId: p.id, version: 1, estado: "APROBADO", token: `t10-${p.id}`, ivaPct: 21 }, select: { id: true } });
+    await duenio.proyectoItem.create({ data: { tenantId: n.tenantId, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 1_490_000 } });
     const equipo = [{ ...prod, funcion: "PRODUCTOR", plus: o.plus ?? 0 }, { ...com, funcion: "COMERCIAL" }, ...(o.conAdmin2 ? [{ ...admin2, funcion: "PRODUCTOR" }] : []), ...(o.otros ?? []).map((personaId) => ({ personaId, funcion: "PRODUCTOR" }))];
     const eqs = [];
-    for (const m of equipo) eqs.push(await duenio.proyectoEquipo.create({ data: { tenantId: a.id, proyectoId: p.id, personaId: m.personaId, funcion: m.funcion, plus: "plus" in m ? m.plus : 0 }, select: { id: true } }));
+    for (const m of equipo) eqs.push(await duenio.proyectoEquipo.create({ data: { tenantId: n.tenantId, proyectoId: p.id, personaId: m.personaId, funcion: m.funcion, plus: "plus" in m ? m.plus : 0 }, select: { id: true } }));
     const participantes = [
       { equipoId: eqs[0].id, personaId: prod.personaId, nombre: "Productora", funcion: "PRODUCTOR", comisionPct: 10, reparto: { DEFENSA: 25 } },
       { equipoId: eqs[1].id, personaId: com.personaId, nombre: "Comercial", funcion: "COMERCIAL", comisionPct: 10, reparto: { DEFENSA: 0 } },
       { equipoId: null, personaId: null, nombre: "Empresa", funcion: "EMPRESA", comisionPct: 0, reparto: { DEFENSA: 75, REDONDEO: 100 } },
     ];
-    await enA((tx) => tx.proyectoPrecioFoto.create({
+    await enT(n.tenantId, (tx) => tx.proyectoPrecioFoto.create({
       data: {
-        tenantId: a.id, proyectoId: p.id, presupuestoId: pres.id, version: 1, modo: "POR_TOTAL", moneda: "ARS", ivaPct: 21,
+        tenantId: n.tenantId, proyectoId: p.id, presupuestoId: pres.id, version: 1, modo: "POR_TOTAL", moneda: "ARS", ivaPct: 21,
         costoOriginalCentavos: BigInt($(1_000_000)), adicionalesCentavos: BigInt(0), subtotalCentavos: BigInt($(1_425_000)), iibGaCentavos: BigInt(0),
         totalVentaCentavos: BigInt($(1_490_000)), redondeoBrutoCentavos: BigInt($(65_000)), redondeoNetoCentavos: BigInt($(65_000)),
         parametros: { comisiones: { PRODUCTOR: $(30_000), COMERCIAL: $(30_000) }, rentabilidad: $(300_000), margenError: $(65_000), provisionales: [] },
         participantes, aprobadoPor: "Dirección",
       },
     }));
-    await comprobante(p.id, o.real ?? 900_000);
-    if (o.gasto) await duenio.proyectoGasto.create({ data: { tenantId: a.id, proyectoId: p.id, descripcion: "Taxi", neto: o.gasto, iva: 0 } });
+    await comprobante(p.id, o.real ?? 900_000, n);
+    if (o.gasto) await duenio.proyectoGasto.create({ data: { tenantId: n.tenantId, proyectoId: p.id, descripcion: "Taxi", neto: o.gasto, iva: 0 } });
     if (o.rendicion) {
-      const g = await duenio.proyectoGasto.create({ data: { tenantId: a.id, proyectoId: p.id, descripcion: "Fletes", neto: 0, iva: 0 }, select: { id: true } });
-      await enA((tx) => tx.proyectoRendicion.create({ data: { tenantId: a.id, proyectoId: p.id, gastoId: g.id, personaId: prod.personaId, medio: "PROPIO", montoCentavos: $(5_000), estado: "enviada" } }));
+      const g = await duenio.proyectoGasto.create({ data: { tenantId: n.tenantId, proyectoId: p.id, descripcion: "Fletes", neto: 0, iva: 0 }, select: { id: true } });
+      await enT(n.tenantId, (tx) => tx.proyectoRendicion.create({ data: { tenantId: n.tenantId, proyectoId: p.id, gastoId: g.id, personaId: prod.personaId, medio: "PROPIO", montoCentavos: $(5_000), estado: "enviada" } }));
     }
     const facturado = o.facturado ?? 1_000_000;
-    const cuota = await duenio.proyectoCuota.create({ data: { tenantId: a.id, proyectoId: p.id, tipo: "COBRO", concepto: "Anticipo", monto: facturado, moneda: "ARS", venceEl: PASADO, auto: false }, select: { id: true } });
-    const inv = await duenio.invoice.create({ data: { tenantId: a.id, puntoVenta: 3, tipoComprobante: 6, concepto: 2, docTipo: 99, docNro: "0", fecha: "20261101", neto: facturado / 1.21, iva: facturado - facturado / 1.21, total: facturado, numero: 5000 + numero }, select: { id: true } });
-    await enA((tx) => tx.proyectoCuotaFactura.create({ data: { tenantId: a.id, cuotaId: cuota.id, facturaId: inv.id, tramo: "ANTICIPO", creadoPor: "Test" } }));
-    await cobrar(p.id, o.cobrado ?? 1_000_000);
+    const cuota = await duenio.proyectoCuota.create({ data: { tenantId: n.tenantId, proyectoId: p.id, tipo: "COBRO", concepto: "Anticipo", monto: facturado, moneda: "ARS", venceEl: PASADO, auto: false }, select: { id: true } });
+    const inv = await duenio.invoice.create({ data: { tenantId: n.tenantId, puntoVenta: 3, tipoComprobante: 6, concepto: 2, docTipo: 99, docNro: "0", fecha: "20261101", neto: facturado / 1.21, iva: facturado - facturado / 1.21, total: facturado, numero: 5000 + numero }, select: { id: true } });
+    await enT(n.tenantId, (tx) => tx.proyectoCuotaFactura.create({ data: { tenantId: n.tenantId, cuotaId: cuota.id, facturaId: inv.id, tramo: "ANTICIPO", creadoPor: "Test" } }));
+    await cobrar(p.id, o.cobrado ?? 1_000_000, n.tenantId);
     return { id: p.id, nombre };
   };
 
@@ -170,7 +176,7 @@ async function armar(base: BaseEfimera) {
   const liq = (proyectoId: string) => enA((tx) => tx.proyectoLiquidacionProyecto.findMany({ where: { proyectoId }, include: { lineas: true } }));
   const totales = (lineas: { clave: string; personaId: string | null; total: bigint }[]) =>
     Object.fromEntries(lineas.map((l) => [l.personaId === prod.personaId ? "prod" : l.personaId === com.personaId ? "com" : l.personaId ? "otro" : "empresa", Number(l.total)]));
-  return { a, b, duenio, enA, acc, empresa, lectura, tenantTransaction, como, valor, form, z, comprobante, cobrar, liq, totales, prod, com, admin, admin2, dir, respaldos, sf, sfc, persona, masCodigos, codigosDe };
+  return { a, b, duenio, enA, enT, acc, empresa, lectura, tenantTransaction, como, valor, form, z, comprobante, cobrar, liq, totales, prod, com, admin, admin2, dir, respaldos, sf, sfc, persona, masCodigos, codigosDe };
 }
 
 async function preparar(t: import("node:test").TestContext) {
@@ -510,4 +516,59 @@ test("T12 · C-O46 · liquidaciones con vista: Comercial con permiso no recibe i
   const deAdm = p.valor(await p.como(p.admin.userId, async () => vistas.leerLiquidacionesConVista(await actorActual(), periodo, idRol)));
   assert.ok(deAdm.ok && deAdm.actual.id === "sistema:todas", "la vista del rol Comercial no es de Administración");
   await p.duenio.proyectoPermiso.deleteMany({ where: { tenantId: p.a.id, rol: "COMERCIAL", modulo: "liquidaciones" } });
+});
+
+// T12 · 3(b), decisión del dueño (19/11, opción A): la regla de la ficha no cambia (sin excepción ni autovincularse); la ficha de
+// Dirección de la dueña la crea el ALTA del negocio (`scripts/provision-tenant.ts`). Negocio recién creado con el alta real, la
+// dueña es la única persona de Dirección. Esperados escritos a mano antes de correr: aprueba Z sin cobrar en él (APROBADA); con
+// su ficha en el equipo de otro Z, rechazo «cobrás», su código no se gasta y Z sigue REVISADA; 1 sola ficha de Dirección, la suya.
+test("T12 · 3(b) · alta de un negocio nuevo: la dueña, única de Dirección, aprueba lo que no cobra y no lo que cobra", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { provisionTenant } = await import("../../../scripts/provision-tenant");
+  const sub = "productora-nueva-t12";
+  const r = await provisionTenant(p.duenio, { name: "Productora nueva", slug: sub, blueprint: "productora", skipCatalog: true, owner: { name: "Dueña nueva", email: `duenia@${sub}.test` }, platform: { subdomain: sub } });
+  assert.equal(r.tenantCreated, true);
+  const tid = r.tenantId;
+  const duenia = await p.duenio.user.findFirstOrThrow({ where: { tenantId: tid, role: "OWNER" }, select: { id: true, email: true } });
+  await p.duenio.user.update({ where: { id: duenia.id }, data: { mustChangePassword: false } }); // ya cambió la provisoria
+  const como = async <R>(userId: string, fn: () => Promise<R>) => p.valor(await ejecutarAccion({ negocio: { host: `${sub}.erp.test` }, usuario: { id: userId } }, fn));
+
+  const persona = async (nombre: string, rol: string) => {
+    const email = `${nombre.toLowerCase()}@${sub}.test`;
+    const u = await p.duenio.user.create({ data: { tenantId: tid, name: nombre, email, passwordHash: "x", role: "RECEPTION" }, select: { id: true } });
+    const f = await p.duenio.proyectoPersona.create({ data: { tenantId: tid, userId: u.id, nombre, email, rol }, select: { id: true } });
+    return { userId: u.id, personaId: f.id };
+  };
+  const [prod, com, admin] = [await persona("Prodnueva", "PRODUCCION"), await persona("Comnueva", "COMERCIAL"), await persona("Adminnueva", "ADMINISTRACION")];
+  const cli = await p.duenio.client.create({ data: { tenantId: tid, name: "Cliente nuevo", phone: "1130000099" }, select: { id: true } });
+  const prov = await p.duenio.supplier.create({ data: { tenantId: tid, name: "Proveedor nuevo" }, select: { id: true } });
+  const en = { tenantId: tid, clientId: cli.id, prod, com, provId: prov.id, cargador: duenia.id };
+  const u = { id: duenia.id, tenantId: tid, email: duenia.email, role: "OWNER" };
+  const act = como(duenia.id, () => p.sf.datosDeActivacion(u, "Factoque"));
+  const activado = await como(duenia.id, async () => p.sf.comprobarCodigo(u, p.sfc.codigoDelPaso((await act).secreto, p.sfc.pasoDe(Date.now()))));
+  assert.equal(activado.ok, true, "su factor quedó activo: un rechazo no es por el código");
+  const [c1, c2] = (activado as { codigos: string[] }).codigos;
+  const estado = async (proyectoId: string) => (await p.enT(tid, (tx) => tx.proyectoLiquidacionProyecto.findFirstOrThrow({ where: { tenantId: tid, proyectoId }, select: { estado: true } }))).estado;
+  const revisada = async (proyectoId: string) => {
+    ok(await como(admin.userId, () => p.acc.declararCostosCompletos(p.form({ proyectoId }))));
+    ok(await como(admin.userId, () => p.acc.revisarLiquidacionProyecto(p.form({ proyectoId, nota: "" }))));
+  };
+
+  const z1 = await p.z({ en });
+  await revisada(z1.id);
+  ok(await como(duenia.id, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId: z1.id, codigo: c1 }))));
+  assert.equal(await estado(z1.id), "APROBADA");
+
+  const ficha = await p.enT(tid, (tx) => tx.proyectoPersona.findMany({ where: { tenantId: tid, rol: "DIRECCION" }, select: { id: true, userId: true } }));
+  assert.deepEqual(ficha.map((f) => f.userId), [duenia.id], "1 sola ficha de Dirección, vinculada a la cuenta de la dueña");
+  assert.equal(r.ownerFichaCreated, true);
+
+  const z2 = await p.z({ en, otros: [ficha[0].id] });
+  await revisada(z2.id);
+  const codigos = async () => (await p.duenio.proyectoSegundoFactor.findFirstOrThrow({ where: { tenantId: tid, userId: duenia.id }, select: { codigosRespaldo: true } })).codigosRespaldo.length;
+  const antes = await codigos();
+  rechazo(await como(duenia.id, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId: z2.id, codigo: c2 }))), /cobrás/i);
+  assert.equal(await codigos(), antes, "el rechazo llegó antes de gastar el código");
+  assert.equal(await estado(z2.id), "REVISADA");
 });
