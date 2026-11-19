@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireAppAccion } from "@/lib/require-app";
+import { sinPuertaDeGestion } from "@/lib/proyectos/puerta-de-gestion.server";
 import { collectReceivable } from "@/lib/debts/receivable-service";
 import { MEDIO_OBLIGATORIO, leerMedio } from "@/lib/settlement/asiento-libro";
 import { cuentasCorrientesDe } from "@/lib/settlement/cuentas-corrientes.server";
@@ -35,6 +36,9 @@ export async function registerReceivableCollection(
 ): Promise<EstadoFormularioCuenta> {
   try {
     const user = await requireAppAccion("cuentas-a-cobrar");
+    // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · editar» del rol de Proyectos.
+    const sinPuerta = await sinPuertaDeGestion("empresa", "editar");
+    if (sinPuerta) return { estado: "error", mensaje: sinPuerta };
     const tenantId = await getCurrentTenantId();
 
     const id = leerTexto(formData.get("id"), 64);

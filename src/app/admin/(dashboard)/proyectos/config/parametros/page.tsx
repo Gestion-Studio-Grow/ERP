@@ -10,6 +10,9 @@ import { participantes, textoDelValor, valoresDe, type Parametros } from "@/lib/
 import { historialDeParametros, parametrosDelNegocio } from "@/lib/proyectos/parametros/leer.server";
 import { campo, etiqueta, tarjeta } from "../../_vista";
 import { FormParametro, VolverAlRubro } from "./_formulario";
+import { CampoCodigo } from "@/components/segundo-paso/CampoCodigo";
+import { parametroPideCodigo, rigeSegundoPaso } from "@/lib/proyectos/segundo-factor-core";
+import { rubroDe } from "@/lib/proyectos/segundo-factor.server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Parámetros del módulo" };
@@ -140,8 +143,10 @@ function Campos({ def, valor, vigentes }: { def: DefParametro; valor: unknown; v
   }
 }
 
-function Parametro({ def, p, vigentes, edita }: { def: DefParametro; p: Parametros; vigentes: Valores; edita: boolean }) {
+function Parametro({ def, p, vigentes, edita, dosPasos }: { def: DefParametro; p: Parametros; vigentes: Valores; edita: boolean; dosPasos: boolean }) {
   const r = p[def.clave];
+  // MIA-50 T11 (O47): precio y reparto piden el código de la app en el momento, donde rigen los dos pasos.
+  const codigo = dosPasos && parametroPideCodigo(def.grupo) ? <CampoCodigo accion="parametros" id={`codigo-${def.clave}`} /> : null;
   return (
     <section className={tarjeta} aria-label={def.nombre} data-clave={def.clave}>
       <div className="mb-2 flex flex-wrap items-center gap-2">
@@ -160,8 +165,9 @@ function Parametro({ def, p, vigentes, edita }: { def: DefParametro; p: Parametr
           <div className="mt-2 grid gap-3">
             <FormParametro accion={guardarParametro} clave={def.clave} provisional={r.provisional}>
               <Campos def={def} valor={r.valor} vigentes={vigentes} />
+              {codigo}
             </FormParametro>
-            {r.origen === "NEGOCIO" && <VolverAlRubro accion={volverAlValorDelRubro} clave={def.clave} />}
+            {r.origen === "NEGOCIO" && <VolverAlRubro accion={volverAlValorDelRubro} clave={def.clave} codigo={codigo && <CampoCodigo accion="parametros" id={`codigo-rubro-${def.clave}`} />} />}
           </div>
         </details>
       )}
@@ -175,6 +181,7 @@ export default async function ParametrosDelModulo({ searchParams }: { searchPara
   // Edita Dirección; Administración ve; el resto no entra (plan MIA-50, O45).
   if (a.rol !== "DIRECCION" && a.rol !== "ADMINISTRACION") redirect("/admin/proyectos/inicio");
   const edita = a.rol === "DIRECCION";
+  const dosPasos = edita && rigeSegundoPaso(await rubroDe(a.tenantId));
   const { grupo: pedido } = await searchParams;
   const grupo = pedido === "provisionales" ? "provisionales" : esGrupo(pedido) ? pedido : "etapas";
   const p = await parametrosDelNegocio(a.tenantId);
@@ -209,7 +216,7 @@ export default async function ParametrosDelModulo({ searchParams }: { searchPara
         </section>
       ) : (
         <>
-          {defs.map((d) => <Parametro key={d.clave} def={d} p={p} vigentes={vigentes} edita={edita} />)}
+          {defs.map((d) => <Parametro key={d.clave} def={d} p={p} vigentes={vigentes} edita={edita} dosPasos={dosPasos} />)}
           <section className={tarjeta} aria-label="Historial">
             <h2 className="mb-2 font-semibold text-strong">Historial de {GRUPOS.find((g) => g.id === grupo)?.label.toLowerCase()}</h2>
             {historial.length === 0 ? (

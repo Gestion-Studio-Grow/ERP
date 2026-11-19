@@ -14,6 +14,11 @@
  * - `SESION — motivo` cualquiera con sesión: sobre lo suyo, o la regla está adentro (el motivo dice cuál).
  * - `LINK — motivo` sin sesión: el cliente, por un link con clave.
  * Además de la puerta, todo lo que cuelga de un proyecto pide que el actor lo vea (`proyectoVisible`): eso no es del rol.
+ *
+ * MIA-50 T11 (Adenda 2, C-CF2): las apps del ERP Cuentas a cobrar, Cuentas a pagar y Flujo de fondos, con el panel de Proyectos
+ * cerrado, piden además el módulo «Empresa» del rol de Proyectos (`exigirPuertaDeGestion` en cada página, `sinPuertaDeGestion` en
+ * cada acción). Van acá con la clave `/admin/…` (rutas) y `<app>/actions#…` (acciones). La matriz modela sólo esa puerta: el rol
+ * del ERP (`billing:manage`, `reports:read`) y el panel cerrado (`panelCerrado.apps`) están fuera de ella, igual que `PLATA`.
  */
 import { cambiaLosPermisos, matrizDePermisos, motivoSinRendiciones, permisoDe, puedeAprobarRendicion, puedeRendir, revisaRendiciones, ROLES_GESTION, type ModuloGestion, type RolGestion } from "./gestion-core";
 
@@ -180,9 +185,14 @@ export const PUERTAS_DE_ACCIONES: Readonly<Record<string, string>> = {
   "acciones#eliminarStand": "E:ficha|diseno",
   "acciones#computoAlPresupuesto": "E:ficha",
   "acciones#guardarConfig": "PLATA:editar",
+  // MIA-50 T11 (C-CF2): las acciones de las apps del ERP Cuentas a cobrar y a pagar (`src/app/admin/(dashboard)/<app>/actions.ts`).
+  "cuentas-a-cobrar/actions#registerReceivableCollection": "E:empresa",
+  "cuentas-a-pagar/actions#registerPayablePayment": "E:empresa",
+  "cuentas-a-pagar/actions#agregarCheque": "E:empresa",
+  "cuentas-a-pagar/actions#cambiarEstadoCheque": "E:empresa",
 };
 
-/** Cada página de Proyectos (debajo de `/admin/proyectos`). */
+/** Cada página de Proyectos (debajo de `/admin/proyectos`) y, con `/admin/…`, las de las apps del ERP que pide la Adenda 2 (T11). */
 export const PUERTAS_DE_RUTAS: Readonly<Record<string, string>> = {
   "/[id]/entregable/[entregableId]": "V:diseno",
   "/[id]": "V:pipeline",
@@ -228,6 +238,12 @@ export const PUERTAS_DE_RUTAS: Readonly<Record<string, string>> = {
   "/reportes": "PLATA:ver",
   "/taller/piezas": "V:costos V:cotizaciones",
   "/taller/valores-hora": "V:costos V:cotizaciones",
+  // MIA-50 T11 (Adenda 2): con el panel de Proyectos cerrado, se abren con «Empresa · ver» (la lista y el detalle de cada cuenta).
+  "/admin/cuentas-a-cobrar": "V:empresa",
+  "/admin/cuentas-a-cobrar/[id]": "V:empresa",
+  "/admin/cuentas-a-pagar": "V:empresa",
+  "/admin/cuentas-a-pagar/[id]": "V:empresa",
+  "/admin/flujo": "V:empresa",
 };
 
 /** Los términos de una puerta, sin el motivo. */

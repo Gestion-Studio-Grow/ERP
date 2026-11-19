@@ -5,31 +5,36 @@ Fuente: `src/lib/proyectos/gestion-core.ts` (`PERMISOS_BASE`, `COLUMNAS_OCULTAS_
 en Equipo › Permisos, y lo guardado manda sobre la fábrica (`permisoDe`). E = ve y edita · V = sólo ve · N = no lo abre.
 
 **A1 de DIR-007 (GSG-MIA-091): la matriz única está en el código.** Lo que tiene cada rol: `matrizDePermisos(guardados)`
-(`gestion-core.ts`), fijado celda por celda por `gestion-core-matriz.test.ts`. Lo que pide cada una de las 32 páginas y las 128
-acciones de servidor de Proyectos: `src/lib/proyectos/matriz-permisos.ts`. `matriz-permisos.test.ts` lee el código y la recorre
+(`gestion-core.ts`), fijado celda por celda por `gestion-core-matriz.test.ts`. Lo que pide cada una de las 48 páginas y las 160
+acciones de servidor (43 y 156 de Proyectos, más 5 y 4 de las apps del ERP de la Adenda 2): `src/lib/proyectos/matriz-permisos.ts`. `matriz-permisos.test.ts` lee el código y la recorre
 entera: una página o una acción sin anotar, una puerta distinta de la anotada o una `requireCapabilityFueraDeLaAgenda` fuera de
 `exigirPlataDeDireccion` lo ponen rojo; después cruza rol × ruta × acción y fija cuántas abre cada rol.
 
 ## Qué ve y qué edita cada rol (fábrica)
 
-| Módulo | Dirección | Administración | Comercial | Diseño | Producción |
-|---|---|---|---|---|---|
-| Proyectos y leads (`pipeline`) | E | V | E | V | E |
-| Ficha del evento (`ficha`) | E | V | V | V | E |
-| Costos y márgenes (`costos`) | E | V | N | N | E |
-| Proveedores (`proveedores`) | E | E | N | N | E |
-| Cotizaciones y planilla de venta (`cotizaciones`) | E | V | E | V | E |
-| Diseño (`diseno`) | E | N | E | E | E |
-| Pagos y cobros del evento (`pagos`) | E | E | N | N | E |
-| Cuentas, cashflow y bancos (`empresa`) | E | E | N | N | N |
-| Liquidaciones del equipo (`liquidaciones`) | E | E | N | N | N |
-| Tablero, reportes, Rentabilidad y Configuración (`direccion`) | E | N | N | N | N |
-| Equipo, roles y permisos (`equipo`) | E | N | N | N | N |
-| Estudio IA y agentes (`ia`) | E | N | E | E | E |
-| Rendiciones de gastos (`rendiciones`) | E | E | V | N | V |
+| Módulo | Dirección | Administración | Comercial | Diseño | Producción | Producción de campo |
+|---|---|---|---|---|---|---|
+| Proyectos y leads (`pipeline`) | E | V | E | V | E | V |
+| Ficha del evento (`ficha`) | E | V | V | V | E | V |
+| Costos y márgenes (`costos`) | E | V | N | N | E | N |
+| Proveedores (`proveedores`) | E | E | N | N | E | N |
+| Cotizaciones y planilla de venta (`cotizaciones`) | E | V | E | V | E | N |
+| Diseño (`diseno`) | E | N | E | E | E | N |
+| Pagos y cobros del evento (`pagos`) | E | E | N | N | E | N |
+| Cuentas, cashflow y bancos (`empresa`) | E | E | N | N | N | N |
+| Liquidaciones del equipo (`liquidaciones`) | E | E | N | N | N | N |
+| Tablero, reportes, Rentabilidad y Configuración (`direccion`) | E | N | N | N | N | N |
+| Equipo, roles y permisos (`equipo`) | E | N | N | N | N | N |
+| Estudio IA y agentes (`ia`) | E | N | E | E | E | N |
+| Rendiciones de gastos (`rendiciones`) | E | E | V | N | V | V |
 
-Columnas de costo de la ficha (costo unitario, costo total, recargo y margen): ocultas para Comercial y Diseño; visibles para
+Columnas de costo de la ficha (costo unitario, costo total, recargo y margen): ocultas para Comercial, Diseño y Producción de campo; visibles para
 Dirección, Administración y Producción. Sin ficha (y sin ser la dueña): nada.
+
+**MIA-50 T11 · Producción de campo (O47).** Rol nuevo para quien trabaja en el armado y el evento: ve el proyecto y la ficha
+(tareas, lista de control, agenda) y rinde sus gastos; no ve costos, márgenes, proveedores, pagos ni cuentas. Barra: Inicio,
+Proyectos, Calendario y Mi liquidación. Las rutas y acciones de las apps del ERP de la Adenda 2 suman 5 páginas y 4 acciones a
+`matriz-permisos.ts`.
 
 ## Quién cambia la regla
 
@@ -51,6 +56,8 @@ Dirección, Administración y Producción. Sin ficha (y sin ser la dueña): nada
 | Ver rendiciones, anticipos y comprobantes de otros | lo mismo que aprobar |
 | Pagar una liquidación (y el botón) | `liquidaciones` en E y rol Dirección o Administración; nadie se paga la propia |
 | Calendario por token | el rol de gestión de la ficha; sin ficha, nada (la dueña, Dirección) |
+| Cuentas a cobrar, Cuentas a pagar y Flujo de fondos (apps del ERP), con el panel de Proyectos cerrado | abrirlas: `empresa` en V; cobrar, pagar y mover cheques: `empresa` en E (MIA-50 T11, Adenda 2). Además, el rol del ERP (sólo la cuenta dueña) |
+| Pagar (liquidación u orden de pago) y cambiar parámetros de precio o de reparto, en un rubro con dos pasos | el código de la app en ese momento; pagar abre 10 minutos para los pagos seguidos de la misma persona (MIA-50 T11, O47 y D10) |
 
 ## Pregunta 3 (PRY-013)
 

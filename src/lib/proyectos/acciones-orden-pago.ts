@@ -18,6 +18,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { MEDIO_LABEL, MEDIOS, metodoDeCaja, type MedioPago } from "./core";
 import { veLaPlata } from "./datos.server";
 import { actorActual, puede, registrarCambio, type Actor } from "./gestion.server";
+import { exigirCodigoEnElMomento } from "./segundo-factor.server";
 import { asentarEnCajaTx, rechazoDePeriodo, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { esClaveRepetida } from "./rendiciones-core";
@@ -199,6 +200,9 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
   const a = await actorDePagos();
   if (typeof a === "string") return { ok: false, error: a };
   const { tenantId, user } = a;
+  // MIA-50 T11 (O47, D10): pagar pide el código de la app en este momento (o la ventana de 10 min de pagos seguidos).
+  const sinCodigo = await exigirCodigoEnElMomento(user, formData, "pagar");
+  if (sinCodigo) return { ok: false, error: sinCodigo };
   const id = String(formData.get("id") ?? "").trim();
   return conM1<object>(async () => {
     const o = await prisma.proyectoOrdenPago.findFirst({

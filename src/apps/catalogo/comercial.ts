@@ -215,8 +215,10 @@ export const APPS_COMERCIAL = [
     // Una productora no usa agenda, catálogo ni recordatorios: su panel es esto (pedido del dueño, 01/11/2026).
     panelCerrado: {
       blueprint: "productora",
-      apps: ["gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "eventos-sponsors", "crm-comercial", "clientes", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "cierre-del-mes", "resultado-del-mes", "facturacion", "reportes", "usuarios"],
+      apps: ["gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "eventos-sponsors", "crm-comercial", "clientes", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "cierre-del-mes", "resultado-del-mes", "facturacion", "reportes", "cuentas-a-cobrar", "cuentas-a-pagar", "flujo-de-fondos", "usuarios"],
       // MIA-50 T09: el cierre y el resultado del mes también son trabajo de la dueña de una productora.
+      // MIA-50 T11 (Adenda 2, decisión del dueño del 19/11, «A»): Cuentas a cobrar, Cuentas a pagar y Flujo entran al panel; quién
+      // las abre lo decide «Empresa · ver» del rol de Proyectos (`MODULOS_DE_LA_APP`, gestion-core.ts), en el menú y en el servidor.
     },
     estado: "lista",
     palabras: ["stand", "stands", "evento", "render", "3d", "propuesta", "presupuesto", "armado", "productora", "activacion", "escenografia"],

@@ -38,6 +38,8 @@ export interface ProyectosEnCuentas {
   aPagar: { renglones: RenglonDeProyecto[]; total: number };
   /** Hay una cuota en otra moneda sin cambio cargado: se avisa como en Administración, no se muestra un 0 callado. */
   sinCambio: boolean;
+  /** C-CF5: quien mira tiene `costoTotal` oculto; lo de proyectos a pagar no viene. */
+  aPagarOculto?: boolean;
 }
 
 const codigo = (p: { numero: number; createdAt: Date }) => codigoProyecto(p.numero, p.createdAt);
@@ -85,6 +87,11 @@ export interface DependenciasCuentas {
   tieneProyectos: (tenantId: string) => Promise<boolean>;
   /** ¿Quien mira tiene «Empresa · ver» (el mismo permiso que Administración de Proyectos)? */
   veEmpresa: () => Promise<boolean>;
+  /**
+   * MIA-50 T11 (C-CF5): ¿quien mira tiene `costoTotal` oculto? Administración de Proyectos no le muestra «A pagar»
+   * (`A/administracion/page.tsx`, O46); acá tampoco: ni renglones ni total de proyectos a pagar, en la cuenta ni en el flujo.
+   */
+  ocultaCosto: () => Promise<boolean>;
   recuadros: (tenantId: string) => Promise<Recuadros>;
 }
 
@@ -92,7 +99,13 @@ export interface DependenciasCuentas {
 export async function proyectosEnCuentasGenerales(tenantId: string, d: DependenciasCuentas): Promise<ProyectosEnCuentas | null> {
   if (!(await d.tieneProyectos(tenantId))) return null;
   if (!(await d.veEmpresa())) return null;
-  return proyectosDesdeRecuadros(await d.recuadros(tenantId));
+  const p = proyectosDesdeRecuadros(await d.recuadros(tenantId));
+  return (await d.ocultaCosto()) ? sinAPagar(p) : p;
+}
+
+/** C-CF5: lo de proyectos a pagar no sale del servidor (ni renglones ni total). PURA. */
+export function sinAPagar(p: ProyectosEnCuentas): ProyectosEnCuentas {
+  return { ...p, aPagar: { renglones: [], total: 0 }, aPagarOculto: true };
 }
 
 /** CG8: los renglones con fecha, en la forma que espera el flujo de fondos. Sin calendario no entra. PURA. */

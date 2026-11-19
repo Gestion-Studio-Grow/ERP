@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireAppAccion } from "@/lib/require-app";
+import { sinPuertaDeGestion } from "@/lib/proyectos/puerta-de-gestion.server";
 import { auditAdmin } from "@/lib/audit-core";
 import { addChequeToPayable, payPayable, transitionCheque } from "@/lib/debts/payable-service";
 import { esEstadoDeCheque, ETIQUETA_CHEQUE } from "@/lib/debts/cheque";
@@ -42,6 +43,9 @@ export async function registerPayablePayment(
 ): Promise<EstadoFormularioCuenta> {
   try {
     const user = await requireAppAccion("cuentas-a-pagar");
+    // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · editar» del rol de Proyectos.
+    const sinPuerta = await sinPuertaDeGestion("empresa", "editar");
+    if (sinPuerta) return { estado: "error", mensaje: sinPuerta };
     const tenantId = await getCurrentTenantId();
 
     const id = leerTexto(formData.get("id"), 64);
@@ -79,6 +83,9 @@ export async function agregarCheque(
   try {
     // Quién lo cargó queda en la auditoría (`auditAdmin` lo toma de la sesión).
     await requireAppAccion("cuentas-a-pagar");
+    // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · editar» del rol de Proyectos.
+    const sinPuerta = await sinPuertaDeGestion("empresa", "editar");
+    if (sinPuerta) return { estado: "error", mensaje: sinPuerta };
     const tenantId = await getCurrentTenantId();
 
     const id = leerTexto(formData.get("id"), 64);
@@ -131,6 +138,9 @@ export async function cambiarEstadoCheque(
 ): Promise<EstadoFormularioCuenta> {
   try {
     const user = await requireAppAccion("cuentas-a-pagar");
+    // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · editar» del rol de Proyectos.
+    const sinPuerta = await sinPuertaDeGestion("empresa", "editar");
+    if (sinPuerta) return { estado: "error", mensaje: sinPuerta };
     const tenantId = await getCurrentTenantId();
 
     const cuentaId = leerTexto(formData.get("id"), 64);

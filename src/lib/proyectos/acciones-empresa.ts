@@ -15,6 +15,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { leerNumero, MEDIOS, metodoDeCaja, redondear, type MedioPago } from "./core";
 import { aPesos, extrasDelPeriodo, leerExtracto, MONEDAS } from "./gestion-core";
 import { actorActual, avisar, exigirEditar, puede, regenerarCuotasDe, registrarCambio, tiposDeCambio } from "./gestion.server";
+import { exigirCodigoEnElMomento } from "./segundo-factor.server";
 import { claveDeEnvio } from "./pago-columnas";
 import { envioYaGrabado, estaPerdido, trabarCobranza } from "./cobranza.server";
 import { perdidoAdmite } from "./ficha-core";
@@ -725,6 +726,9 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
     // Con cuentas en pesos cargadas (las que ofrece la pantalla), el silencio no vale «ninguna»: así el sueldo por banco no
     // queda fuera del saldo sin que nadie lo elija.
     if (!txt(formData.get("cuenta")) && (await prisma.proyectoCuentaBanco.count({ where: { tenantId: a.tenantId, moneda: "ARS" } })) > 0) return { ok: false, error: SIN_CUENTA };
+    // MIA-50 T11 (O47, D10): pagar pide el código de la app en este momento (o la ventana de 10 min de pagos seguidos).
+    const sinCodigo = await exigirCodigoEnElMomento(a.user, formData, "pagar");
+    if (sinCodigo) return { ok: false, error: sinCodigo };
     const ahora = new Date();
     const hecho = await transaccionQueAsienta(async (tx) => {
       deCuenta = ""; // una vuelta reintentada por Serializable empieza de cero

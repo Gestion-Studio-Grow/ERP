@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { exigirPuertaDeGestion } from "@/lib/proyectos/puerta-de-gestion.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getPayableDetail } from "@/lib/debts/payable-repo";
 import { committedChequeTotal } from "@/lib/debts/cheque";
@@ -31,6 +32,8 @@ const volver = (
 // "Disponible en la edición Empresa" con el motor de perfiles apagado, o sea siempre.
 export default async function CuentaAPagarDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("cuentas-a-pagar");
+  // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · ver» del rol de Proyectos, también sin el layout.
+  await exigirPuertaDeGestion("empresa", "ver");
   const tenantId = await getCurrentTenantId();
   // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
   const enLibro = await cuentasCorrientesDe(tenantId);

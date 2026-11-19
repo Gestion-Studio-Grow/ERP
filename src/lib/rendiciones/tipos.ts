@@ -34,7 +34,8 @@ export type AccionRendicion =
   | "reintegrar"; // aprobada → reintegrada (sólo lo pagado de su bolsillo)
 
 /** Roles de gestión que el motor necesita conocer (espejo de `RolGestion`, sin importarlo). */
-export type RolActor = "DIRECCION" | "ADMINISTRACION" | "COMERCIAL" | "DISENO" | "PRODUCCION" | "SIN_FICHA";
+// MIA-50 T11 (O47): «Producción de campo» rinde lo propio como Producción; no aprueba (`ROLES_APROBADORES`).
+export type RolActor = "DIRECCION" | "ADMINISTRACION" | "COMERCIAL" | "DISENO" | "PRODUCCION" | "PRODUCCION_CAMPO" | "SIN_FICHA";
 
 export interface EventoRendicion {
   fecha: FechaISO;

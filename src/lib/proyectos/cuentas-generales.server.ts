@@ -2,7 +2,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { leerCuentasACobrar, leerCuentasAPagar } from "@/lib/debts/cuentas-lectura";
-import { actorActual, puede } from "./gestion.server";
+import { actorActual, columnasOcultas, puede } from "./gestion.server";
 import { recuadrosDeCuotas } from "./empresa.server";
 import { proyectosEnCuentasGenerales, type DependenciasCuentas, type ProyectosEnCuentas } from "./cuentas-generales";
 import { redondear } from "./core";
@@ -15,6 +15,13 @@ export const dependenciasCuentas: DependenciasCuentas = {
       return puede(await actorActual(), "empresa", "ver");
     } catch {
       return false; // sin permiso de agenda (o un ARM): no ve Proyectos, que es lo mismo que no tener el permiso
+    }
+  },
+  ocultaCosto: async () => {
+    try {
+      return columnasOcultas(await actorActual()).includes("costoTotal");
+    } catch {
+      return true; // sin actor no llega hasta acá (`veEmpresa` ya dio false); si llega, lo más cerrado
     }
   },
   recuadros: recuadrosDeCuotas,

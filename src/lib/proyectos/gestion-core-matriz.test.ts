@@ -18,12 +18,14 @@ const FABRICA: Record<RolGestion, { niveles: string[]; ocultas: string[]; laCamb
   COMERCIAL: { niveles: [E, V, N, N, E, E, N, N, N, N, N, E, V], ocultas: OCULTAS_DE_COSTO, laCambia: "Dirección" },
   DISENO: { niveles: [V, V, N, N, V, E, N, N, N, N, N, E, N], ocultas: OCULTAS_DE_COSTO, laCambia: "Dirección" },
   PRODUCCION: { niveles: [E, E, E, E, E, E, E, N, N, N, N, E, V], ocultas: [], laCambia: "Dirección" },
+  // MIA-50 T11 (O47): Producción de campo ve el proyecto y la ficha (tareas, lista de control, agenda) y rinde lo suyo; nada de plata.
+  PRODUCCION_CAMPO: { niveles: [V, V, N, N, N, N, N, N, N, N, N, N, V], ocultas: OCULTAS_DE_COSTO, laCambia: "Dirección" },
   SIN_FICHA: { niveles: [N, N, N, N, N, N, N, N, N, N, N, N, N], ocultas: OCULTAS_DE_COSTO, laCambia: "nadie (fija)" },
 };
 
 test("A1 · la matriz de fábrica, rol por rol y módulo por módulo, con quién cambia cada fila", () => {
   const m = matrizDePermisos([]);
-  assert.deepEqual(m.map((f) => f.rol), ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "SIN_FICHA"]);
+  assert.deepEqual(m.map((f) => f.rol), ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "PRODUCCION_CAMPO", "SIN_FICHA"]);
   for (const f of m) {
     const esperado = FABRICA[f.rol];
     assert.deepEqual(Object.keys(f.modulos), [...MODULOS], `${f.rol}: los 13 módulos, en orden`);

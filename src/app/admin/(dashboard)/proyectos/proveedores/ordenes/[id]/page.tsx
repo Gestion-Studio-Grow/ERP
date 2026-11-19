@@ -12,6 +12,9 @@ import { FormAccion } from "../../../[id]/_cliente";
 import { tarjeta } from "../../../_vista";
 import { permisosDeCompras, NavCompras, plata, SinPlata } from "../../_compras";
 import { DetalleOrden } from "./_detalle";
+import { CampoCodigo } from "@/components/segundo-paso/CampoCodigo";
+import { rigeSegundoPaso } from "@/lib/proyectos/segundo-factor-core";
+import { rubroDe } from "@/lib/proyectos/segundo-factor.server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Orden de pago" };
@@ -24,6 +27,8 @@ export default async function Orden({ params }: { params: Promise<{ id: string }
   const o = await siHayM1(() => ordenParaVer(a.tenantId, id));
   if (!o) notFound();
   const noPuedeAprobar = errorDeAprobacion(a.user.id, o.cargadores);
+  // MIA-50 T11 (O47, D10): pagar pide el código de la app en el momento, donde rigen los dos pasos.
+  const dosPasos = paga && o.estado === "PENDIENTE" && rigeSegundoPaso(await rubroDe(a.tenantId));
 
   return (
     <main className="mx-auto grid w-full max-w-4xl gap-4 px-4 py-5">
@@ -44,6 +49,7 @@ export default async function Orden({ params }: { params: Promise<{ id: string }
           ) : (
             <FormAccion accion={aprobarYPagarOrden} className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="id" value={o.id} />
+              {dosPasos && <div className="basis-full"><CampoCodigo accion="pagar" /></div>}
               <SubmitButton className={buttonClasses("solid", "md")}>Aprobar y pagar {plata(o.total)}</SubmitButton>
               <span className="text-xs text-muted">Sale de la caja hoy, con {MEDIO_LABEL[o.medio as MedioPago] ?? o.medio}.</span>
             </FormAccion>

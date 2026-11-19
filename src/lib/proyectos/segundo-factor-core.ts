@@ -138,3 +138,25 @@ export function leerPase(pase: string | undefined | null, ahoraMs: number, clave
   if (!iguales(firma, firmar(`${userId}.${vence}`, clave))) return null;
   return Number(vence) > ahoraMs ? userId : null;
 }
+
+// ── MIA-50 T11 (O47, D10): el código en el momento de una acción sensible ──────────────────────────────────────────────
+
+/** El campo del formulario que trae el código de la app (o uno de respaldo). */
+export const CAMPO_CODIGO = "codigoSegundoPaso";
+
+/**
+ * Las acciones que piden el código en ese momento (O47): pagar (una liquidación, una orden de pago), cambiar parámetros de
+ * precio o de reparto y, cuando existan en esta rama, aprobar una liquidación o un ajuste (T10, T12) y cerrar el mes.
+ */
+export type AccionSensible = "pagar" | "parametros" | "aprobar" | "cerrar-mes";
+
+/** D10: un código validado para pagar abre una ventana de `VIGENCIA_PASE_MS` (10 min) para los pagos seguidos de la misma persona. */
+const ABREN_VENTANA: readonly AccionSensible[] = ["pagar"];
+export const abreVentana = (accion: AccionSensible): boolean => ABREN_VENTANA.includes(accion);
+
+/** ¿Hay que pedir el código ahora? Siempre, salvo un pago dentro de la ventana de la misma persona (D10). PURA. */
+export const pideCodigoAhora = (accion: AccionSensible, ventanaVigente: boolean): boolean => !(abreVentana(accion) && ventanaVigente);
+
+/** Los grupos de parámetros que piden el código (O47: «parámetros de precio o de reparto»). PURA. */
+export const GRUPOS_CON_CODIGO: readonly string[] = ["precio", "reparto"];
+export const parametroPideCodigo = (grupo: string): boolean => GRUPOS_CON_CODIGO.includes(grupo);

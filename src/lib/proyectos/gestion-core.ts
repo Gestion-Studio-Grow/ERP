@@ -626,10 +626,14 @@ export function movimientoDeCuenta(d: { tipo: string; monto: number; moneda: str
   return valor === null ? null : redondear(d.tipo === "COBRO" ? valor : -valor);
 }
 
-export const ROLES_GESTION = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION"] as const;
+/**
+ * MIA-50 T11 (O47): «Producción de campo» (`PRODUCCION_CAMPO`) ve agenda, tareas, lista de control y sus gastos, y no recibe
+ * precios, márgenes ni costos ajenos. Es texto en `ProyectoPersona.rol`: sin migración.
+ */
+export const ROLES_GESTION = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "PRODUCCION_CAMPO"] as const;
 /** `SIN_FICHA` no se asigna: es quien entra sin estar cargado en el equipo, y no abre nada más que Inicio. */
 export type RolGestion = (typeof ROLES_GESTION)[number] | "SIN_FICHA";
-export const ROL_LABEL: Record<RolGestion, string> = { DIRECCION: "Dirección", ADMINISTRACION: "Administración", COMERCIAL: "Comercial", DISENO: "Diseño", PRODUCCION: "Producción", SIN_FICHA: "Sin ficha" };
+export const ROL_LABEL: Record<RolGestion, string> = { DIRECCION: "Dirección", ADMINISTRACION: "Administración", COMERCIAL: "Comercial", DISENO: "Diseño", PRODUCCION: "Producción", PRODUCCION_CAMPO: "Producción de campo", SIN_FICHA: "Sin ficha" };
 
 /** Sólo el dueño entra como Dirección sin ficha: tiene que poder armar el equipo. Cualquier otro espera a que lo carguen. */
 export function rolDelActor(rolDeLaFicha: string | null | undefined, rolDelErp: string): RolGestion {
@@ -671,6 +675,9 @@ export const PERMISOS_BASE: Record<Exclude<RolGestion, "DIRECCION">, Record<Modu
   DISENO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: V, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: N },
   ADMINISTRACION: { pipeline: V, ficha: V, costos: V, proveedores: E, cotizaciones: V, diseno: N, pagos: E, empresa: E, liquidaciones: E, direccion: N, equipo: N, ia: N, rendiciones: E },
   COMERCIAL: { pipeline: E, ficha: V, costos: N, proveedores: N, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
+  // O47: la ficha y el proyecto en «ver» (tareas, lista de control, agenda); «rendiciones» en ver = rinde lo propio. Nada de
+  // costos, cotizaciones, pagos, empresa ni liquidaciones: no le llegan precios, márgenes ni costos ajenos.
+  PRODUCCION_CAMPO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: N, diseno: N, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: N, rendiciones: V },
   SIN_FICHA: { pipeline: N, ficha: N, costos: N, proveedores: N, cotizaciones: N, diseno: N, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: N, rendiciones: N },
 };
 
@@ -679,7 +686,7 @@ export const PERMISOS_BASE: Record<Exclude<RolGestion, "DIRECCION">, Record<Modu
  * `E` = todo y aprobar/reintegrar. Las acciones finas no dependen de `pagos`: van por estas funciones puras.
  * DISENO no rinde (provisional a confirmar).
  */
-const ROLES_QUE_RINDEN: readonly RolGestion[] = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "PRODUCCION"];
+const ROLES_QUE_RINDEN: readonly RolGestion[] = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "PRODUCCION", "PRODUCCION_CAMPO"];
 const ROLES_QUE_APRUEBAN_RENDICIONES: readonly RolGestion[] = ["DIRECCION", "ADMINISTRACION"];
 
 /** Rendir lo mío: un rol que rinde y que está en el `ProyectoEquipo` del proyecto (ver todos no alcanza). PURA. */
@@ -705,6 +712,11 @@ const MODULOS_DE_LA_APP: Readonly<Record<string, readonly ModuloGestion[]>> = {
   "gestion-agentes": ["ia"],
   "gestion-propuesta-ia": ["ia"],
   "gestion-equipo": ["equipo"],
+  // MIA-50 T11 · Adenda 2 (decisión del dueño del 19/11, «A»): las cuentas generales y el flujo se abren con «Empresa · ver»,
+  // la misma regla que Administración de Proyectos. En el servidor lo aplica `puerta-de-gestion.server.ts` (página y acción).
+  "cuentas-a-cobrar": ["empresa"],
+  "cuentas-a-pagar": ["empresa"],
+  "flujo-de-fondos": ["empresa"],
 };
 
 export function appDeGestionVisible(appId: string, rol: RolGestion, guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean }[]): boolean {
@@ -731,11 +743,12 @@ const APPS_DEL_ERP: Partial<Record<RolGestion, readonly string[]>> = {
 /** Lo que cada rol tiene a la vista. Dirección puede abrir el resto; los demás, lo que permiten sus módulos. */
 const BARRA_DEL_ROL: Record<RolGestion, readonly string[]> = {
   // Caja a la vista de Dirección (QA MIA #6): el rol del ERP sigue siendo el techo (`appsVisibles` pide orders:read).
-  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "caja-del-dia", "reportes", "eventos-sponsors", "crm-comercial"],
-  ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
+  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "cuentas-a-cobrar", "cuentas-a-pagar", "flujo-de-fondos", "caja-del-dia", "reportes", "eventos-sponsors", "crm-comercial"],
+  ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "cuentas-a-cobrar", "cuentas-a-pagar", "flujo-de-fondos", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
   COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "eventos-sponsors", "crm-comercial", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   DISENO: ["gestion-inicio", "gestion-diseno", "proyectos", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   PRODUCCION: ["gestion-inicio", "proyectos", "gestion-proveedores", "gestion-calendario", "gestion-agentes", "gestion-mi-liquidacion"],
+  PRODUCCION_CAMPO: ["gestion-inicio", "proyectos", "gestion-calendario", "gestion-mi-liquidacion"],
   SIN_FICHA: ["gestion-inicio", "crm-comercial"],
 };
 
@@ -747,6 +760,7 @@ export const COLUMNAS_OCULTAS_BASE: Record<Exclude<RolGestion, "DIRECCION">, rea
   DISENO: ["costoUnit", "costoTotal", "recargo", "margen"],
   ADMINISTRACION: [],
   COMERCIAL: ["costoUnit", "costoTotal", "recargo", "margen"],
+  PRODUCCION_CAMPO: ["costoUnit", "costoTotal", "recargo", "margen"],
   SIN_FICHA: ["costoUnit", "costoTotal", "recargo", "margen"],
 };
 
