@@ -490,29 +490,37 @@ test("CERT-3 · dos cuotas de 300 enlazadas a la vez a un comprobante de 400, 10
 // toda o una parte) o enlazada a un comprobante y con una orden de pago. Nunca por los dos.
 
 /** Los pagos asentados a mano por la cuota (todos o partes): el registro «Asiento» que deja `marcarCuota`. */
-const asientosAMano = (p: P, cuotaId: string) => p.m1((tx) => tx.proyectoCambio.count({ where: { entidad: "ProyectoCuota", entidadId: cuotaId, campo: "Asiento" } }));
+async function asientosAMano(p: P, cuotaId: string): Promise<number> {
+  return p.m1((tx): Promise<number> => tx.proyectoCambio.count({ where: { entidad: "ProyectoCuota", entidadId: cuotaId, campo: "Asiento" } }));
+}
 
-test("CERT-4 · enlazar la cuota de 300 a un comprobante de 400 y pagarla a mano (toda o una parte de 100) a la vez, 10 veces → nunca las dos", async (t) => {
+test("CERT-4 · enlazar la cuota de 300 a un comprobante de 400 y pagarla a mano (toda o una parte de 100) a la vez, 20 veces → nunca las dos", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const pr = await p.proyecto();
   const s = await p.proveedor();
   const malas: string[] = [];
-  for (let ronda = 0; ronda < 10; ronda++) {
+  const ganan = { enlazar: 0, marcar: 0 };
+  for (let ronda = 0; ronda < 20; ronda++) {
     const parte = ronda % 2 === 1;
+    // `marcarCuota` lee más afuera de la transacción: sin demora gana siempre el enlace. Con el enlace demorado 0 a 60 ms
+    // (fijo por ronda), también llega mientras el pago tiene la cuota tomada: se prueban los dos órdenes.
+    const demora = (Math.floor(ronda / 2) % 5) * 15;
     const c = await p.cargar({ supplierId: s, tipo: "C", neto: "400", iva: "0", total: "400", destino: pr, categoria: "Catering" });
     const q = (await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: pr, supplierId: s, tipo: "PAGO", concepto: "Cuota cert", monto: 300, venceEl: new Date(AHORA + 10 * DIA) }, select: { id: true } })).id;
     const [en, mk] = await Promise.all([
-      p.enSesion(() => p.comp.enlazarCuota(p.form({ comprobanteId: c, cuotaId: q }))),
+      new Promise<void>((listo) => setTimeout(listo, demora)).then(() => p.enSesion(() => p.comp.enlazarCuota(p.form({ comprobanteId: c, cuotaId: q })))),
       p.admin(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", ...(parte ? { monto: "100" } : {}) }))),
     ]);
     const cuota = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true } });
     const enlazada = await p.m1((tx) => tx.proyectoCuotaComprobante.count({ where: { cuotaId: q } }));
     const aMano = await asientosAMano(p, q);
-    const foto = { ronda, parte, enlazar: en.ok, marcar: mk.ok, pagada: !!cuota.pagadoEl, enlazada, aMano };
+    const foto = { ronda, parte, demora, enlazar: en.ok, marcar: mk.ok, pagada: !!cuota.pagadoEl, enlazada, aMano };
     // a mano: gana una sola; enlazada ⇒ 0 pagos a mano; con pago a mano ⇒ 0 enlaces.
     if ((en.ok && mk.ok) || (enlazada > 0 && (aMano > 0 || cuota.pagadoEl)) || en.ok === mk.ok) malas.push(JSON.stringify(foto));
+    if (en.ok !== mk.ok) ganan[en.ok ? "enlazar" : "marcar"]++;
   }
+  t.diagnostic(`gana enlazar ${ganan.enlazar}, gana marcar ${ganan.marcar}`);
   assert.deepEqual(malas, [], "a mano: una gana y la otra se rechaza; nunca enlazada y pagada a mano");
 });
 
@@ -524,7 +532,10 @@ test("CERT-4b · una cuota enlazada que ya figura pagada a mano: la orden de pag
   const c = await p.cargar({ supplierId: s, tipo: "C", neto: "700", iva: "0", total: "700", destino: pr, categoria: "Catering" });
   const nueva = async () => (await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: pr, supplierId: s, tipo: "PAGO", concepto: "Cuota cert", monto: 300, venceEl: new Date(AHORA + 10 * DIA) }, select: { id: true } })).id;
   const [q1, q2] = [await nueva(), await nueva()];
-  for (const q of [q1, q2]) assert.equal((await p.enSesion(() => p.comp.enlazarCuota(p.form({ comprobanteId: c, cuotaId: q })))).ok, true);
+  for (const q of [q1, q2]) {
+    const r: { ok: boolean } = await p.enSesion(() => p.comp.enlazarCuota(p.form({ comprobanteId: c, cuotaId: q })));
+    assert.equal(r.ok, true, JSON.stringify(r));
+  }
   // q2: la orden se crea con la cuota abierta (todavía está bien).
   const previa = await p.enSesion(() => p.ordenes.crearOrdenPago({ supplierId: s, medio: "TRANSFERENCIA", lineas: [{ comprobanteId: c, cuotaId: q2, importeCentavos: 30000 }] }));
   assert.equal(previa.ok, true, JSON.stringify(previa));
