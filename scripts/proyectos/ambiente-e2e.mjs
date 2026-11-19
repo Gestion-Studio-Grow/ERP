@@ -79,7 +79,7 @@ if (!soloSembrar) {
   const prisma = path.join(ROOT, "node_modules", "prisma", "build", "index.js");
   const env = { DATABASE_URL: DUENIO, MIGRATE_DATABASE_URL: DUENIO };
   const dep = correr(process.execPath, [prisma, "migrate", "deploy"], env);
-  const aplicadas = [...dep.salida.matchAll(/^\s*└─ (\S+)|^\s*├─ (\S+)/gm)].map((m) => m[1] ?? m[2]);
+  const aplicadas = [...dep.salida.matchAll(/^\s*└─ (\S+)|^\s*├─ (\S+)/gm)].map((m) => (m[1] ?? m[2]).replace(/\/$/, "")).filter((n) => /^\d{14}_/.test(n));
   log(`migrate deploy: código ${dep.codigo} · ${dep.salida.match(/\d+ migrations? found/)?.[0] ?? "?"} · ${dep.salida.match(/All migrations have been successfully applied\.|No pending migrations to apply\./)?.[0] ?? "(ver salida)"}`);
   if (dep.codigo !== 0) {
     process.stdout.write(dep.salida);
