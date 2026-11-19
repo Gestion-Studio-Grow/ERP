@@ -31,6 +31,7 @@ import { isFrozenDay, frozenDayMessage, notaFaltanteDelArqueo, NO_SE_ABRE_CON_EL
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
+import { pantallaAccion, requirePantalla } from "@/lib/require-app";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { tenantTransaction } from "@/lib/rls";
 import { emitirCajaAbierta, emitirCajaTurnoCerrada } from "@/eventos/del-core";
@@ -172,6 +173,7 @@ export async function tarjetaHabilitada(): Promise<boolean> {
 // permisos): trae el esperado del arqueo, que es de quien habilita la caja, no de quien vende.
 export async function getCajaData() {
   await requireCapability("cash:manage");
+  await requirePantalla("caja-del-dia");
   if (isDemoSandbox()) return { ...getDemoCajaData(), esperadoEnElCajon: null, aperturaACiegas: false };
   const tenantId = await getCurrentTenantId();
   const [open, recentClosed] = await Promise.all([
@@ -226,6 +228,9 @@ export async function openCashSession(
 ): Promise<CajaActionState> {
   // Abrir/cerrar/arquear la caja es la casilla 8 (`cash:manage`); vender sigue en `orders:manage`.
   const user = await requireCapability("cash:manage");
+  // La pantalla rebota sin la app (panel, casa, rol de gestión): la acción tampoco escribe (MIA-ACCIONES-PANEL). Se abre desde Caja o desde Vender.
+  const app = await pantallaAccion("caja-del-dia", "vender");
+  if (app.error) return { ok: false, error: app.error };
   if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
   const tenantId = await getCurrentTenantId();
   const openingFloat = parseAmount(formData.get("openingFloat"));
@@ -462,6 +467,9 @@ export async function closeCashSession(
 ): Promise<CajaActionState> {
   // Abrir/cerrar/arquear la caja es la casilla 8 (`cash:manage`); vender sigue en `orders:manage`.
   const user = await requireCapability("cash:manage");
+  // La pantalla rebota sin la app (panel, casa, rol de gestión): la acción tampoco escribe (MIA-ACCIONES-PANEL).
+  const app = await pantallaAccion("caja-del-dia");
+  if (app.error) return { ok: false, error: app.error };
   if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
   const tenantId = await getCurrentTenantId();
   const counted = parseAmount(formData.get("counted"));

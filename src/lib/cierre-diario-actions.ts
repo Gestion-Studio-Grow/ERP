@@ -29,6 +29,7 @@ import { emitirCajaCerrada } from "@/eventos/del-core";
 import { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { canCurrentUser, requireCapability } from "@/lib/authz";
+import { pantallaAccion, requirePantalla } from "@/lib/require-app";
 import { isPrismaError } from "@/lib/prisma-errors";
 import { cobradoDeLosPedidos, sinCobrarDeLosPedidos } from "@/lib/settlement/saldo-del-pedido";
 import { estadoCobroTurno, type CobroTurno } from "@/lib/turnos/cobros";
@@ -351,6 +352,8 @@ async function leerCierreDiario(
   opciones: { conTurnosSinCerrar?: boolean; esperadoALaVista?: boolean },
 ): Promise<CierreDiarioData> {
   await requireCapability("orders:read");
+  // La lee el Cierre del día y la Caja (su renglón del cierre).
+  await requirePantalla("cierre-del-dia", "caja-del-dia");
   const today = todayInBusinessTz();
   const day = isDayKey(dayRaw) ? dayRaw : today;
 
@@ -763,6 +766,9 @@ function parseDeclared(formData: FormData, columnas: readonly ColumnaDelCierre[]
  */
 export async function cerrarDia(formData: FormData): Promise<CierreActionState> {
   const quien = await requireCapability("orders:manage");
+  // La pantalla rebota sin la app (panel, casa, rol de gestión): la acción tampoco escribe (MIA-ACCIONES-PANEL).
+  const app = await pantallaAccion("cierre-del-dia");
+  if (app.error) return { ok: false, errors: [app.error] };
   if (isDemoSandbox()) return { ok: false, errors: [DEMO_WRITE_BLOCKED.error] };
   // M1-C8: cierra la dueña / el dueño (o el encargado, cuando exista el rol). Recepción, no.
   if (!puedeCerrarElDia(quien.role)) return { ok: false, errors: [CERRAR_DIA_SIN_PERMISO] };

@@ -15,6 +15,7 @@
 import { revalidatePath } from "next/cache";
 import { basePrisma } from "@/lib/prisma-base";
 import { requireCapability } from "@/lib/authz";
+import { pantallaAccion } from "@/lib/require-app";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { auditAdmin } from "@/lib/audit-core";
 import { ACCENT_PRESETS, type AccentPreset } from "@/lib/branding";
@@ -24,6 +25,9 @@ export type ResultadoApariencia = { ok: true } | { ok: false; error: string };
 /** Guarda el color del equipo (preset de acento del backoffice) del tenant actual. */
 export async function updateAccentPresetAction(preset: string): Promise<ResultadoApariencia> {
   await requireCapability("appearance:manage");
+  // La pantalla rebota sin la app (panel, casa, rol de gestión): la acción tampoco escribe (MIA-ACCIONES-PANEL).
+  const app = await pantallaAccion("apariencia");
+  if (app.error) return { ok: false, error: app.error };
   const tenantId = await getCurrentTenantId();
 
   const limpio = (preset ?? "").trim().toLowerCase();
