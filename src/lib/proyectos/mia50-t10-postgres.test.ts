@@ -65,6 +65,7 @@ async function armar(base: BaseEfimera) {
   const acc = await import("./acciones-liquidacion-proyecto");
   const empresa = await import("./acciones-empresa");
   const lectura = await import("./liquidacion-proyecto.server");
+  const comp = await import("./acciones-comprobantes");
   const sf = await import("./segundo-factor.server");
   const sfc = await import("./segundo-factor-core");
   const { tenantTransaction } = await import("@/lib/rls");
@@ -115,6 +116,7 @@ async function armar(base: BaseEfimera) {
     const numero = `0010-${String(++sig).padStart(8, "0")}`;
     const c = await enT(n.tenantId, (tx) => tx.proyectoComprobante.create({ data: { tenantId: n.tenantId, supplierId: n.provId, tipo: "C", numero, fecha: PASADO, netoCentavos: BigInt($(pesos)), totalCentavos: BigInt($(pesos)), cargadoPorId: n.cargador, cargadoNombre: "Test" }, select: { id: true } }));
     await enT(n.tenantId, (tx) => tx.proyectoComprobanteLinea.create({ data: { tenantId: n.tenantId, comprobanteId: c.id, destino: "PROYECTO", proyectoId, categoria: "Producción", netoCentavos: BigInt($(pesos)), ivaTratamiento: "COSTO", costoCentavos: BigInt($(pesos)) } }));
+    return c.id;
   };
   const cobrar = (proyectoId: string, pesos: number, tenantId = a.id) => duenio.proyectoPago.create({ data: { tenantId, proyectoId, medio: "TRANSFERENCIA", monto: pesos } });
 
@@ -176,7 +178,7 @@ async function armar(base: BaseEfimera) {
   const liq = (proyectoId: string) => enA((tx) => tx.proyectoLiquidacionProyecto.findMany({ where: { proyectoId }, include: { lineas: true } }));
   const totales = (lineas: { clave: string; personaId: string | null; total: bigint }[]) =>
     Object.fromEntries(lineas.map((l) => [l.personaId === prod.personaId ? "prod" : l.personaId === com.personaId ? "com" : l.personaId ? "otro" : "empresa", Number(l.total)]));
-  return { a, b, duenio, enA, enT, acc, empresa, lectura, tenantTransaction, como, valor, form, z, comprobante, cobrar, liq, totales, prod, com, admin, admin2, dir, respaldos, sf, sfc, persona, masCodigos, codigosDe };
+  return { a, b, duenio, enA, enT, acc, empresa, lectura, comp, tenantTransaction, como, valor, form, z, comprobante, cobrar, liq, totales, prod, com, admin, admin2, dir, respaldos, sf, sfc, persona, masCodigos, codigosDe };
 }
 
 async function preparar(t: import("node:test").TestContext) {
@@ -571,4 +573,145 @@ test("T12 · 3(b) · alta de un negocio nuevo: la dueña, única de Dirección, 
   rechazo(await como(duenia.id, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId: z2.id, codigo: c2 }))), /cobrás/i);
   assert.equal(await codigos(), antes, "el rechazo llegó antes de gastar el código");
   assert.equal(await estado(z2.id), "REVISADA");
+});
+
+// ── MIA-184 · vuelta de T12: observaciones A y B de la certificación de la ola 5 ──
+// Esperados escritos a mano ANTES de correr, desde Z y Z-tarde (plan § 2), en pesos:
+//  B1  Z con real 890.000 + un comprobante de 10.000 imputado ANTES de aprobar: real congelado 900.000, líneas de Z
+//      (prod 55.000 · com 30.000 · empresa 505.000). Se anula el de 10.000: real 890.000 → defensa 110.000 → prod
+//      27.500 + 30.000 = 57.500 (Δ +2.500) · com 30.000 (Δ 0) · empresa 82.500 + 430.000 = 512.500 (Δ +7.500).
+//      Líneas + ajustes = 590.000 + 10.000 = 600.000 = 1.490.000 − 890.000. Sin saldo a favor.
+//  B2  Z-tarde (ajuste −2.500 / −7.500, saldo a favor de la productora 2.500) y después se anula el tardío: real 900.000
+//      otra vez → ajuste +2.500 / +7.500 → 580.000 + 10.000 = 590.000 = 1.490.000 − 900.000. El +2.500 se descuenta
+//      dentro del proyecto: cancela el saldo de 2.500 (aplicado 2.500) y a la mensual no va nada del ajuste.
+//  A   Con B1: sin cobrar todo, la mensual no trae el ajuste y dice que espera. Cobrado (802.900 más): 2 generaciones de
+//      2027-01 y 1 de 2027-02 a la vez → entre los dos meses, 1 «Proyecto · Z» de 55.000 y 1 «Ajuste · Proyecto · Z» de
+//      2.500, en el mismo mes. Publicar y pagar: 1 egreso de 57.500. Volver a generar los dos meses: sigue 1 ajuste.
+//      B2 cobrado y generado en 2027-04: «Proyecto · Z» 55.000, ningún ajuste y ningún importe negativo.
+
+const AJUSTE = (nombre: string) => `Ajuste · Proyecto · ${nombre}`;
+
+test("MIA-184 · B1 · anular un comprobante congelado arma el ajuste (+2.500 / +7.500) y la cuenta da total − real", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const z = await p.z({ real: 890_000 });
+  const congelado = await p.comprobante(z.id, 10_000);
+  await aprobada(p, z.id);
+  const cab = (await p.liq(z.id))[0];
+  assert.deepEqual(p.totales(cab.lineas), { prod: $(55_000), com: $(30_000), empresa: $(505_000) });
+  ok(p.valor(await p.como(p.admin.userId, () => p.comp.anularComprobante(p.form({ id: congelado })))) as Res);
+  const codigos = await p.masCodigos(p.dir);
+  const rs = await Promise.all(codigos.slice(0, 2).map((codigo) => p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo })))));
+  for (const r of rs) ok(p.valor(r));
+  const ajustes = await p.enA((tx) => tx.proyectoLiquidacionProyectoAjuste.findMany({ where: { liquidacionId: cab.id }, select: { lineaId: true, monto: true } }));
+  const quien = (id: string | null) => p.totales(cab.lineas.filter((l) => l.id === id));
+  assert.deepEqual(ajustes.map((x) => [Object.keys(quien(x.lineaId))[0], Number(x.monto)]).sort(), [["empresa", $(7_500)], ["prod", $(2_500)]]);
+  const suma = cab.lineas.reduce((s, l) => s + Number(l.total), 0) + ajustes.reduce((s, x) => s + Number(x.monto), 0);
+  assert.equal(suma, $(600_000), "liquidación + ajustes = 1.490.000 − 890.000");
+  assert.deepEqual(p.totales((await p.liq(z.id))[0].lineas), { prod: $(55_000), com: $(30_000), empresa: $(505_000) }, "la aprobada no cambia");
+  assert.equal(await p.enA((tx) => tx.proyectoSaldoAFavor.count({ where: { liquidacionId: cab.id } })), 0);
+  b1 = z;
+});
+
+let b1: { id: string; nombre: string } | null = null;
+
+test("MIA-184 · B2 · anular el tardío ya ajustado: +2.500 / +7.500, la cuenta vuelve a 590.000 y el saldo de 2.500 queda aplicado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const z = await p.z();
+  await aprobada(p, z.id);
+  const tarde = await p.comprobante(z.id, 10_000);
+  const [c1, c2] = await p.masCodigos(p.dir);
+  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c1 })))));
+  ok(p.valor(await p.como(p.admin.userId, () => p.comp.anularComprobante(p.form({ id: tarde })))) as Res);
+  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c2 })))));
+  const cab = (await p.liq(z.id))[0];
+  const ajustes = await p.enA((tx) => tx.proyectoLiquidacionProyectoAjuste.findMany({ where: { liquidacionId: cab.id }, orderBy: { createdAt: "asc" }, select: { monto: true } }));
+  assert.deepEqual(ajustes.map((x) => Number(x.monto)).sort((x, y) => x - y), [-$(7_500), -$(2_500), $(2_500), $(7_500)]);
+  const suma = cab.lineas.reduce((s, l) => s + Number(l.total), 0) + ajustes.reduce((s, x) => s + Number(x.monto), 0);
+  assert.equal(suma, $(590_000), "liquidación + ajustes = 1.490.000 − 900.000");
+  const saldos = await p.enA((tx) => tx.proyectoSaldoAFavor.findMany({ where: { liquidacionId: cab.id }, select: { monto: true, aplicado: true } }));
+  assert.deepEqual(saldos.map((x) => [Number(x.monto), Number(x.aplicado)]), [[$(2_500), $(2_500)]], "el +2.500 se descontó dentro del proyecto");
+  b2 = z;
+});
+
+let b2: { id: string; nombre: string } | null = null;
+
+test("MIA-184 · A · el ajuste positivo entra a la mensual como línea aparte, cuando se cobró todo, una sola vez; el compensado y el negativo no", async (t) => {
+  const p = await preparar(t);
+  if (!p || !b1 || !b2) return assert.fail("faltan B1 y B2");
+  const z = b1;
+  const extrasDe = async (personaId: string, periodo: string) => {
+    const l = await p.duenio.proyectoLiquidacion.findFirst({ where: { tenantId: p.a.id, personaId, periodo }, select: { id: true, extras: true, total: true } });
+    return { id: l?.id ?? null, total: l?.total ?? 0, extras: (l?.extras ?? []) as { nombre: string; monto: number }[] };
+  };
+  const generar = (periodo: string) => p.como(p.admin.userId, () => p.empresa.generarLiquidaciones(p.form({ periodo })));
+  const g0 = p.valor(await generar("2027-01")) as Res & { esperando?: string[] };
+  ok(g0);
+  assert.ok(g0.esperando?.some((e) => e.includes(z.nombre)), "dice que el proyecto espera el cobro");
+  assert.deepEqual((await extrasDe(p.prod.personaId, "2027-01")).extras.filter((e) => e.nombre === AJUSTE(z.nombre)), [], "sin cobrar todo, el ajuste no entra");
+
+  await p.cobrar(z.id, 802_900);
+  for (const r of await Promise.all([generar("2027-01"), generar("2027-01"), generar("2027-02")])) ok(p.valor(r) as Res);
+  const meses = await Promise.all(["2027-01", "2027-02"].map((m) => extrasDe(p.prod.personaId, m)));
+  const de = (nombre: string) => meses.flatMap((m) => m.extras.filter((e) => e.nombre === nombre).map((e) => ({ mes: m.id, monto: e.monto })));
+  assert.deepEqual(de(`Proyecto · ${z.nombre}`).map((e) => e.monto), [55_000]);
+  assert.deepEqual(de(AJUSTE(z.nombre)).map((e) => e.monto), [2_500], "1 línea aparte con el nombre del proyecto");
+  assert.equal(de(AJUSTE(z.nombre))[0].mes, de(`Proyecto · ${z.nombre}`)[0].mes, "en el mismo mes abierto");
+  assert.ok(meses.every((m) => !m.extras.some((e) => e.nombre.includes(z.nombre) && e.monto < 0)), "nada negativo");
+  const mensual = meses.find((m) => m.id === de(AJUSTE(z.nombre))[0].mes)!;
+  const periodo = (await p.duenio.proyectoLiquidacion.findUniqueOrThrow({ where: { id: mensual.id! }, select: { periodo: true } })).periodo;
+  assert.equal(mensual.total, 57_500, "sueldo fijo 0 + 55.000 + 2.500");
+  ok(p.valor(await p.como(p.admin.userId, () => p.empresa.publicarBorradores(p.form({ periodo })))) as Res);
+  ok(p.valor(await p.como(p.admin.userId, () => p.empresa.pagarLiquidacion(p.form({ id: mensual.id!, medio: "TRANSFERENCIA" })))) as Res);
+  const egresos = await p.duenio.cashMovement.findMany({ where: { tenantId: p.a.id, proyectoLiquidacionId: mensual.id! }, select: { amount: true } });
+  assert.deepEqual(egresos.map((e) => e.amount), [57_500], "1 egreso de 57.500");
+  for (const r of await Promise.all([generar("2027-01"), generar("2027-02")])) ok(p.valor(r) as Res);
+  const otraVez = await Promise.all(["2027-01", "2027-02"].map((m) => extrasDe(p.prod.personaId, m)));
+  assert.equal(otraVez.flatMap((m) => m.extras.filter((e) => e.nombre === AJUSTE(z.nombre))).length, 1, "nunca se paga dos veces");
+
+  // B2: el +2.500 se descontó del saldo dentro del proyecto; el −2.500 nunca entra.
+  await p.cobrar(b2.id, 802_900);
+  ok(p.valor(await generar("2027-04")) as Res); // 2027-03 lo usa C-O46
+  const abril = (await extrasDe(p.prod.personaId, "2027-04")).extras.filter((e) => e.nombre.includes(b2!.nombre));
+  assert.deepEqual(abril.map((e) => [e.nombre, e.monto]), [[`Proyecto · ${b2.nombre}`, 55_000]]);
+});
+
+// MIA-184 (C) · script de la ficha de Dirección del dueño en un negocio que ya existe, como `app_rls` dentro de una
+// tenantTransaction del negocio B (tiene proyectos y su dueña no tiene ficha). A mano, antes de correr: se suman 2 OWNER;
+// la socia tiene una ficha de Dirección sin cuenta con su mail, y el tercero una ficha de Producción sin cuenta con su mail.
+// Prueba: [crear, vincular, revisar-a-mano] y 0 escrituras. Dos --aplicar a la vez: 1 ficha nueva de Dirección (la dueña),
+// la de la socia vinculada, la de Producción intacta y 2 renglones de historial. Tercera corrida: [ya-tiene, ya-tiene,
+// revisar-a-mano] y 0 renglones nuevos.
+test("MIA-184 · C · ficha de Dirección del dueño: modo de prueba sin escribir, idempotente y sin subir el rol de nadie", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { fichaDeDireccionDelDuenio } = await import("../../../scripts/proyectos/ficha-direccion-duenio");
+  const tid = p.b.id;
+  const dueniaB = await p.duenio.user.findFirstOrThrow({ where: { tenantId: tid, role: "OWNER" }, orderBy: { createdAt: "asc" }, select: { id: true } });
+  assert.equal(await p.duenio.proyectoPersona.count({ where: { tenantId: tid } }), 0, "B arranca sin fichas");
+  const socia = await p.duenio.user.create({ data: { tenantId: tid, name: "Socia", email: "socia@mia184.test", passwordHash: "x", role: "OWNER", createdAt: new Date(Date.now() + 1_000) }, select: { id: true } });
+  const tercero = await p.duenio.user.create({ data: { tenantId: tid, name: "Tercero", email: "tercero@mia184.test", passwordHash: "x", role: "OWNER", createdAt: new Date(Date.now() + 2_000) }, select: { id: true } });
+  const deSocia = await p.duenio.proyectoPersona.create({ data: { tenantId: tid, nombre: "Socia", email: "SOCIA@mia184.test", rol: "DIRECCION" }, select: { id: true } });
+  const deTercero = await p.duenio.proyectoPersona.create({ data: { tenantId: tid, nombre: "Tercero", email: "tercero@mia184.test", rol: "PRODUCCION" }, select: { id: true } });
+  const correr = (aplicar: boolean) => p.tenantTransaction((tx) => fichaDeDireccionDelDuenio(tx as never, tid, aplicar), { tenantId: tid });
+  const historial = () => p.duenio.proyectoCambio.count({ where: { tenantId: tid, autor: { contains: "MIA-184" } } });
+
+  const prueba = await correr(false);
+  assert.equal(prueba.aplicado, false);
+  assert.deepEqual(prueba.pasos.map((x) => [x.userId, x.accion]), [[dueniaB.id, "crear"], [socia.id, "vincular"], [tercero.id, "revisar-a-mano"]]);
+  assert.equal(await p.duenio.proyectoPersona.count({ where: { tenantId: tid } }), 2, "el modo de prueba no escribe");
+  assert.equal(await historial(), 0);
+
+  await Promise.all([correr(true), correr(true)]);
+  const fichas = await p.duenio.proyectoPersona.findMany({ where: { tenantId: tid }, select: { id: true, userId: true, rol: true } });
+  assert.equal(fichas.length, 3, "1 ficha nueva, no 2");
+  assert.equal(fichas.find((f) => f.userId === dueniaB.id)?.rol, "DIRECCION");
+  assert.equal(fichas.find((f) => f.id === deSocia.id)?.userId, socia.id, "la de la socia quedó vinculada");
+  assert.deepEqual(fichas.find((f) => f.id === deTercero.id), { id: deTercero.id, userId: null, rol: "PRODUCCION" }, "la de Producción no se toca");
+  assert.equal(await historial(), 2);
+
+  const otraVez = await correr(true);
+  assert.deepEqual(otraVez.pasos.map((x) => x.accion), ["ya-tiene", "ya-tiene", "revisar-a-mano"]);
+  assert.equal(await historial(), 2, "idempotente");
 });

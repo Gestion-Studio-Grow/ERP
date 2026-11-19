@@ -33,7 +33,7 @@ import { randomUUID } from "node:crypto";
 import { aCentavos, esDiaValido, esOrigenConciliable, esTramo, huellasDelExtracto, MEDIO_RETENCION, signoDelOrigen, TRAMO_LABEL, type OrigenConciliable } from "./moneda-bancos-core";
 import { hayM6, hayM8, hoyArgentina, moverCuentaTx } from "./moneda-bancos.server";
 import { valorDelNegocio } from "./parametros/leer.server";
-import { hayM5, lineasParaLaMensual, proyectosConReparto, reclamarLineasDeProyectoTx } from "./liquidacion-proyecto.server";
+import { hayM5, lineasParaLaMensual, proyectosConReparto, reclamarAjustesTx, reclamarLineasDeProyectoTx, soltarDeLaMensualTx } from "./liquidacion-proyecto.server";
 
 const ADMIN = "/admin/proyectos/administracion";
 /** Un extracto de varios meses entra de sobra, y no pasa el límite de lo que recibe una acción del servidor. */
@@ -644,7 +644,8 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
       if (previa && previa.estado !== "BORRADOR") continue;
       const delPeriodo = extrasDelPeriodo(p.equipos, periodo, conReparto);
       const deProyecto = deProyectos.porPersona.get(p.id) ?? [];
-      if (!previa && !(p.sueldoBase > 0) && delPeriodo.length === 0 && !conReintegro?.has(p.id) && deProyecto.length === 0) continue;
+      const ajustes = deProyectos.ajustesPorPersona.get(p.id) ?? [];
+      if (!previa && !(p.sueldoBase > 0) && delPeriodo.length === 0 && !conReintegro?.has(p.id) && deProyecto.length === 0 && ajustes.length === 0) continue;
       // G4: la propia no se genera ni se recalcula; la arma otra persona con permiso (el resultado lo dice).
       if (esLoPropio(yo, { personaId: p.id, userId: p.userId })) {
         salteada = p.nombre;
@@ -660,7 +661,8 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
       const id = fila.id;
       const sinReintegros = extrasRecalculados(leerExtras(fila.extras), delPeriodo);
       const conRendi = conReintegro ? await reclamarReintegrosTx(tx, a.tenantId, id, p.id, sinReintegros) : [...sinReintegros, ...leerExtras(fila.extras).filter((e) => e.reintegro)];
-      const extras = (await hayM5()) ? [...conRendi, ...(await reclamarLineasDeProyectoTx(tx, a.tenantId, id, deProyecto))] : conRendi;
+      // MIA-184 (A): después de las líneas, los ajustes aprobados de la persona, cada uno como línea aparte.
+      const extras = (await hayM5()) ? [...conRendi, ...(await reclamarLineasDeProyectoTx(tx, a.tenantId, id, deProyecto)), ...(await reclamarAjustesTx(tx, a.tenantId, id, ajustes))] : conRendi;
       const total = totalLiquidacion(p.sueldoBase, extras);
       await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { base: p.sueldoBase, extras: extras as unknown as Prisma.InputJsonValue, total, facturaA: p.facturaA } });
       generadas++;
@@ -803,6 +805,8 @@ export async function borrarLiquidacion(formData: FormData): Promise<Resultado> 
       if (!faltaLaMigracion(e)) throw e;
       await tx.$executeRaw`ROLLBACK TO SAVEPOINT rendi_liberar`;
     }
+    // MIA-184 (A): lo que el borrador había tomado de los proyectos (líneas y ajustes) queda libre para la próxima mensual.
+    if (await hayM5(tx)) await soltarDeLaMensualTx(tx, a.tenantId, id);
     const r = await tx.proyectoLiquidacion.deleteMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" } });
     if (r.count === 0) return false;
     await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `borrador ${l.periodo}`, antes: l.total, despues: "borrado", autor: a.nombre });

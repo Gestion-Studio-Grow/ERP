@@ -12,7 +12,7 @@
 // Z-neg con piso cero: productor 30.000; comercial 30.000; empresa −300.000 + 430.000 = 130.000. Suma 190.000.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calcularAjuste, calcularLiquidacion, cierraAlCentavo, saldosAFavor, comparacionesDeRevision, rechazoDeRevision, listaParaLaMensual } from "./liquidacion-proyecto-core";
+import { calcularAjuste, calcularLiquidacion, cierraAlCentavo, saldosAFavor, comparacionesDeRevision, rechazoDeRevision, listaParaLaMensual, compensarConSaldos, aPagarDelAjuste } from "./liquidacion-proyecto-core";
 import { calcularRendicion, MATRIZ_PLANTILLA } from "./rendicion-core";
 import type { ParticipanteFoto } from "./precio-proyecto-core";
 
@@ -135,4 +135,20 @@ test("T12 · C-O26 · Z-neg: el productor queda en −45.000 → saldo a favor d
   const r = calcularLiquidacion(Z(1_300_000));
   assert.deepEqual(saldosAFavor(r.lineas.map((l) => ({ personaId: l.personaId, monto: l.total }))), [{ personaId: "p-prod", monto: $(45_000) }]);
   assert.deepEqual(saldosAFavor([{ personaId: null, monto: -1 }, { personaId: "x", monto: 0 }]), []);
+});
+
+// MIA-184 (A) · el positivo primero cancela el saldo a favor de la misma persona; sólo el resto se paga. A mano:
+// saldos de la productora 1.000 (sin aplicar) y 2.000 (500 aplicados) → libres 1.000 y 1.500. Renglón +3.000 →
+// compensa 1.000 + 1.500 = 2.500 y paga 500. El comercial (+700, sin saldo) paga 700. La empresa no compensa.
+test("MIA-184 · compensarConSaldos y aPagarDelAjuste", () => {
+  const r = compensarConSaldos(
+    [{ lineaId: "lp", personaId: "prod", monto: 3_000 }, { lineaId: "lc", personaId: "com", monto: 700 }, { lineaId: "le", personaId: null, monto: 9_000 }, { lineaId: "ln", personaId: "prod", monto: -400 }],
+    [{ id: "s1", personaId: "prod", monto: 1_000, aplicado: 0 }, { id: "s2", personaId: "prod", monto: 2_000, aplicado: 500 }],
+  );
+  assert.deepEqual([...r.compensado], [["lp", 2_500]]);
+  assert.deepEqual(r.aplicar, [{ saldoId: "s1", monto: 1_000 }, { saldoId: "s2", monto: 1_500 }]);
+  assert.equal(aPagarDelAjuste({ monto: 3_000, detalle: { compensado: 2_500 } }), 500);
+  assert.equal(aPagarDelAjuste({ monto: 700, detalle: {} }), 700);
+  assert.equal(aPagarDelAjuste({ monto: 250, detalle: { compensado: 250 } }), 0);
+  assert.equal(aPagarDelAjuste({ monto: -400, detalle: null }), 0, "un negativo nunca se paga");
 });

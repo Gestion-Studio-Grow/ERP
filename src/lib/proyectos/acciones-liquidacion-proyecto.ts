@@ -16,7 +16,7 @@ import { hayM3 } from "./precio-foto.server";
 import { comprobarCodigo } from "./segundo-factor.server";
 import { randomUUID } from "node:crypto";
 import { claveMes } from "./gestion-core";
-import { cierraAlCentavo, comparacionesDeRevision, rechazoDeRevision, saldosAFavor, SIN_FICHA_NO_REVISA } from "./liquidacion-proyecto-core";
+import { cierraAlCentavo, comparacionesDeRevision, compensarConSaldos, rechazoDeRevision, saldosAFavor, SIN_FICHA_NO_REVISA } from "./liquidacion-proyecto-core";
 import { eventoTerminado, hayM5, liquidacionDelProyecto, medirProyecto, propuestaDeAjuste, quienesCobran, rendicionesPendientes, SIN_M5, type DetalleAjuste, type LiquidacionGuardada } from "./liquidacion-proyecto.server";
 import type { ParticipanteFoto } from "./precio-proyecto-core";
 
@@ -267,9 +267,17 @@ export async function aprobarAjusteTardio(formData: FormData): Promise<Resultado
       const { liq, propuesta: p } = hay;
       if (!p.cierra) throw new Rechazo("La liquidación más los ajustes no da Total venta − costo real al centavo: no se ajusta. Avisá a Gestión Studio Grow.");
       const detalle: DetalleAjuste = { lote: randomUUID(), comprobantes: p.pendientes, costoRealAntes: p.costoRealAntes, costoRealNuevo: p.costoRealNuevo, periodo: claveMes(new Date()) };
-      const motivo = `Comprobante tardío: ${p.pendientes.map((c) => c.origen).join("; ")}`.slice(0, 300);
+      const motivo = `${p.pendientes.every((c) => c.costo < 0) ? "Comprobante anulado" : "Comprobante tardío"}: ${p.pendientes.map((c) => c.origen).join("; ")}`.slice(0, 300);
+      // MIA-184 (A): lo positivo de una persona primero cancela su saldo a favor abierto en este proyecto (con la cabecera
+      // trabada: los saldos de esta liquidación sólo se tocan bajo este mismo candado); el resto va a la mensual.
+      const abiertos = await tx.proyectoSaldoAFavor.findMany({ where: { tenantId, liquidacionId: liq.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, personaId: true, monto: true, aplicado: true } });
+      const { compensado, aplicar } = compensarConSaldos(p.renglones, abiertos);
+      for (const x of aplicar) await tx.proyectoSaldoAFavor.updateMany({ where: { tenantId, id: x.saldoId }, data: { aplicado: { increment: BigInt(x.monto) } } });
       await tx.proyectoLiquidacionProyectoAjuste.createMany({
-        data: p.renglones.map((x) => ({ tenantId, liquidacionId: liq.id, lineaId: x.lineaId, motivo, monto: BigInt(x.monto), detalle: detalle as unknown as Prisma.InputJsonValue, autorId: a.user.id, autorNombre: a.nombre })),
+        data: p.renglones.map((x) => {
+          const d: DetalleAjuste = compensado.has(x.lineaId) ? { ...detalle, compensado: compensado.get(x.lineaId) } : detalle;
+          return { tenantId, liquidacionId: liq.id, lineaId: x.lineaId, motivo, monto: BigInt(x.monto), detalle: d as unknown as Prisma.InputJsonValue, autorId: a.user.id, autorNombre: a.nombre };
+        }),
       });
       const saldos = saldosAFavor(p.renglones);
       if (saldos.length > 0) await tx.proyectoSaldoAFavor.createMany({ data: saldos.map((x) => ({ tenantId, personaId: x.personaId, liquidacionId: liq.id, monto: BigInt(x.monto) })) });

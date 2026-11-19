@@ -17,7 +17,7 @@ import { parametrosDelNegocio, valorDelNegocio } from "./parametros/leer.server"
 import type { ParticipanteFoto } from "./precio-proyecto-core";
 import { actorActual, proyectoVisible, puede, type Actor } from "./gestion.server";
 import { CATALOGO } from "./parametros/catalogo";
-import { calcularAjuste, calcularLiquidacion, comparacionesDeRevision, listaParaLaMensual, nombreDeLineaMensual, SIN_FICHA_NO_REVISA, type Comparacion, type LiquidacionCalculada, type RenglonAjuste } from "./liquidacion-proyecto-core";
+import { aPagarDelAjuste, calcularAjuste, calcularLiquidacion, comparacionesDeRevision, listaParaLaMensual, nombreDeAjusteMensual, nombreDeLineaMensual, SIN_FICHA_NO_REVISA, type Comparacion, type LiquidacionCalculada, type RenglonAjuste } from "./liquidacion-proyecto-core";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -141,26 +141,46 @@ export async function liquidacionDelProyecto(db: Db, tenantId: string, proyectoI
   });
 }
 
-/** Las líneas de comprobante imputadas DESPUÉS de congelar el costo: quedan fuera, marcadas para ajuste (T12). */
-export async function comprobantesParaAjuste(db: Db, tenantId: string, proyectoId: string, costoDetalle: unknown): Promise<{ id: string; costo: number; origen: string }[]> {
+/**
+ * Las líneas de comprobante cuyo costo de HOY difiere de lo que ya cuenta la liquidación aprobada (lo congelado más lo que
+ * movieron los ajustes, `yaAjustado`): un comprobante imputado después de congelar suma (T12, O24) y uno congelado, o ya
+ * ajustado, que se anula después resta (MIA-184, B). Anulado, una línea cuesta 0. Sólo las diferencias distintas de cero.
+ */
+export async function comprobantesParaAjuste(db: Db, tenantId: string, proyectoId: string, costoDetalle: unknown, yaAjustado: ReadonlyMap<string, number> = new Map()): Promise<{ id: string; costo: number; origen: string }[]> {
   const congeladas = new Set(((costoDetalle as Medicion["costoDetalle"] | null)?.lineasDeComprobante ?? []) as string[]);
   const filas = await db.proyectoComprobanteLinea.findMany({
-    where: { tenantId, proyectoId, comprobante: { anuladoEl: null } },
-    select: { id: true, costoCentavos: true, comprobante: { select: { tipo: true, numero: true, supplier: { select: { name: true } } } } },
+    where: { tenantId, proyectoId },
+    orderBy: { id: "asc" },
+    select: { id: true, costoCentavos: true, comprobante: { select: { tipo: true, numero: true, anuladoEl: true, supplier: { select: { name: true } } } } },
   });
-  return filas.filter((l) => !congeladas.has(l.id)).map((l) => ({ id: l.id, costo: n(l.costoCentavos), origen: `${l.comprobante.supplier.name} · ${l.comprobante.tipo} ${l.comprobante.numero}` }));
+  return filas.flatMap((l) => {
+    const hoy = l.comprobante.anuladoEl ? 0 : n(l.costoCentavos);
+    const cuenta = (congeladas.has(l.id) ? n(l.costoCentavos) : 0) + (yaAjustado.get(l.id) ?? 0);
+    if (hoy === cuenta) return [];
+    return [{ id: l.id, costo: hoy - cuenta, origen: `${l.comprobante.anuladoEl ? "Anulado · " : ""}${l.comprobante.supplier.name} · ${l.comprobante.tipo} ${l.comprobante.numero}` }];
+  });
 }
 
 // ── T12 · O24: el ajuste por comprobante tardío ──
 
 export interface ComprobanteTardio { id: string; costo: number; origen: string }
 /** Lo que guarda cada renglón de ajuste: el lote de comprobantes que cubre y el costo real antes y después. */
-export interface DetalleAjuste { lote: string; comprobantes: ComprobanteTardio[]; costoRealAntes: number; costoRealNuevo: number; periodo: string }
+export interface DetalleAjuste {
+  lote: string;
+  comprobantes: ComprobanteTardio[];
+  costoRealAntes: number;
+  costoRealNuevo: number;
+  periodo: string;
+  /** MIA-184 (A): lo que este renglón canceló del saldo a favor de la persona en el proyecto (no va a la mensual). */
+  compensado?: number;
+  /** MIA-184 (A): la liquidación mensual que tomó este renglón (como `mensualId` de las líneas). */
+  mensualId?: string;
+}
 
 const detalleDe = (d: unknown): DetalleAjuste | null => (d && typeof d === "object" && Array.isArray((d as DetalleAjuste).comprobantes) ? (d as DetalleAjuste) : null);
 
 export interface PropuestaDeAjuste {
-  /** Comprobantes imputados después de aprobar que todavía no tienen ajuste. */
+  /** Comprobantes cuyo costo cambió después de aprobar (tardíos suman, anulados restan) y todavía no tienen ajuste. */
   pendientes: ComprobanteTardio[];
   renglones: RenglonAjuste[];
   costoRealAntes: number;
@@ -176,11 +196,18 @@ export interface PropuestaDeAjuste {
 export async function propuestaDeAjuste(db: Db, tenantId: string, cab: LiquidacionGuardada): Promise<PropuestaDeAjuste | null> {
   if (cab.estado !== "APROBADA") return null;
   const previos = await db.proyectoLiquidacionProyectoAjuste.findMany({ where: { tenantId, liquidacionId: cab.id }, select: { lineaId: true, monto: true, detalle: true } });
-  const cubiertos = new Map<string, number>();
-  for (const a of previos) for (const c of detalleDe(a.detalle)?.comprobantes ?? []) cubiertos.set(c.id, c.costo);
-  const pendientes = (await comprobantesParaAjuste(db, tenantId, cab.proyectoId, cab.costoDetalle)).filter((c) => !cubiertos.has(c.id) && c.costo !== 0);
+  // Lo que cada lote ya movió por línea de comprobante (todos los renglones de un lote repiten su detalle: se cuenta una vez).
+  const yaAjustado = new Map<string, number>();
+  const lotes = new Set<string>();
+  for (const a of previos) {
+    const d = detalleDe(a.detalle);
+    if (!d || lotes.has(d.lote)) continue;
+    lotes.add(d.lote);
+    for (const c of d.comprobantes) yaAjustado.set(c.id, (yaAjustado.get(c.id) ?? 0) + c.costo);
+  }
+  const pendientes = await comprobantesParaAjuste(db, tenantId, cab.proyectoId, cab.costoDetalle, yaAjustado);
   if (pendientes.length === 0) return null;
-  const costoRealAntes = n(cab.costoReal) + [...cubiertos.values()].reduce((s, c) => s + c, 0);
+  const costoRealAntes = n(cab.costoReal) + [...yaAjustado.values()].reduce((s, c) => s + c, 0);
   const costoRealNuevo = costoRealAntes + pendientes.reduce((s, c) => s + c.costo, 0);
   const foto = cab.presupuestoId && cab.fotoVersion !== null ? await db.proyectoPrecioFoto.findFirst({ where: { tenantId, proyectoId: cab.proyectoId, presupuestoId: cab.presupuestoId, version: cab.fotoVersion } }) : null;
   const defensaNegativa = (cab.parametros as Medicion["parametros"] | null)?.valores?.["reparto.defensaNegativa"];
@@ -282,28 +309,41 @@ export async function liquidacionDeLaFicha(proyectoId: string) {
  * O23 · Qué líneas de proyecto aprobadas pueden entrar a la liquidación mensual ahora, según «cuándo se paga», y qué
  * proyectos esperan (con el motivo). Sólo personas con total positivo: la empresa no se liquida y los negativos son de
  * T12 (saldo a favor). Lo que ya tomó una mensual publicada no vuelve: el claim pide `mensualId` nulo o el propio.
+ * MIA-184 (A): con la misma regla, los ajustes aprobados con algo para pagar (positivo menos lo que canceló de un saldo).
  */
-export async function lineasParaLaMensual(db: Db, tenantId: string): Promise<{ porPersona: Map<string, string[]>; esperando: string[] }> {
+export async function lineasParaLaMensual(db: Db, tenantId: string): Promise<{ porPersona: Map<string, string[]>; ajustesPorPersona: Map<string, string[]>; esperando: string[] }> {
   const porPersona = new Map<string, string[]>();
+  const ajustesPorPersona = new Map<string, string[]>();
   const esperando: string[] = [];
-  if (!(await hayM5(db))) return { porPersona, esperando };
+  if (!(await hayM5(db))) return { porPersona, ajustesPorPersona, esperando };
   const aprobadas = await db.proyectoLiquidacionProyecto.findMany({
     where: { tenantId, estado: "APROBADA" },
-    select: { proyectoId: true, proyecto: { select: { nombre: true } }, lineas: { where: { personaId: { not: null }, total: { gt: 0 } }, select: { id: true, personaId: true } } },
+    select: {
+      proyectoId: true,
+      proyecto: { select: { nombre: true } },
+      lineas: { where: { personaId: { not: null } }, select: { id: true, personaId: true, total: true } },
+      ajustes: { where: { monto: { gt: 0 } }, select: { id: true, lineaId: true, monto: true, detalle: true } },
+    },
   });
-  if (aprobadas.length === 0) return { porPersona, esperando };
+  if (aprobadas.length === 0) return { porPersona, ajustesPorPersona, esperando };
   const [tc, config, params] = await Promise.all([tiposDeCambio(tenantId, db), configProyectos(tenantId, db as Prisma.TransactionClient), parametrosDelNegocio(tenantId, db)]);
   const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct, aprobadas.map((l) => l.proyectoId), db);
   const cuando = String(params["reparto.cuandoSePaga"].valor);
+  const sumar = (m: Map<string, string[]>, personaId: string, id: string) => m.set(personaId, [...(m.get(personaId) ?? []), id]);
   for (const l of aprobadas) {
     const r = listaParaLaMensual({ estado: "APROBADA", cuandoSePaga: cuando, porCobrar: centavosDe(cobranzas.get(l.proyectoId)?.porCobrar ?? 0) });
     if (!r.lista) {
       esperando.push(`${l.proyecto.nombre}: ${r.motivo}`);
       continue;
     }
-    for (const x of l.lineas) porPersona.set(x.personaId!, [...(porPersona.get(x.personaId!) ?? []), x.id]);
+    for (const x of l.lineas) if (x.total > BigInt(0)) sumar(porPersona, x.personaId!, x.id);
+    const personaDe = new Map(l.lineas.map((x) => [x.id, x.personaId!]));
+    for (const a of l.ajustes) {
+      const personaId = personaDe.get(a.lineaId ?? "");
+      if (personaId && aPagarDelAjuste(a) > 0) sumar(ajustesPorPersona, personaId, a.id);
+    }
   }
-  return { porPersona, esperando };
+  return { porPersona, ajustesPorPersona, esperando };
 }
 
 /**
@@ -316,6 +356,33 @@ export async function reclamarLineasDeProyectoTx(tx: Prisma.TransactionClient, t
   await tx.proyectoLiquidacionProyectoLinea.updateMany({ where: { tenantId, id: { in: [...candidatas] }, OR: [{ mensualId: null }, { mensualId }] }, data: { mensualId } });
   const tomadas = await tx.proyectoLiquidacionProyectoLinea.findMany({ where: { tenantId, mensualId }, orderBy: { createdAt: "asc" }, select: { total: true, liquidacion: { select: { proyectoId: true, proyecto: { select: { nombre: true } } } } } });
   return tomadas.map((t) => ({ proyectoId: t.liquidacion.proyectoId, nombre: nombreDeLineaMensual(t.liquidacion.proyecto.nombre), monto: Number(t.total) / 100 }));
+}
+
+/**
+ * MIA-184 (A) · El mismo claim para los ajustes, sin columna nueva: la mensual que lo toma queda en `detalle.mensualId`.
+ * El UPDATE pide `mensualId` ausente o el propio y Postgres lo vuelve a evaluar sobre la fila ya trabada: dos mensuales
+ * a la vez (el mismo mes o dos meses) se quedan con el ajuste una sola vez. Lo de una mensual publicada no se suelta
+ * nunca (sólo se suelta desde la propia, en borrador). Devuelve una línea aparte por ajuste, con lo que se paga.
+ */
+export async function reclamarAjustesTx(tx: Prisma.TransactionClient, tenantId: string, mensualId: string, candidatos: readonly string[]): Promise<{ proyectoId: string; nombre: string; monto: number }[]> {
+  const ids = [...candidatos];
+  await tx.$executeRaw`UPDATE "ProyectoLiquidacionProyectoAjuste" SET "detalle" = "detalle" - 'mensualId'
+    WHERE "tenantId" = ${tenantId} AND "detalle"->>'mensualId' = ${mensualId} AND NOT ("id" = ANY(${ids}::text[]))`;
+  if (ids.length === 0) return [];
+  await tx.$executeRaw`UPDATE "ProyectoLiquidacionProyectoAjuste" SET "detalle" = jsonb_set(COALESCE("detalle", '{}'::jsonb), '{mensualId}', to_jsonb(${mensualId}::text))
+    WHERE "tenantId" = ${tenantId} AND "id" = ANY(${ids}::text[]) AND "monto" > 0 AND ("detalle"->>'mensualId' IS NULL OR "detalle"->>'mensualId' = ${mensualId})`;
+  const tomados = await tx.proyectoLiquidacionProyectoAjuste.findMany({
+    where: { tenantId, detalle: { path: ["mensualId"], equals: mensualId } },
+    orderBy: { createdAt: "asc" },
+    select: { monto: true, detalle: true, liquidacion: { select: { proyectoId: true, proyecto: { select: { nombre: true } } } } },
+  });
+  return tomados.map((t) => ({ proyectoId: t.liquidacion.proyectoId, nombre: nombreDeAjusteMensual(t.liquidacion.proyecto.nombre), monto: aPagarDelAjuste(t) / 100 }));
+}
+
+/** Borrar una mensual en borrador suelta lo que había tomado del proyecto (líneas y ajustes) para la próxima. */
+export async function soltarDeLaMensualTx(tx: Prisma.TransactionClient, tenantId: string, mensualId: string): Promise<void> {
+  await tx.proyectoLiquidacionProyectoLinea.updateMany({ where: { tenantId, mensualId }, data: { mensualId: null } });
+  await tx.$executeRaw`UPDATE "ProyectoLiquidacionProyectoAjuste" SET "detalle" = "detalle" - 'mensualId' WHERE "tenantId" = ${tenantId} AND "detalle"->>'mensualId' = ${mensualId}`;
 }
 
 // ── La pestaña «Liquidación» de la ficha ──

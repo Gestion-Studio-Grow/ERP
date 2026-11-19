@@ -180,6 +180,8 @@ export const SIN_FICHA_NO_REVISA = "Tu usuario no tiene ficha en Equipo: sin ell
 
 /** El nombre de la línea en la liquidación mensual. */
 export const nombreDeLineaMensual = (proyecto: string) => `Proyecto · ${proyecto}`;
+/** MIA-184 (A): el ajuste aprobado va a la mensual como línea aparte, también con el nombre del proyecto. */
+export const nombreDeAjusteMensual = (proyecto: string) => `Ajuste · Proyecto · ${proyecto}`;
 
 // ── Después de aprobar (T12: O24 y O26) ──
 
@@ -225,3 +227,37 @@ export const saldosAFavor = (items: readonly { personaId: string | null; monto: 
   items.filter((i): i is { personaId: string; monto: number | bigint } => !!i.personaId && BigInt(i.monto) < BigInt(0)).map((i) => ({ personaId: i.personaId, monto: -Number(i.monto) }));
 
 export const AVISO_SALDO = "No se descuenta solo de tu liquidación del mes: Dirección decide cómo se compensa.";
+
+/**
+ * MIA-184 (A) · «Negativo se descuenta dentro del proyecto»: un renglón positivo de una persona primero cancela lo que
+ * esa persona todavía le debe a la empresa en ESTE proyecto (sus saldos a favor abiertos, del más viejo al más nuevo);
+ * sólo el resto va a la mensual. Devuelve lo compensado por línea y lo que se aplica a cada saldo. PURA.
+ */
+export function compensarConSaldos(
+  renglones: readonly { lineaId: string; personaId: string | null; monto: number | bigint }[],
+  abiertos: readonly { id: string; personaId: string; monto: number | bigint; aplicado: number | bigint }[],
+): { compensado: Map<string, Centavos>; aplicar: { saldoId: string; monto: Centavos }[] } {
+  const queda = new Map(abiertos.map((s) => [s.id, Number(s.monto) - Number(s.aplicado)]));
+  const compensado = new Map<string, Centavos>();
+  const aplicado = new Map<string, Centavos>();
+  for (const r of renglones) {
+    let falta = Number(r.monto);
+    if (!r.personaId || falta <= 0) continue;
+    for (const s of abiertos) {
+      const libre = queda.get(s.id) ?? 0;
+      if (s.personaId !== r.personaId || libre <= 0 || falta <= 0) continue;
+      const usa = Math.min(libre, falta);
+      queda.set(s.id, libre - usa);
+      aplicado.set(s.id, (aplicado.get(s.id) ?? 0) + usa);
+      compensado.set(r.lineaId, (compensado.get(r.lineaId) ?? 0) + usa);
+      falta -= usa;
+    }
+  }
+  return { compensado, aplicar: [...aplicado].map(([saldoId, monto]) => ({ saldoId, monto })) };
+}
+
+/** MIA-184 (A) · Lo que un ajuste le paga a la persona en la mensual: lo positivo menos lo que canceló de su saldo. */
+export const aPagarDelAjuste = (a: { monto: number | bigint; detalle: unknown }): Centavos => {
+  const compensado = Number((a.detalle as { compensado?: unknown } | null)?.compensado ?? 0);
+  return Math.max(0, Number(a.monto) - (Number.isFinite(compensado) ? compensado : 0));
+};
