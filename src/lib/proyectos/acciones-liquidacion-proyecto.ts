@@ -17,7 +17,7 @@ import { comprobarCodigo } from "./segundo-factor.server";
 import { randomUUID } from "node:crypto";
 import { claveMes } from "./gestion-core";
 import { cierraAlCentavo, comparacionesDeRevision, compensarConSaldos, rechazoDeRevision, saldosAFavor, SIN_FICHA_NO_REVISA } from "./liquidacion-proyecto-core";
-import { eventoTerminado, hayM5, liquidacionDelProyecto, medirProyecto, propuestaDeAjuste, quienesCobran, rendicionesPendientes, SIN_M5, type DetalleAjuste, type LiquidacionGuardada } from "./liquidacion-proyecto.server";
+import { eventoTerminado, hayM5, liquidacionDelProyecto, medirProyecto, propuestaDeAjuste, quienesCobran, rendicionesPendientes, saldosAbiertos, SIN_M5, type DetalleAjuste, type LiquidacionGuardada } from "./liquidacion-proyecto.server";
 import type { ParticipanteFoto } from "./precio-proyecto-core";
 
 export type ResultadoLiq = { ok: true; listo?: string } | { ok: false; error: string };
@@ -236,7 +236,7 @@ async function chequearAjuste(tx: Prisma.TransactionClient, a: Actor, proyectoId
   return propuesta ? { liq, propuesta } : null;
 }
 
-const YA_AJUSTADO = "No hay comprobantes nuevos para ajustar: el ajuste ya estaba hecho.";
+const YA_AJUSTADO = "No hay costos nuevos para ajustar: el ajuste ya estaba hecho.";
 
 /**
  * O24 · Un comprobante que llega después de aprobar NO reabre la liquidación: Dirección aprueba, con el código de su app,
@@ -247,6 +247,8 @@ const YA_AJUSTADO = "No hay comprobantes nuevos para ajustar: el ajuste ya estab
 export async function aprobarAjusteTardio(formData: FormData): Promise<ResultadoLiq> {
   const proyectoId = txt(formData.get("proyectoId"), 40);
   const codigo = txt(formData.get("codigo"), 20);
+  // MIA-186 (2) · O26: Dirección decide si lo positivo cancela el saldo a favor abierto. Sin elegirlo, no se compensa.
+  const compensar = formData.get("compensar") === "si";
   const a = await entrar(proyectoId);
   if (typeof a === "string") return { ok: false, error: a };
   const { tenantId } = a;
@@ -267,11 +269,11 @@ export async function aprobarAjusteTardio(formData: FormData): Promise<Resultado
       const { liq, propuesta: p } = hay;
       if (!p.cierra) throw new Rechazo("La liquidación más los ajustes no da Total venta − costo real al centavo: no se ajusta. Avisá a Gestión Studio Grow.");
       const detalle: DetalleAjuste = { lote: randomUUID(), comprobantes: p.pendientes, costoRealAntes: p.costoRealAntes, costoRealNuevo: p.costoRealNuevo, periodo: claveMes(new Date()) };
-      const motivo = `${p.pendientes.every((c) => c.costo < 0) ? "Comprobante anulado" : "Comprobante tardío"}: ${p.pendientes.map((c) => c.origen).join("; ")}`.slice(0, 300);
-      // MIA-184 (A): lo positivo de una persona primero cancela su saldo a favor abierto en este proyecto (con la cabecera
-      // trabada: los saldos de esta liquidación sólo se tocan bajo este mismo candado); el resto va a la mensual.
-      const abiertos = await tx.proyectoSaldoAFavor.findMany({ where: { tenantId, liquidacionId: liq.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, personaId: true, monto: true, aplicado: true } });
-      const { compensado, aplicar } = compensarConSaldos(p.renglones, abiertos);
+      const motivo = `${p.pendientes.every((c) => c.costo < 0) ? "Anulado después de aprobar" : "Entró después de aprobar"}: ${p.pendientes.map((c) => c.origen).join("; ")}`.slice(0, 300);
+      // MIA-184 (A) y MIA-186 (2): si Dirección eligió compensar, lo positivo de una persona primero cancela su saldo a favor
+      // abierto en este proyecto (con la cabecera trabada: los saldos de esta liquidación sólo se tocan bajo este mismo
+      // candado) y sólo el resto va a la mensual. Sin elegirlo, el positivo va entero y el saldo queda abierto.
+      const { compensado, aplicar } = compensar ? compensarConSaldos(p.renglones, await saldosAbiertos(tx, tenantId, liq.id)) : { compensado: new Map<string, number>(), aplicar: [] };
       for (const x of aplicar) await tx.proyectoSaldoAFavor.updateMany({ where: { tenantId, id: x.saldoId }, data: { aplicado: { increment: BigInt(x.monto) } } });
       await tx.proyectoLiquidacionProyectoAjuste.createMany({
         data: p.renglones.map((x) => {

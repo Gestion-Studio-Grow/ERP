@@ -17,7 +17,7 @@ import { parametrosDelNegocio, valorDelNegocio } from "./parametros/leer.server"
 import type { ParticipanteFoto } from "./precio-proyecto-core";
 import { actorActual, proyectoVisible, puede, type Actor } from "./gestion.server";
 import { CATALOGO } from "./parametros/catalogo";
-import { aPagarDelAjuste, calcularAjuste, calcularLiquidacion, comparacionesDeRevision, listaParaLaMensual, nombreDeAjusteMensual, nombreDeLineaMensual, SIN_FICHA_NO_REVISA, type Comparacion, type LiquidacionCalculada, type RenglonAjuste } from "./liquidacion-proyecto-core";
+import { aPagarDelAjuste, calcularAjuste, calcularLiquidacion, comparacionesDeRevision, compensarConSaldos, listaParaLaMensual, nombreDeAjusteMensual, nombreDeLineaMensual, SIN_FICHA_NO_REVISA, type Comparacion, type LiquidacionCalculada, type RenglonAjuste } from "./liquidacion-proyecto-core";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -142,23 +142,33 @@ export async function liquidacionDelProyecto(db: Db, tenantId: string, proyectoI
 }
 
 /**
- * Las líneas de comprobante cuyo costo de HOY difiere de lo que ya cuenta la liquidación aprobada (lo congelado más lo que
- * movieron los ajustes, `yaAjustado`): un comprobante imputado después de congelar suma (T12, O24) y uno congelado, o ya
- * ajustado, que se anula después resta (MIA-184, B). Anulado, una línea cuesta 0. Sólo las diferencias distintas de cero.
+ * Lo que forma el costo real y cuyo costo de HOY difiere de lo que ya cuenta la liquidación aprobada (lo congelado más lo
+ * que movieron los ajustes, `yaAjustado`): un comprobante imputado después de congelar suma (T12, O24) y uno congelado, o
+ * ya ajustado, que se anula después resta (MIA-184, B). MIA-186 (3): lo mismo con los gastos del proyecto, tengan o no
+ * número de comprobante (el congelado los guarda en `gastos`). Anulado, cuesta 0. Sólo las diferencias distintas de cero.
+ * Una cabecera vieja sin la lista de gastos no ajusta gastos (no se puede saber cuáles contó).
  */
 export async function comprobantesParaAjuste(db: Db, tenantId: string, proyectoId: string, costoDetalle: unknown, yaAjustado: ReadonlyMap<string, number> = new Map()): Promise<{ id: string; costo: number; origen: string }[]> {
-  const congeladas = new Set(((costoDetalle as Medicion["costoDetalle"] | null)?.lineasDeComprobante ?? []) as string[]);
-  const filas = await db.proyectoComprobanteLinea.findMany({
-    where: { tenantId, proyectoId },
-    orderBy: { id: "asc" },
-    select: { id: true, costoCentavos: true, comprobante: { select: { tipo: true, numero: true, anuladoEl: true, supplier: { select: { name: true } } } } },
-  });
-  return filas.flatMap((l) => {
-    const hoy = l.comprobante.anuladoEl ? 0 : n(l.costoCentavos);
-    const cuenta = (congeladas.has(l.id) ? n(l.costoCentavos) : 0) + (yaAjustado.get(l.id) ?? 0);
-    if (hoy === cuenta) return [];
-    return [{ id: l.id, costo: hoy - cuenta, origen: `${l.comprobante.anuladoEl ? "Anulado · " : ""}${l.comprobante.supplier.name} · ${l.comprobante.tipo} ${l.comprobante.numero}` }];
-  });
+  const detalle = costoDetalle as Partial<Medicion["costoDetalle"]> | null;
+  const congeladas = new Set((detalle?.lineasDeComprobante ?? []) as string[]);
+  const gastosCongelados = Array.isArray(detalle?.gastos) ? new Set(detalle.gastos) : null;
+  const [filas, gastos] = await Promise.all([
+    db.proyectoComprobanteLinea.findMany({
+      where: { tenantId, proyectoId },
+      orderBy: { id: "asc" },
+      select: { id: true, costoCentavos: true, comprobante: { select: { tipo: true, numero: true, anuladoEl: true, supplier: { select: { name: true } } } } },
+    }),
+    gastosCongelados ? db.proyectoGasto.findMany({ where: { tenantId, proyectoId }, orderBy: { id: "asc" }, select: { id: true, neto: true, descripcion: true, comprobante: true, anuladoEl: true } }) : [],
+  ]);
+  const diferencia = (id: string, costo: number, congelado: boolean, anulado: boolean, origen: string) => {
+    const hoy = anulado ? 0 : costo;
+    const cuenta = (congelado ? costo : 0) + (yaAjustado.get(id) ?? 0);
+    return hoy === cuenta ? [] : [{ id, costo: hoy - cuenta, origen: `${anulado ? "Anulado · " : ""}${origen}` }];
+  };
+  return [
+    ...filas.flatMap((l) => diferencia(l.id, n(l.costoCentavos), congeladas.has(l.id), !!l.comprobante.anuladoEl, `${l.comprobante.supplier.name} · ${l.comprobante.tipo} ${l.comprobante.numero}`)),
+    ...gastos.flatMap((g) => diferencia(g.id, centavosDe(g.neto), !!gastosCongelados?.has(g.id), !!g.anuladoEl, `Gasto · ${g.descripcion}${g.comprobante ? ` · ${g.comprobante}` : ""}`)),
+  ];
 }
 
 // ── T12 · O24: el ajuste por comprobante tardío ──
@@ -186,6 +196,11 @@ export interface PropuestaDeAjuste {
   costoRealAntes: number;
   costoRealNuevo: number;
   cierra: boolean;
+  /**
+   * MIA-186 (2) · O26: el saldo a favor de la empresa todavía abierto de cada persona con un renglón positivo, y cuánto de
+   * ese renglón lo cancelaría si Dirección elige compensar. Por defecto no se compensa.
+   */
+  saldos: { personaId: string; nombre: string; abierto: number; compensable: number }[];
 }
 
 /**
@@ -213,7 +228,18 @@ export async function propuestaDeAjuste(db: Db, tenantId: string, cab: Liquidaci
   const defensaNegativa = (cab.parametros as Medicion["parametros"] | null)?.valores?.["reparto.defensaNegativa"];
   if (!foto || !defensaNegativa) throw new Error("La liquidación aprobada no tiene su foto del precio: el ajuste no se puede calcular.");
   const r = calcularAjuste({ lineas: cab.lineas, previos, recalculo: calculoDeLaFoto(foto, costoRealNuevo, defensaNegativa) });
-  return { pendientes, renglones: r.renglones, costoRealAntes, costoRealNuevo, cierra: r.cierra };
+  const abiertos = await saldosAbiertos(db, tenantId, cab.id);
+  const { compensado } = compensarConSaldos(r.renglones, abiertos);
+  const saldos = r.renglones.flatMap((x) => {
+    const abierto = abiertos.filter((s) => s.personaId === x.personaId).reduce((t, s) => t + n(s.monto) - n(s.aplicado), 0);
+    return x.personaId && x.monto > 0 && abierto > 0 ? [{ personaId: x.personaId, nombre: x.nombre, abierto, compensable: compensado.get(x.lineaId) ?? 0 }] : [];
+  });
+  return { pendientes, renglones: r.renglones, costoRealAntes, costoRealNuevo, cierra: r.cierra, saldos };
+}
+
+/** Los saldos a favor de la empresa de una liquidación de proyecto, del más viejo al más nuevo (el orden en que se compensan). */
+export function saldosAbiertos(db: Db, tenantId: string, liquidacionId: string) {
+  return db.proyectoSaldoAFavor.findMany({ where: { tenantId, liquidacionId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { id: true, personaId: true, monto: true, aplicado: true } });
 }
 
 export interface AjusteVisible { id: string; nombre: string; personaId: string | null; motivo: string; monto: number; autor: string; cuando: Date }

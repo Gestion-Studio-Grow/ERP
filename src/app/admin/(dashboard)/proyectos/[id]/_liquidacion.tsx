@@ -178,7 +178,7 @@ function Ajustes({ lista, esperado }: { lista: readonly AjusteVisible[]; esperad
 function PorAjustar({ propuesta, proyectoId, aprueba, motivo }: { propuesta: PropuestaDeAjuste; proyectoId: string; aprueba: boolean; motivo: string | null }) {
   return (
     <section className={tarjeta} aria-labelledby="titulo-ajuste">
-      <h2 id="titulo-ajuste" className="font-semibold text-strong">Entró después de aprobar</h2>
+      <h2 id="titulo-ajuste" className="font-semibold text-strong">Cambió después de aprobar</h2>
       <p className="text-sm text-muted">No reabre la liquidación: genera un ajuste que aprueba Dirección.</p>
       <ul className="mt-2 grid gap-1 text-sm">
         {propuesta.pendientes.map((x) => (
@@ -198,7 +198,20 @@ function PorAjustar({ propuesta, proyectoId, aprueba, motivo }: { propuesta: Pro
         ))}
       </ul>
       {propuesta.renglones.some((x) => x.personaId && x.monto < 0) && <p className="mt-2 text-xs text-muted">Lo que una persona recibe de menos queda como saldo a favor de la empresa: no se descuenta solo de su liquidación del mes.</p>}
-      {aprueba ? <AprobarAjuste proyectoId={proyectoId} /> : motivo && <p className="mt-2 text-sm text-muted">{motivo}</p>}
+      {propuesta.saldos.length > 0 && (
+        <div className="mt-3 border-t border-line pt-2">
+          <h3 className="text-sm font-semibold text-strong">Saldo a favor de la empresa</h3>
+          <ul className="mt-1 grid gap-1 text-sm">
+            {propuesta.saldos.map((x) => (
+              <li key={x.personaId} className="flex flex-wrap justify-between gap-2">
+                <span className="min-w-0 break-words text-muted">{x.nombre}</span>
+                <span className="tabular-nums text-strong">{`${formatearPesos(x.abierto)} abierto · compensaría ${formatearPesos(x.compensable)}`}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {aprueba ? <AprobarAjuste proyectoId={proyectoId} compensable={propuesta.saldos.length > 0} /> : motivo && <p className="mt-2 text-sm text-muted">{motivo}</p>}
     </section>
   );
 }

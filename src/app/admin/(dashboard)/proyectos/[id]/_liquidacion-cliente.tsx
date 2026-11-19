@@ -65,11 +65,23 @@ export function AprobarLiquidacion({ proyectoId }: { proyectoId: string }) {
   );
 }
 
-/** T12 (O24): Dirección aprueba el ajuste por los comprobantes que llegaron después, con el código de su app. */
-export function AprobarAjuste({ proyectoId }: { proyectoId: string }) {
+/**
+ * T12 (O24): Dirección aprueba el ajuste por los costos que cambiaron después, con el código de su app. MIA-186 (O26): si
+ * alguien con un renglón a favor tiene saldo abierto con la empresa, Dirección elige si se compensa; por defecto, no.
+ */
+export function AprobarAjuste({ proyectoId, compensable }: { proyectoId: string; compensable: boolean }) {
   const { error, ocupado, correr } = usePaso(aprobarAjusteTardio);
   return (
     <form action={(fd) => { fd.set("proyectoId", proyectoId); correr(fd); }} className="mt-3 grid gap-2">
+      {compensable && (
+        <label className="flex min-h-11 items-start gap-3 text-sm text-strong">
+          <input type="checkbox" name="compensar" value="si" className="mt-0.5 h-5 w-5 shrink-0" />
+          <span>
+            Compensar con el saldo a favor de la empresa
+            <span className="block text-muted">Lo que se compensa no va a la liquidación del mes. Si no lo marcás, se paga entero y el saldo queda abierto.</span>
+          </span>
+        </label>
+      )}
       <label className={etiqueta}>
         Código de tu app de autenticación
         <input name="codigo" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9A-Za-z-]{6,20}" maxLength={20} required className={cn(campo, "tracking-widest tabular-nums")} />

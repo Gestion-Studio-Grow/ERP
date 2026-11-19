@@ -789,11 +789,16 @@ export async function pagarLiquidacion(formData: FormData): Promise<Resultado> {
   return { ok: true };
 }
 
+class YaNoEsBorrador extends Error {}
+
 /** Borrar un borrador: los reintegros que había reclamado quedan libres para otra liquidación o un reintegro directo. */
 export async function borrarLiquidacion(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("liquidaciones");
   const id = txt(formData.get("id"));
   const hecho = await tenantTransaction(async (tx): Promise<boolean | "propia" | "no-existe"> => {
+    // MIA-186 (5): la fila se traba ANTES de leer su estado y de soltar nada. Si se publica en el medio, este borrado espera
+    // y ve «publicada»: no suelta las líneas (si las soltara, la mensual siguiente las pagaría otra vez).
+    await tx.$queryRaw`SELECT id FROM "ProyectoLiquidacion" WHERE id = ${id} AND "tenantId" = ${a.tenantId} FOR UPDATE`;
     const l = await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, select: { periodo: true, total: true, personaId: true, persona: { select: { userId: true } } } });
     // ADM-143: un id de otro negocio no existe para este; a ése no se le afirma un estado. Lo propio sí lo dice.
     if (!l) return (await tx.proyectoLiquidacion.findFirst({ where: { id, tenantId: a.tenantId }, select: { id: true } })) ? false : "no-existe";
@@ -808,9 +813,13 @@ export async function borrarLiquidacion(formData: FormData): Promise<Resultado> 
     // MIA-184 (A): lo que el borrador había tomado de los proyectos (líneas y ajustes) queda libre para la próxima mensual.
     if (await hayM5(tx)) await soltarDeLaMensualTx(tx, a.tenantId, id);
     const r = await tx.proyectoLiquidacion.deleteMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" } });
-    if (r.count === 0) return false;
+    // Con la fila trabada no debería pasar; si pasa, se deshace todo (también lo soltado) en vez de confirmarlo a medias.
+    if (r.count === 0) throw new YaNoEsBorrador();
     await registrarCambio(tx, { tenantId: a.tenantId, entidad: "liquidacion", entidadId: id, campo: `borrador ${l.periodo}`, antes: l.total, despues: "borrado", autor: a.nombre });
     return true;
+  }).catch((e) => {
+    if (e instanceof YaNoEsBorrador) return false;
+    throw e;
   });
   if (hecho === "propia") return { ok: false, error: LIQUIDACION_PROPIA };
   if (hecho === "no-existe") return { ok: false, error: "Esa liquidación no existe." };

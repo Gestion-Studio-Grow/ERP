@@ -624,7 +624,7 @@ test("MIA-184 · B2 · anular el tardío ya ajustado: +2.500 / +7.500, la cuenta
   const [c1, c2] = await p.masCodigos(p.dir);
   ok(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c1 })))));
   ok(p.valor(await p.como(p.admin.userId, () => p.comp.anularComprobante(p.form({ id: tarde })))) as Res);
-  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c2 })))));
+  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c2, compensar: "si" })))));
   const cab = (await p.liq(z.id))[0];
   const ajustes = await p.enA((tx) => tx.proyectoLiquidacionProyectoAjuste.findMany({ where: { liquidacionId: cab.id }, orderBy: { createdAt: "asc" }, select: { monto: true } }));
   assert.deepEqual(ajustes.map((x) => Number(x.monto)).sort((x, y) => x - y), [-$(7_500), -$(2_500), $(2_500), $(7_500)]);
@@ -714,4 +714,104 @@ test("MIA-184 · C · ficha de Dirección del dueño: modo de prueba sin escribi
   const otraVez = await correr(true);
   assert.deepEqual(otraVez.pasos.map((x) => x.accion), ["ya-tiene", "ya-tiene", "revisar-a-mano"]);
   assert.equal(await historial(), 2, "idempotente");
+});
+
+// ── MIA-186 · vuelta 2 de T12: observaciones 5, 3 y 2 de la certificación de la ola 5 ──
+// Esperados escritos a mano ANTES de correr, en pesos:
+//  5   B1 (real 890.000 + 10.000 anulado después de aprobar → ajuste +2.500 / +7.500), cobrado; mayo 2027 de la productora:
+//      «Proyecto · Z» 55.000 + «Ajuste · Proyecto · Z» 2.500 = 57.500. Se publica mayo MIENTRAS se borra: el borrado no
+//      pasa y las líneas siguen en mayo. Pagar mayo: 1 egreso de 57.500. Junio no trae ni el 55.000 ni el 2.500.
+//  3   C-O21 (gasto de 10.000, con o sin comprobante: real 910.000 → 52.500 · 30.000 · 497.500 = 580.000) aprobada; se
+//      anula el gasto: real 900.000 → ajuste +2.500 (productora) y +7.500 (empresa) → 580.000 + 10.000 = 590.000.
+//  2   Z-tarde (saldo de la productora 2.500) y se anula el tardío: el panel muestra el saldo abierto de 2.500 contra el
+//      +2.500. Sin elegir compensar: el saldo queda abierto (aplicado 0) y el +2.500 va a pagar (aPagar 2.500).
+
+test("MIA-186 · 5 · borrar mientras se publica: el borrado no pasa, las líneas quedan en mayo y junio no las vuelve a traer", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const z = await p.z({ real: 890_000 });
+  const congelado = await p.comprobante(z.id, 10_000);
+  await aprobada(p, z.id);
+  ok(p.valor(await p.como(p.admin.userId, () => p.comp.anularComprobante(p.form({ id: congelado })))) as Res);
+  const [c1] = await p.masCodigos(p.dir);
+  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c1 })))));
+  await p.cobrar(z.id, 802_900);
+  const generar = (periodo: string) => p.como(p.admin.userId, () => p.empresa.generarLiquidaciones(p.form({ periodo })));
+  const deZ = async (periodo: string) => {
+    const l = await p.duenio.proyectoLiquidacion.findFirst({ where: { tenantId: p.a.id, personaId: p.prod.personaId, periodo }, select: { id: true, estado: true, extras: true } });
+    return { id: l?.id ?? null, estado: l?.estado ?? null, montos: ((l?.extras ?? []) as { nombre: string; monto: number }[]).filter((e) => e.nombre.endsWith(z.nombre)).map((e) => e.monto).sort((x, y) => x - y) };
+  };
+  ok(p.valor(await generar("2027-05")) as Res);
+  const mayo = await deZ("2027-05");
+  assert.deepEqual(mayo.montos, [2_500, 55_000]);
+  // «Publicar» tiene la fila de mayo (el mismo UPDATE que publicarBorradores) mientras corre el borrado.
+  let soltar!: () => void;
+  const candado = new Promise<void>((r) => (soltar = r));
+  let tomada!: () => void;
+  const yaTomada = new Promise<void>((r) => (tomada = r));
+  const publicar = p.duenio.$transaction(async (tx) => {
+    await tx.proyectoLiquidacion.updateMany({ where: { id: mayo.id!, estado: "BORRADOR" }, data: { estado: "PUBLICADA", publicadaEl: new Date() } });
+    tomada();
+    await candado;
+  }, { timeout: 30_000 });
+  await yaTomada;
+  const borrar = p.como(p.admin.userId, () => p.empresa.borrarLiquidacion(p.form({ id: mayo.id! })));
+  for (let i = 0; i < 100; i++) {
+    const [{ n }] = await p.duenio.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n FROM pg_locks WHERE NOT granted`;
+    if (Number(n) > 0) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  soltar();
+  await publicar;
+  rechazo(p.valor(await borrar) as Res, /borrador/);
+  assert.deepEqual(await deZ("2027-05"), { ...mayo, estado: "PUBLICADA" }, "mayo sigue con sus líneas");
+  ok(p.valor(await p.como(p.admin.userId, () => p.empresa.pagarLiquidacion(p.form({ id: mayo.id!, medio: "TRANSFERENCIA" })))) as Res);
+  const egresos = await p.duenio.cashMovement.findMany({ where: { tenantId: p.a.id, proyectoLiquidacionId: mayo.id! }, select: { amount: true } });
+  assert.deepEqual(egresos.map((e) => e.amount), [57_500]);
+  ok(p.valor(await generar("2027-06")) as Res);
+  assert.deepEqual((await deZ("2027-06")).montos, [], "junio no vuelve a traer el 55.000 ni el 2.500");
+});
+
+for (const comprobante of [null, "A 0001-00004321"]) {
+  test(`MIA-186 · 3 · C-O21: anular el gasto ${comprobante ? "con" : "sin"} comprobante después de congelar arma +2.500 / +7.500 y vuelve a 590.000`, async (t) => {
+    const p = await preparar(t);
+    if (!p) return;
+    const z = await p.z();
+    const gasto = await p.duenio.proyectoGasto.create({ data: { tenantId: p.a.id, proyectoId: z.id, descripcion: "Taxi", neto: 10_000, iva: 0, comprobante }, select: { id: true } });
+    ok(p.valor(await p.como(p.admin.userId, () => p.acc.declararCostosCompletos(p.form({ proyectoId: z.id })))));
+    ok(p.valor(await p.como(p.admin.userId, () => p.acc.revisarLiquidacionProyecto(p.form({ proyectoId: z.id, nota: "Taxi del montaje" })))));
+    const [c1, c2] = await p.masCodigos(p.dir);
+    ok(p.valor(await p.como(p.dir, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId: z.id, codigo: c1 })))));
+    const cab = (await p.liq(z.id))[0];
+    assert.deepEqual(p.totales(cab.lineas), { prod: $(52_500), com: $(30_000), empresa: $(497_500) });
+    const ficha = await import("./acciones-ficha");
+    ok(p.valor(await p.como(p.dir, () => ficha.anularGastoFicha(p.form({ id: gasto.id })))) as Res);
+    ok(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c2 })))));
+    const ajustes = await p.enA((tx) => tx.proyectoLiquidacionProyectoAjuste.findMany({ where: { liquidacionId: cab.id }, select: { lineaId: true, monto: true } }));
+    const quien = (id: string | null) => Object.keys(p.totales(cab.lineas.filter((l) => l.id === id)))[0];
+    assert.deepEqual(ajustes.map((x) => [quien(x.lineaId), Number(x.monto)]).sort(), [["empresa", $(7_500)], ["prod", $(2_500)]]);
+    const suma = cab.lineas.reduce((s, l) => s + Number(l.total), 0) + ajustes.reduce((s, x) => s + Number(x.monto), 0);
+    assert.equal(suma, $(590_000), "liquidación + ajustes = 1.490.000 − 900.000, al centavo");
+    assert.deepEqual(p.totales((await p.liq(z.id))[0].lineas), { prod: $(52_500), com: $(30_000), empresa: $(497_500) }, "la aprobada no cambia");
+  });
+}
+
+test("MIA-186 · 2 · O26: con saldo abierto, Dirección lo ve al aprobar el positivo y por defecto NO se compensa", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const z = await p.z();
+  await aprobada(p, z.id);
+  const tarde = await p.comprobante(z.id, 10_000);
+  const [c1, c2] = await p.masCodigos(p.dir);
+  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c1 })))));
+  ok(p.valor(await p.como(p.admin.userId, () => p.comp.anularComprobante(p.form({ id: tarde })))) as Res);
+  const cab = (await p.liq(z.id))[0];
+  const propuesta = await p.enA((tx) => p.lectura.propuestaDeAjuste(tx, p.a.id, { ...cab, lineas: cab.lineas }));
+  assert.deepEqual(propuesta?.saldos.map((s) => [s.personaId, s.abierto, s.compensable]), [[p.prod.personaId, $(2_500), $(2_500)]], "el saldo a la vista de Dirección");
+  ok(p.valor(await p.como(p.dir, () => p.acc.aprobarAjusteTardio(p.form({ proyectoId: z.id, codigo: c2 })))));
+  const saldos = await p.enA((tx) => tx.proyectoSaldoAFavor.findMany({ where: { liquidacionId: cab.id }, select: { monto: true, aplicado: true } }));
+  assert.deepEqual(saldos.map((x) => [Number(x.monto), Number(x.aplicado)]), [[$(2_500), 0]], "sin elegirlo, no se compensa");
+  const positivos = await p.enA((tx) => tx.proyectoLiquidacionProyectoAjuste.findMany({ where: { liquidacionId: cab.id, monto: { gt: 0 } }, select: { monto: true, detalle: true } }));
+  const core = await import("./liquidacion-proyecto-core");
+  assert.deepEqual(positivos.map((x) => core.aPagarDelAjuste(x)).sort((x, y) => x - y), [$(2_500), $(7_500)], "el +2.500 va a pagar entero");
 });
