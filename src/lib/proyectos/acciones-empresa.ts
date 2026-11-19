@@ -32,6 +32,7 @@ import { randomUUID } from "node:crypto";
 import { aCentavos, esDiaValido, esOrigenConciliable, esTramo, huellasDelExtracto, MEDIO_RETENCION, signoDelOrigen, TRAMO_LABEL, type OrigenConciliable } from "./moneda-bancos-core";
 import { hayM6, hayM8, hoyArgentina, moverCuentaTx } from "./moneda-bancos.server";
 import { valorDelNegocio } from "./parametros/leer.server";
+import { hayM5, lineasParaLaMensual, reclamarLineasDeProyectoTx } from "./liquidacion-proyecto.server";
 
 const ADMIN = "/admin/proyectos/administracion";
 /** Un extracto de varios meses entra de sobra, y no pasa el límite de lo que recibe una acción del servidor. */
@@ -616,18 +617,20 @@ async function reclamarReintegrosTx(tx: Prisma.TransactionClient, tenantId: stri
  * Base + plus de los eventos terminados en el mes + reintegros de Rendí aprobados y sin reclamar. Lo publicado no se
  * toca; lo cargado a mano en un borrador se conserva.
  */
-export async function generarLiquidaciones(formData: FormData): Promise<Resultado<{ generadas: number; publicadas: number; salteada: string | null }>> {
+export async function generarLiquidaciones(formData: FormData): Promise<Resultado<{ generadas: number; publicadas: number; salteada: string | null; esperando: string[] }>> {
   const a = await exigirEditar("liquidaciones");
   const yo = { personaId: a.personaId, userId: a.user.id };
   const periodo = txt(formData.get("periodo"));
   if (!periodoValido(periodo)) return { ok: false, error: "Elegí el mes." };
-  const [personas, actuales, conReintegro] = await Promise.all([
+  const [personas, actuales, conReintegro, deProyectos] = await Promise.all([
     prisma.proyectoPersona.findMany({
       where: { tenantId: a.tenantId, activa: true },
       select: { id: true, userId: true, nombre: true, sueldoBase: true, facturaA: true, equipos: { where: { proyecto: { perdidoEl: null } }, select: { plus: true, proyecto: { select: { id: true, nombre: true, fechaEvento: true, fechaFin: true } } } } },
     }),
     prisma.proyectoLiquidacion.findMany({ where: { tenantId: a.tenantId, periodo }, select: { id: true, personaId: true, estado: true, extras: true, total: true } }),
     personasConReintegros(a.tenantId),
+    // T10 (O23): las líneas de proyectos aprobados que «cuándo se paga» ya deja entrar; sin M5, ninguna.
+    lineasParaLaMensual(prisma, a.tenantId),
   ]);
   const publicadas = actuales.filter((l) => l.estado !== "BORRADOR").length;
   let generadas = 0;
@@ -637,7 +640,8 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
       const previa = actuales.find((l) => l.personaId === p.id);
       if (previa && previa.estado !== "BORRADOR") continue;
       const delPeriodo = extrasDelPeriodo(p.equipos, periodo);
-      if (!previa && !(p.sueldoBase > 0) && delPeriodo.length === 0 && !conReintegro?.has(p.id)) continue;
+      const deProyecto = deProyectos.porPersona.get(p.id) ?? [];
+      if (!previa && !(p.sueldoBase > 0) && delPeriodo.length === 0 && !conReintegro?.has(p.id) && deProyecto.length === 0) continue;
       // G4: la propia no se genera ni se recalcula; la arma otra persona con permiso (el resultado lo dice).
       if (esLoPropio(yo, { personaId: p.id, userId: p.userId })) {
         salteada = p.nombre;
@@ -652,7 +656,8 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
       const fila = await tx.proyectoLiquidacion.findFirstOrThrow({ where: { tenantId: a.tenantId, personaId: p.id, periodo }, select: { id: true, extras: true } });
       const id = fila.id;
       const sinReintegros = extrasRecalculados(leerExtras(fila.extras), delPeriodo);
-      const extras = conReintegro ? await reclamarReintegrosTx(tx, a.tenantId, id, p.id, sinReintegros) : [...sinReintegros, ...leerExtras(fila.extras).filter((e) => e.reintegro)];
+      const conRendi = conReintegro ? await reclamarReintegrosTx(tx, a.tenantId, id, p.id, sinReintegros) : [...sinReintegros, ...leerExtras(fila.extras).filter((e) => e.reintegro)];
+      const extras = (await hayM5()) ? [...conRendi, ...(await reclamarLineasDeProyectoTx(tx, a.tenantId, id, deProyecto))] : conRendi;
       const total = totalLiquidacion(p.sueldoBase, extras);
       await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { base: p.sueldoBase, extras: extras as unknown as Prisma.InputJsonValue, total, facturaA: p.facturaA } });
       generadas++;
@@ -660,7 +665,7 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
     }
   });
   revalidatePath(ADMIN);
-  return { ok: true, generadas, publicadas, salteada };
+  return { ok: true, generadas, publicadas, salteada, esperando: deProyectos.esperando };
 }
 
 export async function publicarBorradores(formData: FormData): Promise<Resultado<{ publicadas: number; salteada: string | null }>> {

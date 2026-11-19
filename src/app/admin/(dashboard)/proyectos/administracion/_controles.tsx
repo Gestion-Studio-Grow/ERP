@@ -364,8 +364,10 @@ export function GenerarLiquidaciones({ periodo }: { periodo: string }) {
     fd.set("periodo", periodo);
     setListo(null);
     correr(generarLiquidaciones as Accion, fd, (r) => {
-      const x = r as unknown as { generadas: number; publicadas: number; salteada?: string | null };
-      setListo(`${x.generadas === 1 ? "1 liquidación" : `${x.generadas} liquidaciones`} al día${x.publicadas > 0 ? ` · ${x.publicadas} publicadas sin tocar` : ""}.${x.salteada ? " La tuya no se tocó: la arma otra persona de Dirección o Administración." : ""}`);
+      const x = r as unknown as { generadas: number; publicadas: number; salteada?: string | null; esperando?: string[] };
+      // T10 (O23): los proyectos aprobados que todavía no entran, con el motivo.
+      const esperan = x.esperando?.length ? ` Esperan: ${x.esperando.join(" · ")}` : "";
+      setListo(`${x.generadas === 1 ? "1 liquidación" : `${x.generadas} liquidaciones`} al día${x.publicadas > 0 ? ` · ${x.publicadas} publicadas sin tocar` : ""}.${x.salteada ? " La tuya no se tocó: la arma otra persona de Dirección o Administración." : ""}${esperan}`);
     });
   };
   return (
