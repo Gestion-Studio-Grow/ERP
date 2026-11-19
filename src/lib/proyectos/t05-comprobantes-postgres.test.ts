@@ -484,3 +484,61 @@ test("CERT-3 · dos cuotas de 300 enlazadas a la vez a un comprobante de 400, 10
   }
   assert.deepEqual(malas, [], "a mano: 300 + 300 = 600 > 400 → 1 enlace");
 });
+
+// ── Carreras de la vuelta 2 (certificación MIA-132, CERT-4 y CERT-4b) ───────────────────────────────────────────────
+// Esperados a mano, antes de correr (R7). La cuota se paga por UN solo camino: a mano desde el calendario (marcarCuota,
+// toda o una parte) o enlazada a un comprobante y con una orden de pago. Nunca por los dos.
+
+/** Los pagos asentados a mano por la cuota (todos o partes): el registro «Asiento» que deja `marcarCuota`. */
+const asientosAMano = (p: P, cuotaId: string) => p.m1((tx) => tx.proyectoCambio.count({ where: { entidad: "ProyectoCuota", entidadId: cuotaId, campo: "Asiento" } }));
+
+test("CERT-4 · enlazar la cuota de 300 a un comprobante de 400 y pagarla a mano (toda o una parte de 100) a la vez, 10 veces → nunca las dos", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const pr = await p.proyecto();
+  const s = await p.proveedor();
+  const malas: string[] = [];
+  for (let ronda = 0; ronda < 10; ronda++) {
+    const parte = ronda % 2 === 1;
+    const c = await p.cargar({ supplierId: s, tipo: "C", neto: "400", iva: "0", total: "400", destino: pr, categoria: "Catering" });
+    const q = (await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: pr, supplierId: s, tipo: "PAGO", concepto: "Cuota cert", monto: 300, venceEl: new Date(AHORA + 10 * DIA) }, select: { id: true } })).id;
+    const [en, mk] = await Promise.all([
+      p.enSesion(() => p.comp.enlazarCuota(p.form({ comprobanteId: c, cuotaId: q }))),
+      p.admin(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", ...(parte ? { monto: "100" } : {}) }))),
+    ]);
+    const cuota = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true } });
+    const enlazada = await p.m1((tx) => tx.proyectoCuotaComprobante.count({ where: { cuotaId: q } }));
+    const aMano = await asientosAMano(p, q);
+    const foto = { ronda, parte, enlazar: en.ok, marcar: mk.ok, pagada: !!cuota.pagadoEl, enlazada, aMano };
+    // a mano: gana una sola; enlazada ⇒ 0 pagos a mano; con pago a mano ⇒ 0 enlaces.
+    if ((en.ok && mk.ok) || (enlazada > 0 && (aMano > 0 || cuota.pagadoEl)) || en.ok === mk.ok) malas.push(JSON.stringify(foto));
+  }
+  assert.deepEqual(malas, [], "a mano: una gana y la otra se rechaza; nunca enlazada y pagada a mano");
+});
+
+test("CERT-4b · una cuota enlazada que ya figura pagada a mano: la orden de pago no la toma y una orden previa no se aprueba (0 egresos)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const pr = await p.proyecto();
+  const s = await p.proveedor();
+  const c = await p.cargar({ supplierId: s, tipo: "C", neto: "700", iva: "0", total: "700", destino: pr, categoria: "Catering" });
+  const nueva = async () => (await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: pr, supplierId: s, tipo: "PAGO", concepto: "Cuota cert", monto: 300, venceEl: new Date(AHORA + 10 * DIA) }, select: { id: true } })).id;
+  const [q1, q2] = [await nueva(), await nueva()];
+  for (const q of [q1, q2]) assert.equal((await p.enSesion(() => p.comp.enlazarCuota(p.form({ comprobanteId: c, cuotaId: q })))).ok, true);
+  // q2: la orden se crea con la cuota abierta (todavía está bien).
+  const previa = await p.enSesion(() => p.ordenes.crearOrdenPago({ supplierId: s, medio: "TRANSFERENCIA", lineas: [{ comprobanteId: c, cuotaId: q2, importeCentavos: 30000 }] }));
+  assert.equal(previa.ok, true, JSON.stringify(previa));
+  // El estado que dejaba la carrera de CERT-4 en 0137103c (o una base vieja): enlazadas y pagadas a mano por $ 300.
+  await p.duenio.proyectoCuota.updateMany({ where: { id: { in: [q1, q2] } }, data: { pagadoEl: new Date(), pagadoPor: "a mano", medio: "TRANSFERENCIA" } });
+
+  const orden = await p.enSesion(() => p.ordenes.crearOrdenPago({ supplierId: s, medio: "TRANSFERENCIA", lineas: [{ comprobanteId: c, cuotaId: q1, importeCentavos: 30000 }] }));
+  assert.equal(orden.ok, false, JSON.stringify(orden));
+  assert.match((orden as { error: string }).error, /pagada/);
+
+  const pid = (previa as { id: string }).id;
+  const aprobada = await p.admin(() => p.ordenes.aprobarYPagarOrden(p.form({ id: pid })));
+  assert.equal(aprobada.ok, false, JSON.stringify(aprobada));
+  assert.match((aprobada as { error: string }).error, /pagada/);
+  assert.deepEqual(await p.egresosDeOrden(pid), [], "a mano: 0 egresos ($ 300 no sale dos veces)");
+  assert.equal((await p.m1((tx) => tx.proyectoOrdenPago.findUniqueOrThrow({ where: { id: pid }, select: { estado: true } }))).estado, "PENDIENTE");
+});
