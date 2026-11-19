@@ -79,6 +79,7 @@ export interface Valores {
   "reparto.matriz": Record<string, Record<string, number>>;
   "reparto.defensaNegativa": string;
   "reparto.cuandoSePaga": string;
+  "reparto.queEsCobrado": string; // préstamo de T10 (O21, pregunta 17)
   "equipo.funciones": ConId[];
   "costos.sectores": string[];
   "costos.categorias": string[];
@@ -186,6 +187,8 @@ export const CATALOGO: readonly DefParametro[] = [
     clave: "reparto.cuandoSePaga", grupo: "reparto", nombre: "Cuándo se paga", seNota: "La liquidación del equipo", usa: "T10, T12",
     def: { tipo: "opcion", opciones: [{ id: "AL_COBRAR_TODO", label: "Cuando el cliente pagó todo" }, { id: "AL_APROBAR", label: "Al aprobar la liquidación" }] }, rubro: "AL_COBRAR_TODO", provisional: true, fuente: "Pendiente: a decidir con el negocio",
   },
+  // Préstamo de T10 (Adenda 1 § D.1): O21 compara lo cobrado contra lo facturado; qué cuenta como cobrado es pregunta 17.
+  { clave: "reparto.queEsCobrado", grupo: "reparto", nombre: "Qué cuenta como cobrado", seNota: "La revisión de la liquidación y «cuándo se paga»", usa: "T10, T12", def: { tipo: "opcion", opciones: [{ id: "AL_REGISTRAR", label: "Cuando se registró el cobro" }] }, rubro: "AL_REGISTRAR", provisional: true, fuente: "Valor provisional del plan de operaciones (O21): pregunta 17 al negocio" },
   // ── Equipo ──
   { clave: "equipo.funciones", grupo: "equipo", nombre: "Funciones del proyecto", seNota: "El equipo de la ficha", usa: "T07", def: { tipo: "conId", min: 1, max: 10 }, rubro: FUNCIONES, provisional: false, fuente: "Diseño del módulo" },
   // ── Costos ──

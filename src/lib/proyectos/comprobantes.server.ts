@@ -229,13 +229,14 @@ export interface ProyectoParaCosto {
  * sin aprobar, marcados para el premio) y lo previsto por cuotas de pago que NO están enlazadas a un comprobante. La
  * ficha, Dirección y Rentabilidad la llaman: por eso muestran el mismo número.
  */
-export async function costoRealDeProyectos(tenantId: string, proyectos: readonly ProyectoParaCosto[], tc: Readonly<Record<string, number>>): Promise<Map<string, ResultadoReal>> {
+// Préstamo de T10 (Adenda 1 § D.1): `db` opcional, para que la liquidación del proyecto congele el costo dentro de su transacción.
+export async function costoRealDeProyectos(tenantId: string, proyectos: readonly ProyectoParaCosto[], tc: Readonly<Record<string, number>>, db: Db = prisma): Promise<Map<string, ResultadoReal>> {
   const ids = proyectos.map((p) => p.id);
   const [imputado, enlazadas, sinAprobar, pagados] = await Promise.all([
-    imputadoDeProyectos(tenantId, ids),
-    cuotasEnlazadas(tenantId, ids),
-    gastosRendidosSinAprobar(tenantId, ids),
-    pagosParcialesDeCuotas(tenantId, proyectos.flatMap((p) => p.cuotas), tc),
+    imputadoDeProyectos(tenantId, ids, db),
+    cuotasEnlazadas(tenantId, ids, db),
+    gastosRendidosSinAprobar(tenantId, ids, db),
+    pagosParcialesDeCuotas(tenantId, proyectos.flatMap((p) => p.cuotas), tc, db),
   ]);
   return new Map(
     proyectos.map((p) => {

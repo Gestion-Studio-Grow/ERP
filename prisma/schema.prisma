@@ -317,6 +317,10 @@ model Tenant {
   proyectoEtapaFechas        ProyectoEtapaFecha[] // M7b · MIA T09
   proyectoObligaciones       ProyectoObligacion[]
   proyectoCancelaciones      ProyectoCancelacion[]
+  proyectoLiqProyectos       ProyectoLiquidacionProyecto[] // M5 · MIA T10
+  proyectoLiqProyLineas      ProyectoLiquidacionProyectoLinea[]
+  proyectoLiqProyAjustes     ProyectoLiquidacionProyectoAjuste[]
+  proyectoSaldosAFavor       ProyectoSaldoAFavor[]
   proyectoComprobantes       ProyectoComprobante[] // M1 · T05
   proyectoComprobanteAdj     ProyectoComprobanteAdjunto[]
   proyectoComprobanteLineas  ProyectoComprobanteLinea[]
@@ -3637,6 +3641,7 @@ model Proyecto {
   etapaFechas              ProyectoEtapaFecha[] // M7b · MIA T09
   obligaciones             ProyectoObligacion[]
   cancelacion              ProyectoCancelacion?
+  liquidacionProyecto      ProyectoLiquidacionProyecto? // M5 · MIA T10
   presentaciones           ProyectoPresentacion[]
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
@@ -4150,6 +4155,8 @@ model ProyectoPersona {
   activa            Boolean               @default(true)
   equipos           ProyectoEquipo[]
   liquidaciones     ProyectoLiquidacion[]
+  lineasDeProyecto  ProyectoLiquidacionProyectoLinea[] // M5 · MIA T10
+  saldosAFavor      ProyectoSaldoAFavor[]
   rendiciones       ProyectoRendicion[]
   anticipos         ProyectoAnticipo[]
   // Taller de stands T3: relaciones virtuales (sin columnas en esta tabla, que es compartida con MIA).
@@ -4359,6 +4366,7 @@ model ProyectoLiquidacion {
   pagadaPor   String?
   asientos    CashMovement[]
   rendiciones ProyectoRendicion[]
+  lineasDeProyecto ProyectoLiquidacionProyectoLinea[] // M5 · MIA T10: las líneas de proyecto que tomó este mes
   createdAt   DateTime            @default(now())
 
   @@unique([tenantId, personaId, periodo])
@@ -5879,4 +5887,110 @@ model ProyectoCancelacion {
   reabiertoPor   String?
 
   @@unique([proyectoId, tenantId])
+}
+
+// ── M5 · MIA T10 (plan MIA-50 § 1.3): la liquidación del proyecto ────────────────────────────────────────────────
+// Migración 20261121100000_mia_m5_liquidacion_proyecto (Gate 2: escrita, sin aplicar en Neon). El código tolera su
+// ausencia. Plata en centavos enteros.
+
+/// O20-O22: una por proyecto. Nace al declarar «costos completos» con la foto del costo (ids incluidos); se revisa y se
+/// aprueba con segundo factor. Aprobada, queda congelada: lo que entra después va a ajuste (T12).
+model ProyectoLiquidacionProyecto {
+  id              String                              @id @default(cuid())
+  tenant          Tenant                              @relation(fields: [tenantId], references: [id])
+  tenantId        String
+  proyecto        Proyecto                            @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId      String
+  estado          String                              @default("BORRADOR") // BORRADOR · REVISADA · APROBADA
+  presupuestoId   String?
+  fotoVersion     Int?
+  totalVenta      BigInt                              @default(0)
+  costoReal       BigInt                              @default(0)
+  comprobantes    BigInt                              @default(0)
+  facturado       BigInt                              @default(0)
+  cobrado         BigInt                              @default(0)
+  esperado        BigInt                              @default(0)
+  costoDetalle    Json?
+  parametros      Json?
+  avisos          Json?
+  declaradaPor    String
+  declaradaNombre String
+  declaradaEl     DateTime                            @default(now())
+  revisadaPor     String?
+  revisadaNombre  String?
+  revisadaEl      DateTime?
+  notaRevision    String?
+  aprobadaPor     String?
+  aprobadaNombre  String?
+  aprobadaEl      DateTime?
+  createdAt       DateTime                            @default(now())
+  lineas          ProyectoLiquidacionProyectoLinea[]
+  ajustes         ProyectoLiquidacionProyectoAjuste[]
+  saldos          ProyectoSaldoAFavor[]
+
+  @@unique([proyectoId, tenantId])
+  @@unique([id, tenantId])
+  @@index([tenantId, estado])
+}
+
+/// Una línea por participante de la foto del precio (la empresa con `personaId` nulo). `mensualId`: la liquidación
+/// mensual que la tomó (O23), nula mientras espera «cuándo se paga».
+model ProyectoLiquidacionProyectoLinea {
+  id            String                      @id @default(cuid())
+  tenant        Tenant                      @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  liquidacion   ProyectoLiquidacionProyecto @relation(fields: [liquidacionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  liquidacionId String
+  clave         String
+  persona       ProyectoPersona?            @relation(fields: [personaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  personaId     String?
+  nombre        String
+  funcion       String
+  comision      BigInt                      @default(0)
+  reparto       BigInt                      @default(0)
+  redondeo      BigInt                      @default(0)
+  rentabilidad  BigInt                      @default(0)
+  total         BigInt                      @default(0)
+  detalle       Json?
+  mensual       ProyectoLiquidacion?        @relation(fields: [mensualId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  mensualId     String?
+  createdAt     DateTime                    @default(now())
+
+  @@unique([liquidacionId, clave])
+  @@index([tenantId, personaId])
+  @@index([mensualId])
+}
+
+/// Ajuste posterior a la aprobación (lo arma T12).
+model ProyectoLiquidacionProyectoAjuste {
+  id            String                      @id @default(cuid())
+  tenant        Tenant                      @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  liquidacion   ProyectoLiquidacionProyecto @relation(fields: [liquidacionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  liquidacionId String
+  lineaId       String?
+  motivo        String
+  monto         BigInt
+  detalle       Json?
+  autorId       String
+  autorNombre   String
+  createdAt     DateTime                    @default(now())
+
+  @@index([tenantId, liquidacionId])
+}
+
+/// Lo que una persona le debe a la empresa por una defensa negativa «descuenta» (lo usa T12).
+model ProyectoSaldoAFavor {
+  id            String                      @id @default(cuid())
+  tenant        Tenant                      @relation(fields: [tenantId], references: [id])
+  tenantId      String
+  persona       ProyectoPersona             @relation(fields: [personaId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  personaId     String
+  liquidacion   ProyectoLiquidacionProyecto @relation(fields: [liquidacionId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  liquidacionId String
+  monto         BigInt
+  aplicado      BigInt                      @default(0)
+  createdAt     DateTime                    @default(now())
+
+  @@index([tenantId, personaId])
 }

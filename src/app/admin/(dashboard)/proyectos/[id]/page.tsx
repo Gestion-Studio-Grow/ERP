@@ -15,6 +15,7 @@ import { Numero, PestanaFicha, PestanaHistorial, PestanaResumen, PestanaSeguimie
 import { ArmadorYPiezas, PestanaArchivos } from "./_pestanas-diseno-archivos";
 import { PestanaCotizacion, PestanaFinanzas } from "./_pestanas-plata";
 import { PestanaRendiciones } from "./_rendiciones";
+import { PestanaLiquidacion } from "./_liquidacion";
 import { PestanaDespiece } from "./_despiece";
 import { SeccionHoras } from "./_horas";
 import { SeccionPedidos } from "./_pedidos";
@@ -56,6 +57,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
     { id: "despiece", label: "Despiece", ve: verDespiece },
     { id: "finanzas", label: "Finanzas", ve: vista.pagos },
     { id: "rendiciones", label: "Rendiciones", ve: puede(a, "rendiciones", "ver") },
+    { id: "liquidacion", label: "Liquidación", ve: vista.cotizaciones || puede(a, "liquidaciones", "ver") || !!a.personaId },
     { id: "seguimiento", label: "Seguimiento", ve: verFicha },
     { id: "chat", label: "Chat", ve: true },
     { id: "archivos", label: "Archivos", ve: verFicha || puede(a, "diseno", "ver") },
@@ -135,6 +137,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
       )}
       {tab === "finanzas" && <PestanaFinanzas a={a} cab={cab} vista={vista} filtro={q.filtro} />}
       {tab === "rendiciones" && <PestanaRendiciones a={a} proyectoId={p.id} />}
+      {tab === "liquidacion" && <PestanaLiquidacion a={a} proyectoId={p.id} />}
       {tab === "seguimiento" && <PestanaSeguimiento a={a} cab={cab} vista={vista} />}
       {tab === "chat" && <ChatProyecto proyectoId={p.id} />}
       {tab === "archivos" && <PestanaArchivos a={a} cab={cab} tipo={q.tipo} />}
