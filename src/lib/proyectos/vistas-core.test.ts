@@ -2,7 +2,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { agrupar, columnasDeLaVista, normalizarVista, ordenar, pasaFiltros, proyectarFila, vistasDelSistema, vistasVisibles, FILTROS_BASE, type FilaCuenta } from "./vistas-core";
+import { agrupar, columnasDeLaVista, ordenAplicable, proyectarLiquidacion, type FilaLiquidacion, normalizarVista, ordenar, pasaFiltros, proyectarFila, vistasDelSistema, vistasVisibles, FILTROS_BASE, type FilaCuenta } from "./vistas-core";
 
 const hoy = new Date("2026-11-17T12:00:00Z");
 const dia = (n: number) => new Date(hoy.getTime() + n * 86_400_000);
@@ -66,4 +66,21 @@ test("filtros, orden y agrupación", () => {
   assert.deepEqual(agrupar(ordenar(filas, "vence:asc"), "estado").map((g) => [g.titulo, ids(g.filas)]), [["Vencidas", ["b"]], ["Pagadas", ["c"]], ["Pendientes", ["a"]]]);
   assert.deepEqual(agrupar(filas, "evento").map((g) => g.titulo), ["EV-1 Stand", "Empresa"]);
   assert.deepEqual(agrupar(filas, "").length, 1);
+});
+
+test("T12 · C-O46 · liquidaciones: con «costo» oculto la vista no trae base, extras ni total, ni en las acciones, ni ordena por total", () => {
+  const ocultas = ["costoUnit", "costoTotal", "recargo", "margen"];
+  const pide = { columnas: ["facturaA", "base", "extras", "total", "estado"] };
+  const cols = columnasDeLaVista("liquidaciones", pide, ocultas);
+  assert.deepEqual(cols.map((c) => c.id), ["persona", "facturaA", "estado", "accion"]);
+  const l: FilaLiquidacion = { id: "l1", persona: "Productora (ficticia)", puesto: null, personaId: "p1", userId: "u1", facturaA: "MIA", base: 777_001, extras: [{ nombre: "Plus", monto: 33_003, manual: true }], total: 810_004, estado: "PUBLICADA", publicadaEl: null, vistaEl: null };
+  const sale = proyectarLiquidacion(l, cols, false);
+  assert.doesNotMatch(JSON.stringify(sale), /777001|33003|810004/, "ningún importe viaja");
+  assert.equal(ordenAplicable("liquidaciones", "monto:desc", ocultas), "contraparte:asc", "ordenar por total dejaría adivinarlo");
+  assert.equal(ordenAplicable("a-pagar", "monto:desc", ocultas), "vence:asc");
+  assert.equal(ordenAplicable("a-cobrar", "monto:desc", ocultas), "monto:desc");
+  // Sin la columna oculta, sí.
+  assert.deepEqual(columnasDeLaVista("liquidaciones", pide, []).map((c) => c.id), ["persona", "facturaA", "base", "extras", "total", "estado", "accion"]);
+  assert.match(JSON.stringify(proyectarLiquidacion(l, columnasDeLaVista("liquidaciones", pide, []), true)), /810004/);
+  for (const v of vistasDelSistema("liquidaciones")) assert.equal(normalizarVista("liquidaciones", v).ok, true);
 });

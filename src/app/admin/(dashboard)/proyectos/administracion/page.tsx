@@ -97,7 +97,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
       {tab === "cashflow" && <TabCashflow tenantId={a.tenantId} />}
       {tab === "bancos" && <TabBancos tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />}
       {tab === "monedas" && <TabMonedas tenantId={a.tenantId} editaEmpresa={editaEmpresa} />}
-      {tab === "liquidaciones" && <TabLiquidaciones tenantId={a.tenantId} mes={sp.mes} edita={puede(a, "liquidaciones", "editar")} paga={pagaLiquidaciones(a.rol, permisoDe(a.rol, "liquidaciones", a.permisos))} yo={{ personaId: a.personaId, userId: a.user.id }} />}
+      {tab === "liquidaciones" && <TabLiquidaciones a={a} mes={sp.mes} vista={sp.vista} guardada={sp.guardada === "1"} edita={puede(a, "liquidaciones", "editar")} paga={pagaLiquidaciones(a.rol, permisoDe(a.rol, "liquidaciones", a.permisos))} />}
     </main>
   );
 }

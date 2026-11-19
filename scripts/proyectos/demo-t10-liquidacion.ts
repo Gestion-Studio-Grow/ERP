@@ -42,7 +42,7 @@ async function main() {
     numero++;
     const p = await prisma.proyecto.create({ data: { tenantId, numero, clientId: cliente.id, nombre, servicio: "EVENTOS", etapa: "APROBADO", brief: "Stand", responsable: "Lucía Paz", fechaEvento: EVENTO }, select: { id: true } });
     const pres = await prisma.proyectoPresupuesto.create({ data: { tenantId, proyectoId: p.id, version: 1, estado: "APROBADO", token: `demo-t10-${p.id}`, ivaPct: 21 }, select: { id: true } });
-    await prisma.proyectoItem.create({ data: { tenantId, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 1_490_000 } });
+    await prisma.proyectoItem.create({ data: { tenantId, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 1_490_000, costo: 1_000_000 } });
     const eqP = await prisma.proyectoEquipo.create({ data: { tenantId, proyectoId: p.id, personaId: paula.id, funcion: "PRODUCTOR" }, select: { id: true } });
     const eqL = await prisma.proyectoEquipo.create({ data: { tenantId, proyectoId: p.id, personaId: lucia.id, funcion: "COMERCIAL" }, select: { id: true } });
     const participantes: { equipoId: string | null; personaId: string | null; nombre: string; funcion: string; comisionPct: number; reparto: Record<string, number> }[] = [

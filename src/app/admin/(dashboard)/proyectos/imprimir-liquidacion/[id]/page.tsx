@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
-import { actorActual, puede } from "@/lib/proyectos/gestion.server";
+import { actorActual } from "@/lib/proyectos/gestion.server";
+import { abreLiquidacionAjena } from "@/lib/proyectos/vistas.server";
 import { datosDelNegocio } from "@/lib/proyectos/datos.server";
 import { fechaCorta, pesos } from "@/lib/proyectos/core";
 import { etiquetaMes, leerExtras } from "@/lib/proyectos/empresa-core";
@@ -18,7 +19,8 @@ export default async function ImprimirLiquidacion({ params }: { params: Promise<
   const l = await liquidacionParaImprimir(a.tenantId, id);
   if (!l) notFound();
   const esMia = l.personaId === a.personaId;
-  const administra = puede(a, "liquidaciones", "ver");
+  // T12 (O46): ver la lista sin ver importes no alcanza para abrir la de otra persona.
+  const administra = abreLiquidacionAjena(a);
   // Un borrador todavía no existe para la persona. Para los demás, la misma respuesta que si no existiera.
   if (!administra && !(esMia && l.estado !== "BORRADOR")) notFound();
   const negocio = await datosDelNegocio(a.tenantId);

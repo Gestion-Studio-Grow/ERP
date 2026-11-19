@@ -6,7 +6,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { agregarTarea, alternarTarea, borrarTarea } from "@/lib/proyectos/acciones";
 import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, cargarPlantillaChecklist, generarPortal, guardarDatos, nuevaVersion, quitarEquipo, revocarPortal } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, yaVencio, type MedioPago } from "@/lib/proyectos/core";
-import { avanceDeCobro, conteoPorEstado } from "@/lib/proyectos/ficha-core";
+import { avanceDeCobro, contar, conteoPorEstado } from "@/lib/proyectos/ficha-core";
 import { ofreceNuevaVersion } from "@/lib/proyectos/presupuesto-vista-core";
 import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, TIPOS_EVENTO } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
@@ -135,9 +135,9 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
           <h2 className="mb-1 font-semibold text-strong">Se carga una vez, sale en todos lados</h2>
           <p className="mb-2 text-sm text-muted">Con los ítems de la ficha se arman solos la planilla de venta, los cobros, los pagos y las fechas de la agenda.</p>
           <ul className="grid gap-1 text-sm">
-            <li><Link className="flex min-h-11 items-center underline" href={`?tab=ficha`}>{cab.totales.items} ítems en la ficha</Link></li>
-            {vista.pagos && <li><Link className="flex min-h-11 items-center underline" href={`?tab=finanzas`}>{cantCuotas} movimientos en el cashflow</Link></li>}
-            <li><Link className="flex min-h-11 items-center underline" href={`?tab=seguimiento`}>{cantChecklist} puntos en el checklist</Link></li>
+            <li><Link className="flex min-h-11 items-center underline" href={`?tab=ficha`}>{contar(cab.totales.items, "ítem", "ítems")} en la ficha</Link></li>
+            {vista.pagos && <li><Link className="flex min-h-11 items-center underline" href={`?tab=finanzas`}>{contar(cantCuotas, "movimiento", "movimientos")} en el cashflow</Link></li>}
+            <li><Link className="flex min-h-11 items-center underline" href={`?tab=seguimiento`}>{contar(cantChecklist, "punto", "puntos")} en el checklist</Link></li>
           </ul>
         </section>
       </div>
@@ -148,8 +148,8 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
         {p.equipo.length === 0 && <p className="mb-3 text-sm text-muted">Sin personas asignadas.</p>}
         <ul className="mb-3 grid gap-1">
           {p.equipo.map((e) => (
-            <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-1 text-sm">
-              <span className="min-w-0">
+            <li key={e.id} className="flex items-center justify-between gap-2 border-t border-line py-1 text-sm">
+              <span className="min-w-0 flex-1">
                 <span className="font-medium text-strong">{e.persona.nombre}</span>
                 <span className="block text-xs text-muted">{[(e.funcion && funciones.find((f) => f.id === e.funcion)?.nombre) || e.funcion || e.persona.puesto, vista.costos && e.plus > 0 ? (plusApagado ? `plus ${pesos(e.plus)}: ${PLUS_APAGADO}` : `plus ${pesos(e.plus)}`) : null].filter(Boolean).join(" · ")}</span>
               </span>

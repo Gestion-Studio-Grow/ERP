@@ -5,7 +5,8 @@ import { fechaCorta } from "@/lib/proyectos/core";
 import { datosDelNegocio } from "@/lib/proyectos/datos.server";
 import { etiquetaMes, leerExtras } from "@/lib/proyectos/empresa-core";
 import { liquidacionParaImprimir } from "@/lib/proyectos/empresa.server";
-import { actorActual, puede } from "@/lib/proyectos/gestion.server";
+import { actorActual } from "@/lib/proyectos/gestion.server";
+import { abreLiquidacionAjena } from "@/lib/proyectos/vistas.server";
 import { pdfDeLiquidacion } from "@/lib/proyectos/papel-pdf";
 import { requireApp } from "@/lib/require-app";
 
@@ -18,7 +19,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   const { id } = await params;
   const l = await liquidacionParaImprimir(a.tenantId, id);
   const propia = l?.personaId === a.personaId && !!l && l.estado !== "BORRADOR";
-  if (!l || (!propia && !puede(a, "liquidaciones", "ver"))) return new NextResponse("No encontrado", { status: 404 });
+  if (!l || (!propia && !abreLiquidacionAjena(a))) return new NextResponse("No encontrado", { status: 404 });
   const negocio = await datosDelNegocio(a.tenantId);
   const bytes = await pdfDeLiquidacion({
     negocio: negocio.nombre,

@@ -5,6 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { pesos } from "@/lib/proyectos/core";
+import { COLUMNAS } from "@/lib/proyectos/vistas-core";
 import { cssTarjetas, etiquetasFicha, importe, importeDeVenta } from "./_tabla";
 
 const leer = (archivo: string) => readFileSync(new URL(archivo, import.meta.url), "utf8");
@@ -41,7 +42,10 @@ test("cada celda de liquidaciones y bancos lleva su etiqueta (o es la de accione
     assert.ok(celdas.length > 0);
     for (const td of celdas) assert.ok(td.includes("data-label=") || td.includes("accionesMovil"), `${archivo}: ${td}`);
   }
-  for (const etiqueta of ["Total", "Estado", "Visto"]) assert.ok(leer("./administracion/_liquidaciones.tsx").includes(`data-label="${etiqueta}"`));
+  // T12 (O46): las celdas de liquidaciones salen del catálogo de la vista; la etiqueta es la de su columna.
+  assert.ok(leer("./administracion/_liquidaciones.tsx").includes("data-label={c.label}"));
+  const etiquetas = COLUMNAS.liquidaciones.map((c) => c.label);
+  for (const etiqueta of ["Total", "Estado", "Visto"]) assert.ok(etiquetas.includes(etiqueta), etiqueta);
   for (const etiqueta of ["Importe", "Conciliado con", "Lote"]) assert.ok(leer("./administracion/_bancos.tsx").includes(`data-label="${etiqueta}"`));
 });
 

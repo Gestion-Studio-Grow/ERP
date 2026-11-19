@@ -478,3 +478,36 @@ test("T12 · 3(a) · quien cobra en el proyecto no aprueba y su código no se ga
   assert.equal(await p.codigosDe(d2.userId), antes, "el rechazo llegó antes de gastar el código");
   assert.equal((await p.liq(z.id))[0].estado, "REVISADA");
 });
+
+test("T12 · C-O46 · liquidaciones con vista: Comercial con permiso no recibe importes aunque la vista de su rol los pida", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const vistas = await import("./vistas.server");
+  const { guardarVista } = await import("./acciones-vistas");
+  const { actorActual } = await import("./gestion.server");
+  const periodo = "2027-03";
+  await p.duenio.proyectoLiquidacion.create({ data: { tenantId: p.a.id, personaId: p.prod.personaId, periodo, base: 777_001, extras: [{ nombre: "Plus", monto: 33_003, manual: true }], total: 810_004, facturaA: "MIA", estado: "PUBLICADA" } });
+  // Sin el permiso de liquidaciones, Comercial no lee la lista.
+  assert.equal(p.valor(await p.como(p.com.userId, async () => vistas.leerLiquidacionesConVista(await actorActual(), periodo))).ok, false);
+  await p.duenio.proyectoPermiso.create({ data: { tenantId: p.a.id, rol: "COMERCIAL", modulo: "liquidaciones", ver: true, editar: false } });
+  const f = p.form({ lista: "liquidaciones", nombre: "Comercial: sueldos", alcance: "ROL", rol: "COMERCIAL", estado: "todos", agrupacion: "", orden: "monto:desc" });
+  for (const c of ["base", "extras", "total", "estado"]) f.append("columnas", c);
+  const deRol = p.valor(await p.como(p.dir, () => guardarVista(f)));
+  ok(deRol as Res);
+  const idRol = (deRol as { id: string }).id;
+  const leida = p.valor(await p.como(p.com.userId, async () => vistas.leerLiquidacionesConVista(await actorActual(), periodo, idRol)));
+  assert.equal(leida.ok, true, JSON.stringify(leida));
+  if (leida.ok) {
+    assert.equal(leida.actual.id, idRol, "la vista de su rol la ve");
+    assert.deepEqual(leida.columnas.map((c) => c.id), ["persona", "estado", "accion"], "las columnas ocultas no viajan");
+    assert.equal(leida.actual.orden, "contraparte:asc", "no ordena por el total oculto");
+    assert.equal(leida.montos, false);
+    assert.equal(leida.grupos.flatMap((g) => g.filas).length, 1);
+    assert.doesNotMatch(JSON.stringify(leida), /777001|33003|810004/, "ningún importe en la respuesta");
+  }
+  const deDireccion = p.valor(await p.como(p.dir, async () => vistas.leerLiquidacionesConVista(await actorActual(), periodo, "sistema:todas")));
+  assert.ok(deDireccion.ok && deDireccion.grupos[0].filas[0].total === 810_004, "Dirección sí lo ve");
+  const deAdm = p.valor(await p.como(p.admin.userId, async () => vistas.leerLiquidacionesConVista(await actorActual(), periodo, idRol)));
+  assert.ok(deAdm.ok && deAdm.actual.id === "sistema:todas", "la vista del rol Comercial no es de Administración");
+  await p.duenio.proyectoPermiso.deleteMany({ where: { tenantId: p.a.id, rol: "COMERCIAL", modulo: "liquidaciones" } });
+});

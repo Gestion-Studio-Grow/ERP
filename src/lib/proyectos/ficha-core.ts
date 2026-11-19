@@ -287,3 +287,8 @@ export function avanceDeCobro(f: { cobrado: number; aCobrar: number } | null | u
   if (perdido) return null;
   return f && f.cobrado + f.aCobrar > 0 ? (f.cobrado / (f.cobrado + f.aCobrar)) * 100 : 0;
 }
+
+/** «1 ítem», «3 ítems», «0 ítems»: el número con la palabra en singular sólo cuando es uno. */
+export function contar(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`;
+}

@@ -1,4 +1,4 @@
-import { cobroFrenadoPorPerdido, tipoDeArchivoSubido } from "./ficha-core";
+import { cobroFrenadoPorPerdido, contar, tipoDeArchivoSubido } from "./ficha-core";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cambiosEntreVersiones, cashflowDelEvento, ventaTotalItem } from "./gestion-core";
@@ -169,4 +169,11 @@ test("ADV-7 (MIA-107) · cobroFrenadoPorPerdido: sólo un cobro sin marcar de un
   assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: new Date(), proyecto: perdido }), false, "lo cobrado sigue cobrado");
   assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: null, proyecto: { perdidoEl: null } }), false, "un proyecto vivo se cobra");
   assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: null, proyecto: null }), false, "una cuota de la empresa no tiene proyecto");
+});
+
+test("contar: singular con 1, plural con 0 y con más («1 ítem», no «1 ítems»)", () => {
+  assert.equal(contar(1, "ítem", "ítems"), "1 ítem");
+  assert.equal(contar(0, "ítem", "ítems"), "0 ítems");
+  assert.equal(contar(3, "movimiento", "movimientos"), "3 movimientos");
+  assert.equal(contar(1, "punto", "puntos"), "1 punto");
 });

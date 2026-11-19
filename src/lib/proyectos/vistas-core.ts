@@ -2,12 +2,13 @@
 // VISTAS GUARDADAS DE LAS LISTAS (MIA T03, O46; diseño MIA § 4.2). PURO.
 // Una vista guarda columnas, filtros, agrupación y orden, de una persona o de un rol. NUNCA devuelve una columna que el
 // permiso del rol oculta: el permiso se aplica al leer (`proyectarFila`), no se confía en lo que diga la vista guardada.
-// Listas de esta tanda: «A cobrar» y «A pagar». Proyectos (T09) y liquidaciones (T12) suman su catálogo de columnas acá.
+// Listas: «A cobrar» y «A pagar» (T03) y las liquidaciones del equipo (T12). Proyectos (T09) suma su catálogo acá.
 // ============================================================================
 
 export const LISTAS = [
   { id: "a-cobrar", label: "Cuentas a cobrar" },
   { id: "a-pagar", label: "Cuentas a pagar" },
+  { id: "liquidaciones", label: "Liquidaciones del equipo" },
 ] as const;
 export type ListaId = (typeof LISTAS)[number]["id"];
 export const esLista = (v: unknown): v is ListaId => typeof v === "string" && LISTAS.some((l) => l.id === v);
@@ -38,7 +39,23 @@ const COMUNES = (contraparte: string, montoOculta?: string): ColumnaDef[] => [
 export const COLUMNAS: Record<ListaId, readonly ColumnaDef[]> = {
   "a-cobrar": COMUNES("Cliente"),
   "a-pagar": COMUNES("Proveedor", "costoTotal"),
+  // T12 (O46): lo que se le paga a una persona del equipo también es costo, con la misma regla que «A pagar».
+  // Provisional a confirmar por el dueño: si el sueldo pide un permiso propio, se cambia sólo `oculta`.
+  liquidaciones: [
+    { id: "persona", label: "Persona", fija: true },
+    { id: "facturaA", label: "Factura a" },
+    { id: "base", label: "Base", oculta: "costoTotal" },
+    { id: "extras", label: "Extras", oculta: "costoTotal" },
+    { id: "total", label: "Total", oculta: "costoTotal" },
+    { id: "estado", label: "Estado" },
+    { id: "visto", label: "Visto" },
+    { id: "accion", label: "Acciones", fija: true },
+  ],
 };
+
+/** La columna de importe de cada lista: ordenar por ella sólo vale si el rol la puede ver. */
+const COLUMNA_MONTO: Record<ListaId, string> = { "a-cobrar": "monto", "a-pagar": "monto", liquidaciones: "total" };
+const ORDEN_BASE: Record<ListaId, string> = { "a-cobrar": "vence:asc", "a-pagar": "vence:asc", liquidaciones: "contraparte:asc" };
 
 export const FILTRO_ESTADO = ["pendientes", "vencidos", "pagados", "todos"] as const;
 export const FILTRO_ORIGEN = ["todos", "eventos", "empresa"] as const;
@@ -68,6 +85,7 @@ export const FILTROS_BASE: Filtros = { estado: "pendientes", origen: "todos", mo
 /** Las vistas que trae el sistema (diseño § 4.2: «Vence esta semana», de Administración). No se guardan en la base. */
 export function vistasDelSistema(lista: ListaId): VistaGuardada[] {
   const todas = COLUMNAS[lista].map((c) => c.id);
+  if (lista === "liquidaciones") return [{ id: "sistema:todas", nombre: "Todas las columnas", alcance: "SISTEMA", propietario: "", columnas: todas, filtros: { ...FILTROS_BASE, estado: "todos" }, agrupacion: "", orden: ORDEN_BASE.liquidaciones }];
   return [
     { id: "sistema:todas", nombre: "Todas las columnas", alcance: "SISTEMA", propietario: "", columnas: todas, filtros: FILTROS_BASE, agrupacion: "", orden: "vence:asc" },
     { id: "sistema:semana", nombre: "Vence esta semana", alcance: "SISTEMA", propietario: "", columnas: todas, filtros: { ...FILTROS_BASE, venceEnDias: 7 }, agrupacion: "", orden: "vence:asc" },
@@ -92,7 +110,7 @@ export function normalizarVista(lista: ListaId, crudo: { columnas?: unknown; fil
   };
   if (typeof crudo.agrupacion === "string" && !AGRUPACIONES.some((a) => a.id === crudo.agrupacion)) return { ok: false, error: "Esa agrupación no existe." };
   if (crudo.orden != null && !ORDENES.some((o) => o.id === crudo.orden)) return { ok: false, error: "Ese orden no existe." };
-  return { ok: true, vista: { columnas: elegidas, filtros, agrupacion: typeof crudo.agrupacion === "string" ? crudo.agrupacion : "", orden: typeof crudo.orden === "string" ? crudo.orden : "vence:asc" } };
+  return { ok: true, vista: { columnas: elegidas, filtros, agrupacion: typeof crudo.agrupacion === "string" ? crudo.agrupacion : "", orden: typeof crudo.orden === "string" ? crudo.orden : ORDEN_BASE[lista] } };
 }
 
 /** Las columnas que el rol puede ver de esta lista, dado lo que tiene oculto en la ficha. PURA. */
@@ -104,6 +122,18 @@ export function columnasPermitidas(lista: ListaId, ocultasDelRol: readonly strin
 export function columnasDeLaVista(lista: ListaId, vista: Pick<Vista, "columnas">, ocultasDelRol: readonly string[]): ColumnaDef[] {
   return columnasPermitidas(lista, ocultasDelRol).filter((c) => c.fija || vista.columnas.includes(c.id));
 }
+
+/**
+ * El orden que se aplica: ordenar por un importe que el rol no ve deja adivinar quién cobra o se paga más, así que
+ * vuelve al orden de base de la lista. PURA.
+ */
+export function ordenAplicable(lista: ListaId, orden: string, ocultasDelRol: readonly string[]): string {
+  return orden.startsWith("monto:") && !veImportes(lista, ocultasDelRol) ? ORDEN_BASE[lista] : orden;
+}
+
+/** Si el rol ve el importe de esta lista. PURA. */
+export const veImportes = (lista: ListaId, ocultasDelRol: readonly string[]): boolean =>
+  columnasPermitidas(lista, ocultasDelRol).some((c) => c.id === COLUMNA_MONTO[lista]);
 
 /** Una fila de cuenta, ya calculada (lo que falta, en pesos, su estado). */
 export interface FilaCuenta {
@@ -170,4 +200,77 @@ export function agrupar<T extends Pick<FilaCuenta, "evento" | "contraparte" | "e
 /** Qué vistas ve esta persona: las del sistema, las de su rol y las suyas. Nunca las personales de otro. PURA. */
 export function vistasVisibles<T extends { alcance: string; propietario: string }>(guardadas: readonly T[], userId: string, rol: string): T[] {
   return guardadas.filter((v) => (v.alcance === "PERSONA" && v.propietario === userId) || (v.alcance === "ROL" && v.propietario === rol));
+}
+
+// ── Liquidaciones del equipo (T12, O46) ──
+
+export interface ExtraLiquidacion { nombre: string; monto: number; manual?: boolean; reintegro?: boolean }
+
+/** Una liquidación del mes, ya leída. */
+export interface FilaLiquidacion {
+  id: string;
+  persona: string;
+  puesto: string | null;
+  personaId: string;
+  userId: string | null;
+  facturaA: string;
+  base: number;
+  extras: ExtraLiquidacion[];
+  total: number;
+  estado: "BORRADOR" | "PUBLICADA" | "PAGADA";
+  publicadaEl: Date | null;
+  vistaEl: Date | null;
+}
+
+/**
+ * Sólo lo que se puede mostrar: un importe oculto no viaja, ni en la celda ni en las acciones. Las acciones llevan lo
+ * que necesitan para decidirse (estado y de quién es) y los importes sólo si el rol los puede ver (`montos`). PURA.
+ */
+export interface LiquidacionVisible {
+  id: string;
+  persona?: string;
+  puesto?: string | null;
+  facturaA?: string;
+  base?: number;
+  extras?: ExtraLiquidacion[];
+  total?: number;
+  estado?: FilaLiquidacion["estado"];
+  publicadaEl?: Date | null;
+  visto?: Date | null;
+  accion?: { estado: FilaLiquidacion["estado"]; personaId: string; userId: string | null; base?: number; total?: number; manuales?: ExtraLiquidacion[] };
+}
+
+export function proyectarLiquidacion(f: FilaLiquidacion, columnas: readonly ColumnaDef[], montos: boolean): LiquidacionVisible {
+  const salida: Record<string, unknown> = { id: f.id };
+  for (const c of columnas) {
+    if (c.id === "persona") { salida.persona = f.persona; salida.puesto = f.puesto; continue; }
+    if (c.id === "estado") { salida.estado = f.estado; salida.publicadaEl = f.publicadaEl; continue; }
+    if (c.id === "visto") { salida.visto = f.vistaEl; continue; }
+    if (c.id === "accion") {
+      salida.accion = { estado: f.estado, personaId: f.personaId, userId: f.userId, ...(montos ? { base: f.base, total: f.total, manuales: f.extras.filter((e) => e.manual) } : {}) };
+      continue;
+    }
+    salida[c.id] = (f as unknown as Record<string, unknown>)[c.id];
+  }
+  return salida as unknown as LiquidacionVisible;
+}
+
+/** Estado de la vista sobre una liquidación: «pendientes» es lo que falta pagar. PURA. */
+export const pasaFiltroLiquidacion = (f: Pick<FilaLiquidacion, "estado">, filtros: Pick<Filtros, "estado">): boolean =>
+  filtros.estado === "todos" || (filtros.estado === "pagados" ? f.estado === "PAGADA" : f.estado !== "PAGADA");
+
+/** Por persona (A-Z) o por total. Sin tocar el original. PURA. */
+export function ordenarLiquidaciones<T extends Pick<FilaLiquidacion, "persona" | "total">>(filas: readonly T[], orden: string): T[] {
+  const porPersona = (a: T, b: T) => a.persona.localeCompare(b.persona, "es");
+  if (orden === "monto:desc") return [...filas].sort((a, b) => b.total - a.total || porPersona(a, b));
+  if (orden === "monto:asc") return [...filas].sort((a, b) => a.total - b.total || porPersona(a, b));
+  return [...filas].sort(porPersona);
+}
+
+const ESTADO_LIQUIDACION = { BORRADOR: "Borradores", PUBLICADA: "Publicadas", PAGADA: "Pagadas" } as const;
+
+/** Sin agrupar o por estado (las otras agrupaciones son de cuentas). PURA. */
+export function agruparLiquidaciones<T extends Pick<FilaLiquidacion, "estado">>(filas: readonly T[], agrupacion: string): { titulo: string; filas: T[] }[] {
+  if (agrupacion !== "estado") return [{ titulo: "", filas: [...filas] }];
+  return (["BORRADOR", "PUBLICADA", "PAGADA"] as const).map((e) => ({ titulo: ESTADO_LIQUIDACION[e], filas: filas.filter((f) => f.estado === e) })).filter((g) => g.filas.length > 0);
 }
