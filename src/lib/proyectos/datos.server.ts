@@ -16,12 +16,14 @@ import { getLocation } from "@/lib/settings";
 import { desvioPorRubro, redondear, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
-import { cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
+import { anotarCongelados, cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
 import { totalesEnPesos } from "./cobranza-core";
 import { topeDeAdicionalesPorProyecto } from "./presupuesto-m2.server";
 import { aPesos } from "./gestion-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
 import { costoRealDeProyectos } from "./comprobantes.server";
+import { modoDeLaPropuesta } from "./precio-proyecto.server";
+import { itemsParaElCliente, totalesDelNeto } from "./precio-proyecto-core";
 
 export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
 
@@ -116,7 +118,7 @@ export async function fichaProyecto(id: string) {
   const pagosVivos = proyecto.pagos.filter((x) => !x.anuladoEl);
   const delProyecto = { moneda: proyecto.moneda, perdidoEl: proyecto.perdidoEl, presupuestos: vigente ? [vigente] : [], pagos: pagosVivos };
   // MIA T06 · O11: los adicionales aprobados suman al total, igual que al tope del cobro.
-  const [originales, adicionales] = await Promise.all([originalesDeCobros(tenantId, [delProyecto]), topeDeAdicionalesPorProyecto(prisma, tenantId, [proyecto.id])]);
+  const [originales, adicionales] = await Promise.all([originalesDeCobros(tenantId, [delProyecto]), topeDeAdicionalesPorProyecto(prisma, tenantId, [proyecto.id]), anotarCongelados(prisma, tenantId, [delProyecto])]);
   const { total: totalAprobado, cobrado, saldo } = cobranzaDe(delProyecto, tc, config.margenPct, originales, adicionales.get(proyecto.id) ?? 0);
   return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo, totalesVigente, real, rubros, proveedores: proveedores.map((s) => s.name) };
 }
@@ -180,7 +182,7 @@ export async function reporteProyectos() {
       cuotas: { where: { tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false }, select: { id: true, tipo: true, monto: true, moneda: true, pagadoEl: true, anuladoEl: true, prevista: true } },
     },
   });
-  const originales = await originalesDeCobros(tenantId, proyectos);
+  const [originales] = await Promise.all([originalesDeCobros(tenantId, proyectos), anotarCongelados(prisma, tenantId, proyectos)]);
   const conTotales = proyectos.map((p) => ({ ...p, t: p.presupuestos[0] ? totalesEnPesos(p.presupuestos[0], tc, config.margenPct) : null }));
   // O13 · la cuenta única del costo real (comprobantes.server): lo imputado, los gastos y lo previsto por cuotas (D6).
   const reales = await costoRealDeProyectos(tenantId, conTotales, tc);
@@ -248,7 +250,7 @@ export async function clientesConProyectos(q: string) {
       },
     },
   });
-  const originales = await originalesDeCobros(tenantId, clientes.flatMap((c) => c.proyectos));
+  const [originales] = await Promise.all([originalesDeCobros(tenantId, clientes.flatMap((c) => c.proyectos)), anotarCongelados(prisma, tenantId, clientes.flatMap((c) => c.proyectos))]);
   return clientes.map(({ proyectos, ...c }) => ({
     ...enmascararContacto(c, user),
     total: proyectos.length,
@@ -275,7 +277,7 @@ export async function proyectosDelCliente(clientId: string) {
       ...SELECT_COBRANZA,
     },
   });
-  const originales = await originalesDeCobros(tenantId, proyectos);
+  const [originales] = await Promise.all([originalesDeCobros(tenantId, proyectos), anotarCongelados(prisma, tenantId, proyectos)]);
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
     const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
@@ -355,23 +357,17 @@ export async function propuestaPublica(token: string) {
     },
   });
   if (!presupuesto) return null;
-  const t = totales(presupuesto.items, presupuesto.ivaPct);
-  const negocio = await datosDelNegocio(tenantId);
+  // O17 (MIA T07): un negocio que cotiza por total muestra el total congelado y, según su parámetro, sin precio por ítem.
+  const [negocio, modo] = await Promise.all([datosDelNegocio(tenantId), modoDeLaPropuesta(tenantId, presupuesto)]);
+  const t = modo?.neto != null ? totalesDelNeto(modo.neto, presupuesto.ivaPct) : totales(presupuesto.items, presupuesto.ivaPct);
   // Lo interno no sale del servidor: ni notas, ni la foto de la versión, ni quién aprobó adentro.
   const { foto: _foto, nota: _nota, creadoPor: _creadoPor, aprobadoInternoPor: _aprobadoPor, aprobadoInternoEl: _aprobadoEl, ...publico } = presupuesto;
-  // Un ítem oculto no se detalla, pero se cobra: suma a «Otros conceptos» de su rubro, y el total sigue cerrando.
-  const otros = new Map<string, number>();
-  for (const i of presupuesto.items) if (!i.visibleCliente) otros.set(i.rubro, redondear((otros.get(i.rubro) ?? 0) + i.cantidad * i.precio));
   return {
     negocio,
-    presupuesto: {
-      ...publico,
-      // El costo y el proveedor son internos: del servidor sale sólo lo que el cliente puede ver.
-      items: [
-        ...presupuesto.items.filter((i) => i.visibleCliente).map(({ id, rubro, descripcion, unidad, cantidad, precio }) => ({ id, rubro, descripcion, unidad, cantidad, precio })),
-        ...[...otros].map(([rubro, precio]) => ({ id: `otros:${rubro}`, rubro, descripcion: "Otros conceptos", unidad: "global", cantidad: 1, precio })),
-      ],
-    },
+    // El costo y el proveedor son internos: del servidor sale sólo lo que el cliente puede ver.
+    presupuesto: { ...publico, items: itemsParaElCliente(presupuesto.items, modo) },
     totales: { neto: t.neto, iva: t.iva, total: t.total },
+    /** null = por ítems, como siempre. */
+    porTotal: modo ? { conIva: modo.conIva, sinPrecioPorItem: modo.sinPrecioPorItem } : null,
   };
 }

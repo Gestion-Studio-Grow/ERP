@@ -124,6 +124,8 @@ export interface DefParametro<K extends Clave = Clave> {
 }
 
 const pct = (valor: number): ConRango => ({ valor, min: 0, max: 100 });
+/** T07 (préstamo, O15 · pregunta 21): el rango provisional del proyecto es el valor de la plantilla, sin margen: cualquier cambio pide a Dirección. */
+const sinMargen = (valor: number): ConRango => ({ valor, min: valor, max: valor });
 
 const FUNCIONES: ConId[] = [
   { id: "COMERCIAL", nombre: "Comercial" },
@@ -149,10 +151,10 @@ export const CATALOGO: readonly DefParametro[] = [
     clave: "precio.modo", grupo: "precio", nombre: "Modo de precio", seNota: "La ficha muestra el tablero de precio o no", usa: "T07",
     def: { tipo: "opcion", opciones: [{ id: "POR_TOTAL", label: "Por total" }, { id: "POR_ITEM", label: "Por ítem" }] }, rubro: "POR_TOTAL", provisional: false, fuente: "Diseño del módulo",
   },
-  { clave: "precio.rentabilidad", grupo: "precio", nombre: "Rentabilidad %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: pct(30), provisional: true, fuente: "La planilla de costos del rubro" },
-  { clave: "precio.comision", grupo: "precio", nombre: "Comisión por función %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "mapaConRango", clavesDe: "equipo.funciones" }, rubro: { COMERCIAL: pct(10), PRODUCTOR: pct(10), PRODUCTOR_CAMPO: pct(0) }, provisional: true, fuente: "La planilla de costos del rubro" },
-  { clave: "precio.margenError", grupo: "precio", nombre: "Margen de error %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: pct(5), provisional: true, fuente: "La planilla de costos del rubro" },
-  { clave: "precio.iibbGa", grupo: "precio", nombre: "IIB y gastos administrativos %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: pct(7), provisional: true, fuente: "La planilla de costos del rubro" },
+  { clave: "precio.rentabilidad", grupo: "precio", nombre: "Rentabilidad %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: sinMargen(30), provisional: true, fuente: "La planilla de costos del rubro" },
+  { clave: "precio.comision", grupo: "precio", nombre: "Comisión por función %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "mapaConRango", clavesDe: "equipo.funciones" }, rubro: { COMERCIAL: sinMargen(10), PRODUCTOR: sinMargen(10), PRODUCTOR_CAMPO: sinMargen(0) }, provisional: true, fuente: "La planilla de costos del rubro" },
+  { clave: "precio.margenError", grupo: "precio", nombre: "Margen de error %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: sinMargen(5), provisional: true, fuente: "La planilla de costos del rubro" },
+  { clave: "precio.iibbGa", grupo: "precio", nombre: "IIB y gastos administrativos %", seNota: "Los renglones del tablero", usa: "T07", def: { tipo: "conRango" }, rubro: sinMargen(7), provisional: true, fuente: "La planilla de costos del rubro" },
   { clave: "precio.redondeo.tope", grupo: "precio", nombre: "Tope del redondeo %", seNota: "El aviso de redondeo cuando pasa el tope", usa: "T07", def: { tipo: "porcentaje", min: 0, max: 100 }, rubro: 5, provisional: true, fuente: "Diseño del módulo, decidido con el negocio" },
   {
     clave: "precio.redondeo.medida", grupo: "precio", nombre: "Cómo se mide el redondeo", seNota: "El aviso de redondeo cuando pasa el tope", usa: "T07",

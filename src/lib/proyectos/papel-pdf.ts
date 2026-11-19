@@ -2,6 +2,7 @@
 // liquidación. Sin costos, como la planilla. Ninguno es un comprobante fiscal: esos salen de Facturación.
 
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
+import { pesos } from "./core";
 
 const ANCHO = 595.28;
 const ALTO = 841.89;
@@ -15,8 +16,8 @@ const LINEA = rgb(0.85, 0.85, 0.85);
 export const textoImprimible = (t: string): string =>
   t.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-").replace(/…/g, "...").replace(/\s+/g, " ").replace(/[^\x20-\x7E\xA0-\xFF]/g, "?").trim();
 
-export const plataPdf = (n: number, moneda: string): string =>
-  `${moneda === "ARS" ? "$" : `${moneda} `} ${n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** La plata del PDF con la regla única de `pesos` (MIA-50 adenda 1 § A), en el alfabeto que Helvetica sabe dibujar. */
+export const plataPdf = (n: number, moneda: string): string => textoImprimible(pesos(n, moneda));
 
 export function cortarEnLineas(texto: string, medir: (t: string) => number, ancho: number): string[] {
   const lineas: string[] = [];
@@ -100,11 +101,14 @@ export interface CotizacionPdf {
   moneda: string;
   version: number;
   condiciones: string | null;
-  grupos: readonly { rubro: string; subtotal: number; lineas: readonly { descripcion: string; cantidad: number | null; importe: number }[] }[];
+  /** Null = sin precio por ítem (O17: el negocio cotiza por total). */
+  grupos: readonly { rubro: string; subtotal: number | null; lineas: readonly { descripcion: string; cantidad: number | null; importe: number | null }[] }[];
   neto: number;
   ivaPct: number;
   iva: number;
   total: number;
+  /** O17: precio por total; `conIva` = el total va con el IVA adentro, si no, «más IVA». */
+  porTotal?: { conIva: boolean } | null;
 }
 
 export function pdfDeCotizacion(d: CotizacionPdf): Promise<Uint8Array> {
@@ -117,13 +121,17 @@ export function pdfDeCotizacion(d: CotizacionPdf): Promise<Uint8Array> {
     h.fila({ detalle: "Detalle", cantidad: "Cantidad", importe: `Importe (${d.moneda})`, negrita: true, tam: 9 });
     for (const g of d.grupos) {
       h.raya();
-      h.fila({ detalle: g.rubro, importe: plataPdf(g.subtotal, d.moneda), negrita: true });
-      for (const l of g.lineas) h.fila({ detalle: l.descripcion, cantidad: l.cantidad === null ? "" : l.cantidad.toLocaleString("es-AR"), importe: plataPdf(l.importe, d.moneda) });
+      h.fila({ detalle: g.rubro, importe: g.subtotal == null ? "" : plataPdf(g.subtotal, d.moneda), negrita: true });
+      for (const l of g.lineas) h.fila({ detalle: l.descripcion, cantidad: l.cantidad === null ? "" : l.cantidad.toLocaleString("es-AR"), importe: l.importe == null ? "" : plataPdf(l.importe, d.moneda) });
     }
     h.raya();
-    h.fila({ detalle: "Neto", importe: plataPdf(d.neto, d.moneda) });
-    if (d.ivaPct) h.fila({ detalle: `IVA ${d.ivaPct}%`, importe: plataPdf(d.iva, d.moneda) });
-    h.fila({ detalle: "Total", importe: plataPdf(d.total, d.moneda), negrita: true, tam: 12 });
+    if (d.porTotal?.conIva) h.fila({ detalle: "Total, IVA incluido", importe: plataPdf(d.total, d.moneda), negrita: true, tam: 12 });
+    else if (d.porTotal) h.fila({ detalle: d.ivaPct ? `Total, más IVA ${d.ivaPct}%` : "Total", importe: plataPdf(d.neto, d.moneda), negrita: true, tam: 12 });
+    else {
+      h.fila({ detalle: "Neto", importe: plataPdf(d.neto, d.moneda) });
+      if (d.ivaPct) h.fila({ detalle: `IVA ${d.ivaPct}%`, importe: plataPdf(d.iva, d.moneda) });
+      h.fila({ detalle: "Total", importe: plataPdf(d.total, d.moneda), negrita: true, tam: 12 });
+    }
     if (d.condiciones) {
       h.espacio(10);
       h.parrafo("Condiciones", { negrita: true });

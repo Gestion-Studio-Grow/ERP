@@ -38,6 +38,7 @@ import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, ur
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { ModuloGestion } from "./gestion-core";
 import { siHayM1, tomarCuotas } from "./comprobantes.server";
+import { contextoDelPrecio, frenoDelPrecioTx, grabarFotoTx } from "./precio-proyecto.server";
 
 /** `aviso`: salió bien, pero hay algo que mirar (p. ej. «recalculá el plan» si se facturó una cuota en el medio). */
 /** `listo`: el cartel de éxito (se muestra aparte, porque el renglón que lo pidió suele desaparecer al refrescar). */
@@ -399,6 +400,8 @@ export async function asignarEquipo(formData: FormData): Promise<ResultadoFicha>
   const persona = await prisma.proyectoPersona.findFirst({ where: { id: personaId, tenantId, activa: true }, select: { id: true, nombre: true } });
   if (!persona) return mal("Elegí una persona del equipo.");
   const funcion = txt(formData.get("funcion")).slice(0, 80);
+  // MIA T07 (R8): la función sale del catálogo del negocio; con ella se cobra la comisión y se arma el reparto.
+  if (funcion && !(await valorDelNegocio(tenantId, "equipo.funciones")).some((f) => f.id === funcion)) return mal("Elegí una función del negocio.");
   const textoPlus = txt(formData.get("plus"));
   // El plus es plata: sólo lo toca quien edita costos.
   const editaPlus = puede(a, "costos", "editar");
@@ -756,11 +759,16 @@ export async function enviarCotizacion(formData: FormData): Promise<ResultadoFic
   const faltan = monedasSinCambio([...pr.items, { moneda: monedaVenta }], tc);
   if (faltan.length > 0) return mal(`Falta el tipo de cambio de ${faltan.join(", ")}: sin él, esos ítems valen cero.`);
   const fijados = pr.items.map((i) => ({ item: i, fijo: precioAlEnviar(i, tc, config.margenPct) }));
+  // MIA T07: con un total escrito, el precio frena el envío (tope, rango, persona por función). Se mira adentro, con su candado.
+  const ctxPrecio = await contextoDelPrecio(tenantId);
+  let frenoPrecio: string | null = null;
   const foto = fotoDeVersion(fijados.map(({ item, fijo }) => ({ ...item, ...fijo })), tc, config.margenPct);
   const ahora = new Date();
   let avanzo = false;
   const enviada = await conGuardiaDeBase(() => tenantTransaction(async (tx) => {
     if (await hayBaseAprobada(tx, tenantId, pr.proyectoId)) throw new BaseYaAprobada();
+    frenoPrecio = await frenoDelPrecioTx(tx, tenantId, pr.proyectoId, ctxPrecio);
+    if (frenoPrecio) return false;
     const r = await tx.proyectoPresupuesto.updateMany({
       where: { id, tenantId, estado: "BORRADOR", aprobadoInternoEl: { not: null } },
       data: { estado: "ENVIADO", enviadoEl: ahora, validoHasta: sumarDias(ahora, config.validezDias), foto: foto as unknown as Prisma.InputJsonValue, tcVenta: monedaVenta === "ARS" ? null : cambioDeVenta(monedaVenta, pr.tcVenta, tc) },
@@ -775,6 +783,7 @@ export async function enviarCotizacion(formData: FormData): Promise<ResultadoFic
     return true;
   }));
   if (enviada === "base") return mal(BASE_YA_APROBADA);
+  if (frenoPrecio) return mal(frenoPrecio);
   if (!enviada) return mal("No se pudo enviar: revisá que siga aprobada y en borrador.");
   if (avanzo) await avisarEtapa(tenantId, pr.proyectoId, a.user.id, etapaLabel("PROPUESTA"));
   await regenerar(tenantId, pr.proyectoId);
@@ -796,6 +805,7 @@ export async function registrarRespuesta(formData: FormData): Promise<ResultadoF
   const motivo = txt(formData.get("motivo")).slice(0, 500);
   if (!nombre) return mal("Escribí quién respondió.");
   if (!aprueba && !motivo) return mal("Escribí qué cambios pidió.");
+  const ctxPrecio = aprueba ? await contextoDelPrecio(tenantId) : null;
   const ganada = await conGuardiaDeBase(() => tenantTransaction(async (tx) => {
     if (aprueba && (await hayBaseAprobada(tx, tenantId, pr.proyectoId, id))) throw new BaseYaAprobada();
     const r = await tx.proyectoPresupuesto.updateMany({
@@ -805,6 +815,8 @@ export async function registrarRespuesta(formData: FormData): Promise<ResultadoF
     if (r.count === 0) return false;
     await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "ProyectoPresupuesto", entidadId: id, campo: `Respuesta del cliente · versión ${pr.version}`, despues: aprueba ? `Aprobó (${nombre})` : `Pidió cambios (${nombre}): ${motivo}`, autor: a.nombre });
     if (aprueba) {
+      // MIA T07 · O18: la foto del precio, en la misma transacción que la aprobación (una por versión).
+      if (ctxPrecio) await grabarFotoTx(tx, tenantId, id, `${nombre} (cargó ${a.nombre})`, ctxPrecio);
       const etapa = etapaAlAprobar(pr.proyecto.servicio, pr.proyecto.etapa);
       await tx.proyecto.updateMany({ where: { id: pr.proyectoId, tenantId }, data: { etapa } });
       await registrarCambio(tx, { tenantId, proyectoId: pr.proyectoId, entidad: "Proyecto", entidadId: pr.proyectoId, campo: "Etapa", antes: etapaLabel(pr.proyecto.etapa, pr.proyecto.servicio), despues: etapaLabel(etapa, pr.proyecto.servicio), autor: a.nombre });

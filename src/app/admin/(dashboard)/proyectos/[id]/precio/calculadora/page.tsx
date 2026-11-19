@@ -1,7 +1,7 @@
 // Vista previa del precio por total y de la rendición (GSG-MIA-056 · T04). NO GUARDA NADA: es una calculadora sobre
 // los motores puros `precio-core.ts` y `rendicion-core.ts`. Lee, del proyecto, sólo el costo de la versión aprobada y
 // los gastos cargados; todo lo demás se escribe en la página y viaja en la dirección (formulario GET).
-// Guardar el total, los porcentajes y la foto llega con M3 y M4 (T07); la liquidación, con M5 (T10).
+// Guardar el total, los porcentajes y la foto está en `../page.tsx` (T07, M3 y M4); la liquidación llega con M5 (T10).
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
@@ -15,7 +15,7 @@ import { costoTotalItem } from "@/lib/proyectos/gestion-core";
 import { exigirVer, filtroDeProyectos, tiposDeCambio } from "@/lib/proyectos/gestion.server";
 import { calcularPrecio, PORCENTAJES_PLANTILLA, TOPE_PLANTILLA, type Centavos, type Precio, type PorcentajesPrecio } from "@/lib/proyectos/precio-core";
 import { calcularRendicion, DIFERENCIAS_CON_PLANILLA, MATRIZ_PLANTILLA, PARTICIPANTES, type MatrizReparto, type Participante, type Rendicion } from "@/lib/proyectos/rendicion-core";
-import { campo, etiqueta, tarjeta } from "../../_vista";
+import { campo, etiqueta, tarjeta } from "../../../_vista";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Precio y rendición · vista previa" };
@@ -87,7 +87,7 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-5">
-      <Link href={`/admin/proyectos/${proyecto.id}?tab=cotizacion`} className="inline-flex min-h-11 items-center text-sm underline">← Volver al proyecto</Link>
+      <Link href={`/admin/proyectos/${proyecto.id}/precio`} className="inline-flex min-h-11 items-center text-sm underline">← Volver al precio del proyecto</Link>
       <header className="mb-4 mt-1">
         <p className="text-sm text-muted">{proyecto.client.name}</p>
         <h1 className="text-2xl font-bold text-strong">{proyecto.nombre}: precio por total y rendición</h1>
@@ -150,8 +150,8 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
           </fieldset>
           <div className="flex flex-wrap gap-2">
             <button type="submit" className={buttonClasses("solid", "md")}>Calcular</button>
-            <Link href={`/admin/proyectos/${proyecto.id}/precio`} className={buttonClasses("outline", "md")}>Volver a los datos del proyecto</Link>
-            <Link href={`/admin/proyectos/${proyecto.id}/precio?${new URLSearchParams(CASO_Z).toString()}`} className={buttonClasses("outline", "md")}>Probar con el caso de ejemplo Z (ficticio)</Link>
+            <Link href={`/admin/proyectos/${proyecto.id}/precio/calculadora`} className={buttonClasses("outline", "md")}>Volver a los datos del proyecto</Link>
+            <Link href={`/admin/proyectos/${proyecto.id}/precio/calculadora?${new URLSearchParams(CASO_Z).toString()}`} className={buttonClasses("outline", "md")}>Probar con el caso de ejemplo Z (ficticio)</Link>
           </div>
         </form>
       </section>

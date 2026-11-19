@@ -153,6 +153,8 @@ export interface DatosPlan {
   anticipoLinea?: Readonly<Record<string, number>>;
   /** MIA T06 · R8: los días del plan leídos del catálogo (`plan.*`). Sin esto, los de siempre. */
   dias?: DiasDelPlan;
+  /** MIA T07 · O16: el total de venta congelado en la foto de la aprobación, en pesos sin IVA. Manda sobre los ítems. */
+  ventaCongelada?: number | null;
 }
 
 /** Un proyecto genera plata cuando está confirmado: antes es una cotización. */
@@ -210,7 +212,7 @@ export function planDeCuotas(items: readonly ItemFicha[], d: DatosPlan): CuotaPl
     if (anticipo > 0) salida.push({ clave: `${d.proyectoId}:${i.id}:anticipo`, tipo: "PAGO", concepto: `${i.descripcion} (anticipo)`, monto: anticipo, moneda: i.moneda, venceEl: venceAnticipo, supplierId: i.supplierId });
     if (saldo > 0) salida.push({ clave: `${d.proyectoId}:${i.id}:saldo`, tipo: "PAGO", concepto: `${i.descripcion} (saldo)`, monto: saldo, moneda: i.moneda, venceEl: new Date(evento + dias.saldoProveedorDespues * DIA), supplierId: i.supplierId });
   }
-  const { venta } = totalesFicha(items, d.tiposDeCambio, d.recargoGeneral);
+  const venta = d.ventaCongelada ?? totalesFicha(items, d.tiposDeCambio, d.recargoGeneral).venta;
   if (venta > 0) {
     const pct = Math.min(100, Math.max(0, d.anticipoClientePct));
     const monedaCliente = d.monedaVenta && d.monedaVenta !== "ARS" && (d.cambioVenta ?? 0) > 0 ? d.monedaVenta : "ARS";

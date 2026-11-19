@@ -19,6 +19,8 @@ import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, res
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
+import { modoDeLaPropuesta } from "./precio-proyecto.server";
+import { totalesDelNeto, type ModoPropuesta } from "./precio-proyecto-core";
 
 export interface TarjetaProyecto {
   id: string;
@@ -297,7 +299,17 @@ export async function papelDeLaPropuesta(token: string) {
   if (!/^[A-Za-z0-9_-]{20,}$/.test(token)) return null;
   const tenantId = await getCurrentTenantId();
   const version = await prisma.proyectoPresupuesto.findFirst({ where: { tenantId, token, estado: { not: "BORRADOR" } }, select: { id: true, proyectoId: true } });
-  return version ? armarPapel(tenantId, { tenantId, id: version.proyectoId }, version.id) : null;
+  if (!version) return null;
+  const [papel, modo] = await Promise.all([armarPapel(tenantId, { tenantId, id: version.proyectoId }, version.id), modoDeLaPropuesta(tenantId, version)]);
+  if (!papel) return null;
+  return modo ? papelPorTotal(papel, modo) : { ...papel, porTotal: null };
+}
+
+/** O17 (MIA T07): el PDF de un negocio que cotiza por total lleva el total congelado y, según el parámetro, sin precio por ítem. */
+function papelPorTotal<P extends NonNullable<Awaited<ReturnType<typeof armarPapel>>>>(papel: P, modo: ModoPropuesta) {
+  const t = modo.neto != null && papel.moneda === "ARS" ? totalesDelNeto(modo.neto, papel.ivaPct) : { neto: papel.neto, iva: papel.iva, total: papel.total };
+  const grupos = modo.sinPrecioPorItem ? papel.grupos.map((g) => ({ ...g, subtotal: null, lineas: g.lineas.map((l) => ({ ...l, importe: null })) })) : papel.grupos;
+  return { ...papel, ...t, grupos, porTotal: { conIva: modo.conIva } };
 }
 
 async function armarPapel(tenantId: string, cual: Prisma.ProyectoWhereInput, versionId?: string | null) {
