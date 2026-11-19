@@ -77,6 +77,14 @@ test("C-O17 · la propuesta por total no trae precio por ítem, costo ni proveed
   assert.deepEqual((r as { valor: unknown }).valor, { ok: true });
   await en(a, (tx) => tx.proyectoPrecio.update({ where: { proyectoId: za.p.id }, data: { totalVentaCentavos: BigInt(999_999 * 100) } }));
   assert.equal((await pedir(a, za.token)).totales.neto, TOTAL, "el total es el congelado");
+  // La cabecera del proyecto (y Finanzas) cuenta la misma venta: la congelada, no la suma de los ítems ni el tablero de después.
+  const cab = await ejecutarAccion({ negocio: a, usuario: { id: a.duenia.id } }, async () => {
+    const { cabeceraFicha } = await import("./ficha.server");
+    const { actorActual } = await import("./gestion.server");
+    return cabeceraFicha(await actorActual(), za.p.id);
+  });
+  const totalesCab = (cab as { valor: { totales: { venta: number; costo: number; margen: number } } }).valor.totales;
+  assert.deepEqual([totalesCab.venta, totalesCab.costo, totalesCab.margen], [TOTAL, COSTO_VISIBLE + COSTO_OCULTO, TOTAL - COSTO_VISIBLE - COSTO_OCULTO]);
 
   // IVA incluido: el total que se muestra es con IVA.
   await en(a, (tx) => tx.proyectoParametro.create({ data: { tenantId: a.id, clave: "precio.propuesta.iva", valor: "CON_IVA", provisional: true, actualizadoPor: a.duenia.id, actualizadoNombre: "Dirección" } }));

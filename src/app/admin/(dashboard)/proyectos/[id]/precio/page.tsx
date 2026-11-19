@@ -10,7 +10,7 @@ import { fechaCorta, pesos, porcentaje } from "@/lib/proyectos/core";
 import { exigirVer, filtroDeProyectos, puede } from "@/lib/proyectos/gestion.server";
 import { defDe, EMPRESA, type Clave } from "@/lib/proyectos/parametros/catalogo";
 import { contextoDelPrecio, estadoDelPrecio, type EstadoPrecio, type FotoPrecio } from "@/lib/proyectos/precio-proyecto.server";
-import { REDONDEO, totalesDelNeto, type Tablero } from "@/lib/proyectos/precio-proyecto-core";
+import { leerPorcentajes, REDONDEO, totalesDelNeto, type Tablero } from "@/lib/proyectos/precio-proyecto-core";
 import { campo, etiqueta, tarjeta } from "../../_vista";
 import { FormularioPrecio } from "./_formularios";
 
@@ -193,6 +193,7 @@ function ReparticionForm({ edita, proyectoId, children }: { edita: boolean; proy
 
 function Foto({ f, funciones, conceptos }: { f: FotoPrecio; funciones: readonly { id: string; nombre: string }[]; conceptos: readonly { id: string; nombre: string }[] }) {
   const nombreFuncion = (id: string | null) => funciones.find((x) => x.id === id)?.nombre ?? "—";
+  const pct = leerPorcentajes(f.parametros.porcentajes);
   return (
     <section className={cn(tarjeta, "mb-4 border-success")} aria-labelledby="t-foto">
       <h2 id="t-foto" className="text-lg font-semibold text-strong">Aprobado el {fechaCorta(f.createdAt)}, con estos parámetros</h2>
@@ -205,6 +206,7 @@ function Foto({ f, funciones, conceptos }: { f: FotoPrecio; funciones: readonly 
         <Renglon titulo="Redondeo bruto" valor={plata(f.redondeoBruto)} />
         <Renglon titulo="Redondeo neto" valor={plata(f.redondeoNeto)} />
       </dl>
+      {pct && <p className="mt-2 text-sm text-muted">Rentabilidad {porcentaje(pct.rentabilidad)} · Margen de error {porcentaje(pct.margenError)} · IIB y GA {porcentaje(pct.iibGa)}</p>}
       <h3 className="mt-3 text-sm font-semibold text-strong">Equipo en la foto</h3>
       <ul className="mt-1 grid gap-2 sm:grid-cols-2">
         {f.participantes.map((p) => (

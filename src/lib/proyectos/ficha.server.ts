@@ -133,6 +133,15 @@ export async function cabeceraFicha(a: Actor, id: string) {
   // P-06: la cabecera y las finanzas cuentan la versión aprobada; la pestaña Ficha, el borrador que se está editando.
   const borradorSobreAprobada = !!viva && !!base && viva.id !== base.id;
   const itemsPlata = borradorSobreAprobada ? base.items.map(aItemFicha) : items;
+  // MIA T07 · O16/O17: cotizando por total, la venta es el total del tablero (o el congelado de la foto), no la suma de los ítems.
+  const versionPlata = borradorSobreAprobada ? base : viva;
+  const neto = versionPlata ? (await modoDeLaPropuesta(a.tenantId, versionPlata))?.neto ?? null : null;
+  const totales = totalesFicha(itemsPlata, tc, config.margenPct);
+  if (neto != null) {
+    totales.venta = neto;
+    totales.margen = redondear(neto - totales.costo);
+    totales.margenPct = neto > 0 ? redondear((totales.margen / neto) * 100) : 0;
+  }
   return {
     proyecto,
     viva,
@@ -142,7 +151,7 @@ export async function cabeceraFicha(a: Actor, id: string) {
     tc,
     negocio,
     codigo: codigoProyecto(proyecto.numero, proyecto.createdAt),
-    totales: totalesFicha(itemsPlata, tc, config.margenPct),
+    totales,
     totalesViva: totalesFicha(items, tc, config.margenPct),
     sinProveedor: costoSinProveedor(itemsPlata, tc),
     faltanCambio: monedasSinCambio(viva?.items ?? [], tc),
