@@ -42,3 +42,23 @@ export function destinoAlSoltar(lista: readonly EtapaParam[], etapaId: string, e
 
 /** El orden de un estado interno (0 a 9); -1 si no es uno de los 10. */
 export const ordenDelEstado = (estado: string): number => (ETAPAS as readonly string[]).indexOf(estado);
+
+// ── Fechas por etapa (MIA-50 T09 · O05, M7b) ──────────────────────────────────────────────────────────────────────
+
+/** Lo que guarda la base por etapa: la fecha prevista (a mano) y la real (la graba el pase). */
+export interface FilaFechaEtapa { etapaId: string; prevista: Date | null; real: Date | null }
+
+/** Las etapas del parámetro, en su orden, cada una con sus dos fechas (o nada). Una fila de una etapa que ya no existe no sale. */
+export function fechasPorEtapa(lista: readonly EtapaParam[], filas: readonly FilaFechaEtapa[]) {
+  return lista.map((etapa) => {
+    const f = filas.find((x) => x.etapaId === etapa.id);
+    return { etapa, prevista: f?.prevista ?? null, real: f?.real ?? null };
+  });
+}
+
+/** La etapa en la que se entra al pasar de un estado a otro; null si los dos estados son de la misma etapa (no hay pase). */
+export function etapaQueSeEntra(lista: readonly EtapaParam[], antes: string, despues: string): EtapaParam | null {
+  const destino = etapaDelEstado(lista, despues);
+  if (!destino) return null;
+  return etapaDelEstado(lista, antes)?.id === destino.id ? null : destino;
+}

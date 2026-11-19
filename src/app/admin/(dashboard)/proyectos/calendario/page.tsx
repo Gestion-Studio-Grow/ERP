@@ -9,6 +9,10 @@ import { direccionDelCalendario, entradasCalendario, opcionesDeProyecto, persona
 import { valorDelNegocio } from "@/lib/proyectos/parametros/leer.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { CancelarReunion, CopiarDireccion, FormReunion } from "./_cliente";
+import { BotonConConfirmacion, FormAccion } from "../[id]/_cliente";
+import { crearObligacion, marcarObligacionHecha } from "@/lib/proyectos/acciones-etapas";
+import { obligacionesAbiertas } from "@/lib/proyectos/etapas-m7b.server";
+import { filtroDeProyectos } from "@/lib/proyectos/gestion.server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Calendario" };
@@ -24,6 +28,8 @@ const COLOR: Record<TipoCalendario, string> = {
   TAREA: "bg-surface-sunken text-strong",
   CONFIRMACION: "border border-line-strong bg-surface text-strong",
   EVENTO_TENTATIVO: "border border-dashed border-line-strong bg-surface text-muted",
+  ETAPA_PREVISTA: "border border-dashed border-accent bg-surface text-accent-ink",
+  OBLIGACION: "bg-warning-soft text-strong",
 };
 
 const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -50,12 +56,16 @@ export default async function CalendarioGestion({ searchParams }: { searchParams
   const sp = await searchParams;
   const mes = mesPedido(sp.mes);
   const dias = grillaDelMes(mes);
-  const [proyectos, personas, etapas, direccion, reuniones] = await Promise.all([
+  const [proyectos, personas, etapas, direccion, reuniones, obligaciones, tiposObligacion, diasAviso] = await Promise.all([
     opcionesDeProyecto(a),
     personasDelCalendario(a),
     valorDelNegocio(a.tenantId, "etapas.lista"),
     direccionDelCalendario(a),
     reunionesDelPeriodo(a, inicioDelDia(dias[0]), finDelDia(dias[dias.length - 1])),
+    // MIA-50 T09 · O07: obligaciones a mano (sin M7b, null) y sus parámetros.
+    obligacionesAbiertas(a.tenantId, filtroDeProyectos(a)),
+    valorDelNegocio(a.tenantId, "calendario.tiposObligacion"),
+    valorDelNegocio(a.tenantId, "calendario.diasAviso"),
   ]);
   // O06 (MIA-50 T02): general o por proyecto, con filtro por persona y por etapa (las del parámetro del negocio).
   const filtro = filtroDelCalendario(sp, etapas, personas, proyectos);
@@ -183,6 +193,60 @@ export default async function CalendarioGestion({ searchParams }: { searchParams
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {obligaciones && (
+        <section className={tarjeta} aria-labelledby="obligaciones">
+          <h2 id="obligaciones" className="mb-1 font-semibold text-strong">Obligaciones</h2>
+          <p className="mb-3 text-sm text-muted">Vencimientos que no salen solos de un proyecto: un seguro, un permiso, un impuesto. Al responsable le llega un aviso {diasAviso} días antes, una sola vez.</p>
+          {obligaciones.length === 0 ? (
+            <p className="mb-3 text-sm text-muted">No hay obligaciones pendientes.</p>
+          ) : (
+            <ul className="mb-3 grid gap-2">
+              {obligaciones.map((o) => (
+                <li key={o.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 text-sm">
+                  <span className="min-w-0 break-words text-strong">
+                    <strong>{claveDia(o.venceEl).split("-").reverse().join("/")}</strong> · {o.tipo}: {o.titulo}
+                    <span className="block text-xs text-muted">{[o.responsableNombre, o.proyecto?.nombre, o.avisadaEl ? "ya avisada" : `avisa ${o.diasAviso} días antes`].filter(Boolean).join(" · ")}</span>
+                  </span>
+                  {puede(a, "pipeline", "editar") && <BotonConConfirmacion accion={marcarObligacionHecha} ocultos={{ id: o.id }} texto="Hecha" textoConfirma="Sí, está hecha" etiqueta={`Marcar hecha: ${o.titulo}`} />}
+                </li>
+              ))}
+            </ul>
+          )}
+          {puede(a, "pipeline", "editar") && (
+            <details>
+              <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-strong">Agendar una obligación</summary>
+              <FormAccion accion={crearObligacion} claveDeEnvio limpiar className="grid gap-3 pt-2 sm:grid-cols-2">
+                <label className={etiqueta}>
+                  Tipo
+                  <select name="tipo" required defaultValue="" className={campo}>
+                    <option value="" disabled>Elegí el tipo</option>
+                    {tiposObligacion.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </label>
+                <label className={etiqueta}>Qué hay que hacer<input name="titulo" required maxLength={160} className={campo} /></label>
+                <label className={etiqueta}>
+                  Responsable
+                  <select name="responsableId" required defaultValue="" className={campo}>
+                    <option value="" disabled>Elegí quién</option>
+                    {personas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                </label>
+                <label className={etiqueta}>Vence el<input name="venceEl" type="date" required className={campo} /></label>
+                <label className={etiqueta}>Avisar días antes<input name="diasAviso" type="number" inputMode="numeric" min={0} max={60} defaultValue={diasAviso} className={campo} /></label>
+                <label className={etiqueta}>
+                  Proyecto
+                  <select name="proyectoId" defaultValue="" className={campo}>
+                    <option value="">Sin proyecto</option>
+                    {proyectos.map((p) => <option key={p.id} value={p.id}>{codigoProyecto(p.numero, p.createdAt)} {p.nombre}</option>)}
+                  </select>
+                </label>
+                <button type="submit" className={cn(buttonClasses("solid", "md"), "justify-self-start sm:col-span-2")}>Agendar</button>
+              </FormAccion>
+            </details>
+          )}
         </section>
       )}
 

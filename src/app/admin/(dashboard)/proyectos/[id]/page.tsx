@@ -19,6 +19,8 @@ import { PestanaDespiece } from "./_despiece";
 import { SeccionHoras } from "./_horas";
 import { SeccionPedidos } from "./_pedidos";
 import { tallerActivo } from "@/lib/taller-stands/datos.server";
+import { esCancelado } from "@/lib/proyectos/cancelacion-core";
+import { SeccionEtapas } from "./_etapas";
 
 export const dynamic = "force-dynamic";
 // Proponer con IA y Generar imagen esperan al proveedor desde esta pantalla.
@@ -34,6 +36,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
   const vista = vistaDe(a);
   const { proyecto: p, codigo, totales: t, tc } = cab;
   const perdido = !!p.perdidoEl;
+  const salida = perdido && esCancelado(p.motivoPerdida) ? "Cancelado" : "Perdido"; // MIA-50 T09 · O04
   const etapas = etapasDe(p.servicio);
   const actual = etapas.indexOf(p.etapa as (typeof etapas)[number]);
   const siguiente = etapaSiguiente(p.servicio, p.etapa);
@@ -66,7 +69,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
 
       <header className={cn(tarjeta, "mb-4 mt-1")}>
         <p className="text-sm text-muted">
-          {[codigo, p.ciudad, p.tipoEvento, perdido ? "Perdido" : etapaLabel(p.etapa, p.servicio)].filter(Boolean).join(" · ")}
+          {[codigo, p.ciudad, p.tipoEvento, perdido ? salida : etapaLabel(p.etapa, p.servicio)].filter(Boolean).join(" · ")}
         </p>
         <h1 className="text-2xl font-bold text-strong">{p.nombre}</h1>
         <p className="text-sm">{[p.client.name, p.lugar, fechas].filter(Boolean).join(" · ")}</p>
@@ -90,7 +93,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
               {etapaLabel(e, p.servicio)}
             </li>
           ))}
-          {perdido && <li aria-current="step" className="rounded-full border border-line px-3 py-1 text-xs font-medium text-danger">Perdido</li>}
+          {perdido && <li aria-current="step" className="rounded-full border border-line px-3 py-1 text-xs font-medium text-danger">{salida}</li>}
         </ol>
         {vista.pipelineEdita && (
           <div className="mt-3">
@@ -113,6 +116,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
         pestanas={pestanas.map((x) => ({ href: `/admin/proyectos/${p.id}?tab=${x.id}`, etiqueta: x.label, actual: x.id === tab }))}
       />
 
+      {tab === "resumen" && <SeccionEtapas a={a} proyecto={p} />}
       {tab === "resumen" && <PestanaResumen a={a} cab={cab} vista={vista} />}
       {tab === "ficha" && <PestanaFicha a={a} cab={cab} vista={vista} />}
       {tab === "cotizacion" && <PestanaCotizacion a={a} cab={cab} vista={vista} ver={q.ver} cambios={q.cambios} />}

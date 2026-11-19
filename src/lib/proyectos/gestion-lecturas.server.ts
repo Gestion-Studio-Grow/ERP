@@ -20,6 +20,8 @@ import { faltaDelPago } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import type { ModuloGestion, RolGestion } from "./gestion-core";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
+import { obligacionesEntre, previstasEntre } from "./etapas-m7b.server";
+import { valorDelNegocio } from "./parametros/leer.server";
 
 const DIA = 86_400_000;
 
@@ -73,7 +75,7 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, fil
   const verFicha = puede(a, "ficha", "ver");
   const verDiseno = puede(a, "diseno", "ver");
 
-  const [proyectos, reuniones, tareas, checklist, cuotas, items, mios] = await Promise.all([
+  const [proyectos, reuniones, tareas, checklist, cuotas, items, mios, previstas, obligaciones, etapas] = await Promise.all([
     prisma.proyecto.findMany({
       where: { ...visibles, perdidoEl: null, OR: [{ fechaEvento: rango }, { fechaFin: rango }, { fechaArmado: rango }, { fechaDesarme: rango }, { fechaEvento: { lte: hasta }, fechaFin: { gte: desde } }] },
       select: { id: true, nombre: true, etapa: true, fechaEvento: true, fechaFin: true, fechaArmado: true, fechaDesarme: true },
@@ -109,6 +111,10 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, fil
         })
       : [],
     quien ? idsDeProyectosDe(tenantId, quien) : new Set<string>(),
+    // MIA-50 T09 · O05 y O07: fechas previstas de etapa y obligaciones a mano (sin M7b, ninguna).
+    previstasEntre(tenantId, desde, hasta, visibles),
+    obligacionesEntre(tenantId, desde, hasta, visibles, !acotado),
+    valorDelNegocio(tenantId, "etapas.lista"),
   ]);
 
   // Sólo la ficha viva: una versión vieja repetiría las mismas fechas.
@@ -155,6 +161,15 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, fil
     const { proyectoId, version, proyecto } = i.presupuesto;
     if (version !== versiones.get(proyectoId) || !esMio(proyectoId)) continue;
     sumar(`item-${i.id}`, "DEADLINE", i.descripcion, i.fechaLimite!, proyectoId, proyecto.nombre);
+  }
+  for (const e of previstas) {
+    if (!esMio(e.proyectoId)) continue;
+    const nombre = etapas.find((x) => x.id === e.etapaId)?.nombre;
+    if (nombre) sumar(`prevista-${e.id}`, "ETAPA_PREVISTA", `${nombre} (prevista)`, e.prevista!, e.proyectoId, e.proyecto.nombre);
+  }
+  for (const o of obligaciones) {
+    if (quien && o.responsableId !== quien.personaId && !(o.proyectoId && mios.has(o.proyectoId))) continue;
+    sumar(`obligacion-${o.id}`, "OBLIGACION", `${o.tipo}: ${o.titulo} (${o.responsableNombre})`, o.venceEl, o.proyectoId, o.proyecto?.nombre ?? null);
   }
   return salida.sort((x, y) => x.fecha.getTime() - y.fecha.getTime());
 }

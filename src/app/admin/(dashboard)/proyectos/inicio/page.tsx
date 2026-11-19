@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { buttonClasses, cn } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
-import { etapaLabel, fechaCorta } from "@/lib/proyectos/core";
-import { codigoProyecto, plataEn, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
+import { etapaLabel, fechaCorta, pesos } from "@/lib/proyectos/core";
+import { codigoProyecto, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
 import { actorActual, avisarDeadlines, puede } from "@/lib/proyectos/gestion.server";
 import { cuandoEnArgentina } from "@/lib/proyectos/gestion-lecturas-core";
 import { datosDeInicio } from "@/lib/proyectos/gestion-lecturas.server";
@@ -84,7 +84,7 @@ export default async function InicioGestion() {
                     <span className="text-muted"><strong className="font-semibold text-strong">{cuandoEnArgentina(e.fecha)}</strong> · {fechaCorta(e.fecha)}</span>
                     <span className="min-w-0 break-words text-strong">
                       <span className="font-medium">{ETIQUETA[e.tipo]}</span>: {e.titulo}
-                      {e.monto !== null && e.moneda && <strong className="ml-1 whitespace-nowrap">{plataEn(e.monto, e.moneda)}</strong>}
+                      {e.monto !== null && e.moneda && <strong className="ml-1 whitespace-nowrap">{pesos(e.monto, e.moneda)}</strong>}
                       {e.proyecto && <span className="block text-xs text-muted">{e.proyecto}</span>}
                     </span>
                   </Link>

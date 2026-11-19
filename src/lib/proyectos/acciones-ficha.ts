@@ -41,6 +41,9 @@ import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { ModuloGestion } from "./gestion-core";
 import { siHayM1, tomarCuotas } from "./comprobantes.server";
 import { contextoDelPrecio, frenoDelPrecioTx, grabarFotoTx } from "./precio-proyecto.server";
+import { esCancelado } from "./cancelacion-core";
+import { etapaQueSeEntra } from "./etapas-core";
+import { grabarFechaReal, hayM7b } from "./etapas-m7b.server";
 
 /** `aviso`: salió bien, pero hay algo que mirar (p. ej. «recalculá el plan» si se facturó una cuota en el medio). */
 /** `listo`: el cartel de éxito (se muestra aparte, porque el renglón que lo pidió suele desaparecer al refrescar). */
@@ -196,12 +199,16 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
   const destinatarios0 = await usuariosDelEquipo(tenantId, id, a.user.id);
   const etapas = await valorDelNegocio(tenantId, "etapas.lista");
   const rendicionesPendientes = await rendicionesSinCerrar(tenantId, id);
+  const m7b = await hayM7b(); // MIA-50 T09 · O05: la fecha real de la etapa, sólo con M7b (se mira antes de abrir)
   const r = await tenantTransaction(
     async (tx): Promise<string | null | { faltan: string[] } | { antes: string; despues: string; aviso: string | null }> => {
       await trabarCobranza(tx, tenantId, id);
-      const p = await tx.proyecto.findFirst({ where: { id, tenantId }, select: { etapa: true, perdidoEl: true, nombre: true, servicio: true, brief: true, responsable: true, fechaEvento: true, fechaDesarme: true, fechaFin: true } });
+      const p = await tx.proyecto.findFirst({ where: { id, tenantId }, select: { etapa: true, perdidoEl: true, motivoPerdida: true, nombre: true, servicio: true, brief: true, responsable: true, fechaEvento: true, fechaDesarme: true, fechaFin: true } });
       if (!p) return "Ese proyecto no existe.";
-      const antes = p.perdidoEl ? "Perdido" : etapaLabel(p.etapa, p.servicio);
+      // MIA-50 T09 · O04: un cancelado sólo lo reabre Dirección.
+      const cancelado = !!p.perdidoEl && esCancelado(p.motivoPerdida);
+      if (cancelado && d.destino !== PERDIDO && a.rol !== "DIRECCION") return "Este proyecto está cancelado: sólo Dirección lo reabre.";
+      const antes = p.perdidoEl ? (cancelado ? "Cancelado" : "Perdido") : etapaLabel(p.etapa, p.servicio);
       let despues: string;
       let data: Prisma.ProyectoUpdateManyMutationInput;
       let pase: Pase = { faltan: [], frena: false };
@@ -226,6 +233,12 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
       }
       await tx.proyecto.updateMany({ where: { id, tenantId }, data });
       await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Etapa", antes, despues: motivo && d.destino === PERDIDO ? `Perdido: ${motivo}` : despues, autor: a.nombre });
+      if (m7b && d.destino !== PERDIDO) {
+        // O05: al entrar en otra etapa, la fecha real es la del registro del historial. Reabrir vuelve a la misma: no la pisa.
+        const entra = p.perdidoEl ? null : etapaQueSeEntra(etapas, p.etapa, data.etapa as string);
+        if (entra) await grabarFechaReal(tx, { tenantId, proyectoId: id, etapaId: entra.id, autor: a.nombre });
+        if (cancelado) await tx.proyectoCancelacion.updateMany({ where: { tenantId, proyectoId: id, reabiertoEl: null }, data: { reabiertoEl: new Date(), reabiertoPor: a.nombre } });
+      }
       const faltaba = pase.faltan.map((f) => f.texto).join(" ");
       if (pase.faltan.length > 0)
         await registrarCambio(tx, pase.frena

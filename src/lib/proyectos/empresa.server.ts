@@ -227,7 +227,7 @@ export async function liquidacionParaImprimir(tenantId: string, id: string) {
 
 // ── Proyectos con sus números ───────────────────────────────────────────────
 
-/** Lo que Dirección mira de cada proyecto: venta y costo de la ficha viva (la última versión), lo real, lo cobrado y lo vencido. */
+/** Lo que Dirección mira de cada proyecto: venta y costo de la versión de la plata (la aprobada, como la cabecera de la ficha), lo real, lo cobrado y lo vencido. */
 export async function proyectosConNumeros(tenantId: string) {
   const [proyectos, config, tc] = await Promise.all([
     prisma.proyecto.findMany({
@@ -249,7 +249,9 @@ export async function proyectosConNumeros(tenantId: string) {
         motivoPerdida: true,
         createdAt: true,
         client: { select: { name: true } },
-        presupuestos: { orderBy: { version: "desc" }, take: 1, select: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { name: true } } } } } },
+        // O49 (MIA-154): la versión de la plata, la misma que la cabecera de la ficha (`versionDeLaPlata`): la última aprobada
+        // y, sin ninguna aprobada, la última. Acá van sólo los encabezados; los ítems de la elegida se leen abajo.
+        presupuestos: { orderBy: { version: "desc" }, select: { id: true, estado: true } },
         gastos: { where: { anuladoEl: null }, select: { id: true, rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
         cuotas: { where: { anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR, tipo: "COBRO" }, select: { id: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
       },
@@ -258,13 +260,17 @@ export async function proyectosConNumeros(tenantId: string) {
     tiposDeCambio(tenantId),
   ]);
   const ids = proyectos.map((p) => p.id);
-  const [cobranzas, cuotasDePago] = await Promise.all([
+  const laDeLaPlata = proyectos.map((p) => (p.presupuestos.find((v) => v.estado === "APROBADO") ?? p.presupuestos[0])?.id).filter((x): x is string => !!x);
+  const [cobranzas, cuotasDePago, itemsDeLaPlata] = await Promise.all([
     cobranzasDelNegocio(tenantId, tc, config.margenPct, ids),
     prisma.proyectoCuota.findMany({
       where: { tenantId, proyectoId: { in: ids }, tipo: { not: "COBRO" }, pagadoEl: null, anuladoEl: null, prevista: false },
       select: { id: true, proyectoId: true, tipo: true, monto: true, moneda: true, pagadoEl: true, anuladoEl: true, prevista: true },
     }),
+    prisma.proyectoItem.findMany({ where: { tenantId, presupuestoId: { in: laDeLaPlata } }, orderBy: { posicion: "asc" }, include: { supplier: { select: { name: true } } } }),
   ]);
+  const itemsPorVersion = new Map<string, typeof itemsDeLaPlata>();
+  for (const i of itemsDeLaPlata) itemsPorVersion.set(i.presupuestoId, [...(itemsPorVersion.get(i.presupuestoId) ?? []), i]);
   // O13 (MIA-50 T05): el costo real del total sale de la cuenta única (la misma que la ficha y Rentabilidad). Las líneas
   // por ítem siguen siendo el detalle de desvíos.
   const reales = await costoRealDeProyectos(
@@ -274,7 +280,8 @@ export async function proyectosConNumeros(tenantId: string) {
   );
   const hoy = new Date();
   return proyectos.map((p) => {
-    const items = p.presupuestos[0]?.items ?? [];
+    const laVersion = p.presupuestos.find((v) => v.estado === "APROBADO") ?? p.presupuestos[0];
+    const items = (laVersion && itemsPorVersion.get(laVersion.id)) ?? [];
     const t = totalesFicha(items.map(aItemFicha), tc, config.margenPct);
     const real = reales.get(p.id)!;
     const d = desviosDelEvento(items.map((i) => ({ id: i.id, descripcion: i.descripcion, rubro: i.rubro, cantidad: i.cantidad, costo: i.costo, moneda: i.moneda, costoReal: i.costoReal, proveedor: i.supplier?.name ?? i.proveedor })), p.gastos, tc);

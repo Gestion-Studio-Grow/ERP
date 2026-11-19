@@ -161,20 +161,28 @@ export async function cabeceraFicha(a: Actor, id: string) {
 export type Cabecera = NonNullable<Awaited<ReturnType<typeof cabeceraFicha>>>;
 
 export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
-  const [personas, cuotas, cantChecklist, cobranzas, gastosSinPagar] = await Promise.all([
+  const [personas, cuotas, cantChecklist, cobranzas, gastosSinPagar, gastosPagados, asientos] = await Promise.all([
     prisma.proyectoPersona.findMany({ where: { tenantId: a.tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, puesto: true } }),
     vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
     prisma.proyectoChecklist.count({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id } }),
     vista.pagos ? cobranzasDelNegocio(a.tenantId, cab.tc, cab.config.margenPct, [cab.proyecto.id]) : null,
     // MIA-089 · V6: el gasto directo sin pagar también se debe (lo mismo que Administración y Rentabilidad).
     vista.pagos ? prisma.proyectoGasto.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, pagadoEl: null, anuladoEl: null }, select: { neto: true, iva: true } }) : [],
+    // MIA-154: y el gasto cargado ya pagado es «Pagado a proveedores» (antes salía de «A pagar» y no entraba en ningún lado;
+    // cancelar sí lo listaba). Los que salieron de una cuota que sigue corriendo (su enlace «Asiento») ya están en lo pagado
+    // de las cuotas; los de una cuota anulada (cancelar, o el plan que la sacó) no: siguen siendo pagado directo (MIA-161).
+    vista.pagos ? prisma.proyectoGasto.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, pagadoEl: { not: null }, anuladoEl: null }, select: { id: true, neto: true, iva: true } }) : [],
+    vista.pagos ? prisma.proyectoCambio.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, entidad: "ProyectoCuota", campo: "Asiento" }, select: { entidadId: true, despues: true } }) : [],
   ]);
   // Cobrado y a cobrar, de los cobros registrados contra lo aprobado (cobranza-core); las cuotas sólo dan los vencimientos.
   const cob = cobranzas?.get(cab.proyecto.id);
   // Lo pagado en parte a proveedor sale de «A pagar» y entra en «pagado» (pago-parcial-core).
   const netas = vista.pagos ? conPartesComoPagadas(cuotas, await pagosParcialesDeCuotas(a.tenantId, cuotas, cab.tc)) : [];
   const deCuotas = vista.pagos ? (cob ? conciliarConCobros(netas, cab.tc, cob) : resumenCuotas(netas, cab.tc)) : null;
-  const finanzas = deCuotas && { ...deCuotas, aPagar: redondear(deCuotas.aPagar + gastosSinPagar.reduce((x, g) => x + g.neto + g.iva, 0)) };
+  const vivas = new Set(cuotas.map((c) => c.id));
+  const deCuota = new Set(asientos.filter((x) => x.entidadId && vivas.has(x.entidadId)).map((x) => x.despues));
+  const pagadoDirecto = gastosPagados.filter((g) => !deCuota.has(g.id)).reduce((x, g) => x + g.neto + g.iva, 0);
+  const finanzas = deCuotas && { ...deCuotas, aPagar: redondear(deCuotas.aPagar + gastosSinPagar.reduce((x, g) => x + g.neto + g.iva, 0)), pagado: redondear(deCuotas.pagado + pagadoDirecto) };
   return { personas, finanzas, cantCuotas: cuotas.length, cantChecklist };
 }
 

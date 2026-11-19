@@ -76,7 +76,7 @@ export function agruparPorDia<T extends { fecha: Date }>(entradas: readonly T[])
 
 // ── Entradas del calendario ─────────────────────────────────────────────────
 
-export type TipoCalendario = "REUNION" | "DEADLINE" | "PAGO" | "COBRO" | "EVENTO" | "MONTAJE" | "TAREA" | "CONFIRMACION" | "EVENTO_TENTATIVO";
+export type TipoCalendario = "REUNION" | "DEADLINE" | "PAGO" | "COBRO" | "EVENTO" | "MONTAJE" | "TAREA" | "CONFIRMACION" | "EVENTO_TENTATIVO" | "ETAPA_PREVISTA" | "OBLIGACION";
 
 export interface EntradaCalendario {
   id: string;
@@ -101,6 +101,8 @@ export const ETIQUETA_CORTA: Record<TipoCalendario, string> = {
   TAREA: "Tarea",
   CONFIRMACION: "Confirmar",
   EVENTO_TENTATIVO: "Tentativo",
+  ETAPA_PREVISTA: "Etapa",
+  OBLIGACION: "Vence",
 };
 
 /**

@@ -5,6 +5,7 @@ import { TabTablero } from "./_tablero";
 import { TabEventos } from "./_eventos";
 import { TabComerciales } from "./_comerciales";
 import { TabCarga } from "./_carga";
+import { TabResultado } from "./_resultado";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Dirección" };
@@ -14,9 +15,10 @@ const TABS = [
   { id: "eventos", label: "Por evento" },
   { id: "comerciales", label: "Comerciales" },
   { id: "carga", label: "Carga del equipo" },
+  { id: "resultado", label: "Resultado" }, // MIA-50 T09 · O49
 ] as const;
 
-export default async function Direccion({ searchParams }: { searchParams: Promise<{ tab?: string; proyecto?: string }> }) {
+export default async function Direccion({ searchParams }: { searchParams: Promise<{ tab?: string; proyecto?: string; mes?: string }> }) {
   await requireApp("gestion-direccion");
   const a = await exigirVer("direccion");
   const sp = await searchParams;
@@ -24,11 +26,13 @@ export default async function Direccion({ searchParams }: { searchParams: Promis
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-5">
       <h1 className="mb-4 text-2xl font-bold text-strong">Dirección</h1>
-      <Pestanas pestanas={TABS.map((t) => ({ href: `/admin/proyectos/direccion?tab=${t.id}`, etiqueta: t.label, actual: t.id === tab }))} etiqueta="Vistas de Dirección" conRaya className="mb-4" />
+      {/* MIA-154: a 390 px las vistas bajan a otro renglón; si no, «Resultado» queda fuera de la pantalla aun estando en ella. */}
+      <Pestanas pestanas={TABS.map((t) => ({ href: `/admin/proyectos/direccion?tab=${t.id}`, etiqueta: t.label, actual: t.id === tab }))} etiqueta="Vistas de Dirección" conRaya className="mb-4 flex-wrap" />
       {tab === "tablero" && <TabTablero tenantId={a.tenantId} />}
       {tab === "eventos" && <TabEventos tenantId={a.tenantId} abierto={sp.proyecto} />}
       {tab === "comerciales" && <TabComerciales tenantId={a.tenantId} />}
       {tab === "carga" && <TabCarga tenantId={a.tenantId} />}
+      {tab === "resultado" && <TabResultado tenantId={a.tenantId} mes={sp.mes} />}
     </main>
   );
 }

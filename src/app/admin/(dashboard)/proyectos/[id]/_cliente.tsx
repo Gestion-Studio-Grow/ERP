@@ -114,7 +114,7 @@ export function ControlEtapa({ id, etapa, perdido, motivo, siguiente, etapas }: 
   if (perdido) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm text-danger">Perdido{motivo ? `: ${motivo}` : ""}</p>
+        <p className="text-sm text-danger">{motivo?.startsWith("Cancelado: ") ? motivo : `Perdido${motivo ? `: ${motivo}` : ""}`}</p>
         <button type="button" disabled={ocupado} className={buttonClasses("outline", "md")} onClick={() => mover(etapa)}>Reabrir</button>
         {error && <p role="alert" className="basis-full text-sm font-medium text-danger">{error}</p>}
       </div>

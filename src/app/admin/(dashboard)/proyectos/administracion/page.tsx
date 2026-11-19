@@ -14,6 +14,7 @@ import { TabCashflow } from "./_cashflow";
 import { TabBancos } from "./_bancos";
 import { TabMonedas } from "./_monedas";
 import { TabLiquidaciones } from "./_liquidaciones";
+import { TabAntiguedad } from "./_antiguedad";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Administración" };
@@ -21,6 +22,7 @@ export const metadata = { title: "Administración" };
 const DE_EMPRESA = [
   { id: "cobrar", label: "Cuentas a cobrar" },
   { id: "pagar", label: "Cuentas a pagar" },
+  { id: "antiguedad", label: "Antigüedad" }, // MIA-50 T09 · O34
   { id: "cashflow", label: "Cashflow" },
   { id: "bancos", label: "Bancos" },
   { id: "monedas", label: "Monedas y gastos fijos" },
@@ -86,10 +88,12 @@ export default async function Administracion({ searchParams }: { searchParams: P
       {datos && faltaCambio(datos.tc, datos.cuotas.filter((c) => !c.pagadoEl)) && (
         <p role="alert" className="mb-4 rounded-lg border border-line bg-surface-raised p-3 text-sm text-danger">Hay importes en dólares sin tipo de cambio: no suman a estos totales hasta que lo cargues en Monedas y gastos fijos.</p>
       )}
-      <Pestanas pestanas={pestanas} etiqueta="Vistas de Administración" conRaya className="mb-4" />
+      {/* MIA-154: a 390 px las vistas bajan a otro renglón en vez de quedar cortadas (con Antigüedad ya no entran). */}
+      <Pestanas pestanas={pestanas} etiqueta="Vistas de Administración" conRaya className="mb-4 flex-wrap" />
       {(tab === "cobrar" || tab === "pagar") && datos && (
         <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} vista={sp.vista} guardada={sp.guardada === "1"} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} gastosSinPagar={tab === "cobrar" ? [] : datos.gastosSinPagar} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
       )}
+      {tab === "antiguedad" && datos && <TabAntiguedad tenantId={a.tenantId} cuotas={datos.cuotas} tc={datos.tc} verPagos={!columnasOcultas(a).includes("costoTotal")} />}
       {tab === "cashflow" && <TabCashflow tenantId={a.tenantId} />}
       {tab === "bancos" && <TabBancos tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />}
       {tab === "monedas" && <TabMonedas tenantId={a.tenantId} editaEmpresa={editaEmpresa} />}
