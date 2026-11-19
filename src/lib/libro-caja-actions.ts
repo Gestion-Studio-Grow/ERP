@@ -21,6 +21,7 @@ import { revalidatePath } from "next/cache";
 import { auditAdmin } from "@/lib/audit-core";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
+import { pantallaAccion, requirePantalla } from "@/lib/require-app";
 import { motivoSinCaja } from "@/lib/caja/permiso-libro";
 import { tenantTransaction } from "@/lib/rls";
 import { isColumnMissing } from "@/lib/prisma-errors";
@@ -155,6 +156,7 @@ export type LibroCajaData = Libro & {
 // — no hace falta traer las filas viejas para saber con cuánto arranca el mes.
 export async function getLibroCajaData(monthRaw?: string | null): Promise<LibroCajaData> {
   await requireCapability("orders:read");
+  await requirePantalla("libro-de-caja");
   const parsed = parseMonth(monthRaw) ?? parseMonth(todayInBusinessTz().slice(0, 7))!;
   const { year, month } = parsed;
   const monthKey = formatMonthKey(year, month);
@@ -288,6 +290,9 @@ export async function addLibroEntry(
   formData: FormData,
 ): Promise<LibroActionState> {
   const user = await requireCapability("orders:manage");
+  // La pantalla rebota sin la app (panel, casa, rol de gestión): la acción tampoco escribe (MIA-ACCIONES-PANEL). Se carga desde el Libro o desde Caja.
+  const app = await pantallaAccion("libro-de-caja", "caja-del-dia");
+  if (app.error) return { ok: false, error: app.error };
   const sinCaja = motivoSinCaja(user);
   if (sinCaja) return { ok: false, error: sinCaja };
   if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
@@ -525,6 +530,9 @@ export async function deleteLibroEntry(
   formData: FormData,
 ): Promise<LibroActionState> {
   const user = await requireCapability("orders:manage");
+  // La pantalla rebota sin la app (panel, casa, rol de gestión): la acción tampoco escribe (MIA-ACCIONES-PANEL).
+  const app = await pantallaAccion("libro-de-caja");
+  if (app.error) return { ok: false, error: app.error };
   const sinCaja = motivoSinCaja(user);
   if (sinCaja) return { ok: false, error: sinCaja };
   if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;

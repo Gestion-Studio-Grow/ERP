@@ -20,7 +20,7 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox, DEMO_WRITE_BLOCKED } from "@/lib/demo-sandbox";
-import { AppNoDisponibleError, requireAppAccion } from "@/lib/require-app";
+import { AppNoDisponibleError, pantallaAccion, requireAppAccion } from "@/lib/require-app";
 import { getNegocioApps } from "@/apps/contexto.server";
 import { bordesDelMes, esMesKey, etiquetaDelMes, type MesKey } from "@/lib/libros/fecha-fiscal";
 import { CIERRE_DIARIO_ACTION, CIERRE_DIARIO_ENTITY, lastClosedDayTx } from "@/lib/caja/frontera-cierre";
@@ -234,6 +234,9 @@ class DiaYaAbiertoError extends Error {}
 
 export async function reabrirDiaAction(_prev: EstadoAccionCierre, formData: FormData): Promise<EstadoAccionCierre> {
   const user = await requireCapability("orders:manage");
+  // Se reabre desde el Cierre del día. La pantalla rebota sin la app (panel, casa, rol de gestión): la acción tampoco escribe (MIA-ACCIONES-PANEL).
+  const app = await pantallaAccion("cierre-del-dia");
+  if (app.error) return { ok: false, error: app.error };
   if (isDemoSandbox()) return DEMO_WRITE_BLOCKED;
   const day = String(formData.get("day") ?? "").trim();
   const motivo = String(formData.get("motivo") ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
