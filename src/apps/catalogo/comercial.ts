@@ -215,7 +215,8 @@ export const APPS_COMERCIAL = [
     // Una productora no usa agenda, catálogo ni recordatorios: su panel es esto (pedido del dueño, 01/11/2026).
     panelCerrado: {
       blueprint: "productora",
-      apps: ["gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "eventos-sponsors", "crm-comercial", "clientes", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "reportes", "usuarios"],
+      apps: ["gestion-inicio", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "eventos-sponsors", "crm-comercial", "clientes", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "cierre-del-mes", "resultado-del-mes", "facturacion", "reportes", "usuarios"],
+      // MIA-50 T09: el cierre y el resultado del mes también son trabajo de la dueña de una productora.
     },
     estado: "lista",
     palabras: ["stand", "stands", "evento", "render", "3d", "propuesta", "presupuesto", "armado", "productora", "activacion", "escenografia"],

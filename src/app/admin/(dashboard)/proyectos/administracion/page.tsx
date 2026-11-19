@@ -14,6 +14,7 @@ import { TabCashflow } from "./_cashflow";
 import { TabBancos } from "./_bancos";
 import { TabMonedas } from "./_monedas";
 import { TabLiquidaciones } from "./_liquidaciones";
+import { TabAntiguedad } from "./_antiguedad";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Administración" };
@@ -21,6 +22,7 @@ export const metadata = { title: "Administración" };
 const DE_EMPRESA = [
   { id: "cobrar", label: "Cuentas a cobrar" },
   { id: "pagar", label: "Cuentas a pagar" },
+  { id: "antiguedad", label: "Antigüedad" }, // MIA-50 T09 · O34
   { id: "cashflow", label: "Cashflow" },
   { id: "bancos", label: "Bancos" },
   { id: "monedas", label: "Monedas y gastos fijos" },
@@ -90,6 +92,7 @@ export default async function Administracion({ searchParams }: { searchParams: P
       {(tab === "cobrar" || tab === "pagar") && datos && (
         <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} vista={sp.vista} guardada={sp.guardada === "1"} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} gastosSinPagar={tab === "cobrar" ? [] : datos.gastosSinPagar} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
       )}
+      {tab === "antiguedad" && datos && <TabAntiguedad tenantId={a.tenantId} cuotas={datos.cuotas} tc={datos.tc} verPagos={!columnasOcultas(a).includes("costoTotal")} />}
       {tab === "cashflow" && <TabCashflow tenantId={a.tenantId} />}
       {tab === "bancos" && <TabBancos tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />}
       {tab === "monedas" && <TabMonedas tenantId={a.tenantId} editaEmpresa={editaEmpresa} />}

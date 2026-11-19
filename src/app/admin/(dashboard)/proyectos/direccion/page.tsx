@@ -5,6 +5,7 @@ import { TabTablero } from "./_tablero";
 import { TabEventos } from "./_eventos";
 import { TabComerciales } from "./_comerciales";
 import { TabCarga } from "./_carga";
+import { TabResultado } from "./_resultado";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Dirección" };
@@ -14,9 +15,10 @@ const TABS = [
   { id: "eventos", label: "Por evento" },
   { id: "comerciales", label: "Comerciales" },
   { id: "carga", label: "Carga del equipo" },
+  { id: "resultado", label: "Resultado" }, // MIA-50 T09 · O49
 ] as const;
 
-export default async function Direccion({ searchParams }: { searchParams: Promise<{ tab?: string; proyecto?: string }> }) {
+export default async function Direccion({ searchParams }: { searchParams: Promise<{ tab?: string; proyecto?: string; mes?: string }> }) {
   await requireApp("gestion-direccion");
   const a = await exigirVer("direccion");
   const sp = await searchParams;
@@ -29,6 +31,7 @@ export default async function Direccion({ searchParams }: { searchParams: Promis
       {tab === "eventos" && <TabEventos tenantId={a.tenantId} abierto={sp.proyecto} />}
       {tab === "comerciales" && <TabComerciales tenantId={a.tenantId} />}
       {tab === "carga" && <TabCarga tenantId={a.tenantId} />}
+      {tab === "resultado" && <TabResultado tenantId={a.tenantId} mes={sp.mes} />}
     </main>
   );
 }

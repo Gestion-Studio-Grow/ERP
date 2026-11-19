@@ -852,6 +852,8 @@ export const TIPOS_CALENDARIO = [
   { id: "TAREA", label: "Tarea" },
   { id: "CONFIRMACION", label: "Confirmación" },
   { id: "EVENTO_TENTATIVO", label: "Evento tentativo" },
+  { id: "ETAPA_PREVISTA", label: "Etapa prevista" },
+  { id: "OBLIGACION", label: "Obligación" },
 ] as const;
 
 export function cuandoEs(fecha: Date, hoy: Date = new Date()): string {

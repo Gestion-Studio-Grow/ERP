@@ -314,6 +314,9 @@ model Tenant {
   proyectoParametros         ProyectoParametro[]
   proyectoParametroHist      ProyectoParametroHistorial[]
   proyectoVistas             ProyectoVista[]
+  proyectoEtapaFechas        ProyectoEtapaFecha[] // M7b · MIA T09
+  proyectoObligaciones       ProyectoObligacion[]
+  proyectoCancelaciones      ProyectoCancelacion[]
   proyectoComprobantes       ProyectoComprobante[] // M1 · T05
   proyectoComprobanteAdj     ProyectoComprobanteAdjunto[]
   proyectoComprobanteLineas  ProyectoComprobanteLinea[]
@@ -3622,6 +3625,9 @@ model Proyecto {
   checklist                ProyectoChecklist[]
   mensajes                 ProyectoMensaje[]
   idea                     ProyectoIdea?
+  etapaFechas              ProyectoEtapaFecha[] // M7b · MIA T09
+  obligaciones             ProyectoObligacion[]
+  cancelacion              ProyectoCancelacion?
   presentaciones           ProyectoPresentacion[]
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
@@ -5591,4 +5597,72 @@ model ProyectoPrevisionEstado {
   marcadoEl     DateTime      @default(now())
 
   @@index([tenantId])
+}
+
+// ── M7b · MIA T09 (plan MIA-50 § 1.3): fechas por etapa, obligaciones a mano y la salida «cancelado» ─────────────
+// Migración 20261120140000_mia_m7b_etapas (Gate 2: escrita, sin aplicar en Neon). El código tolera su ausencia.
+
+/// O05: una fila por proyecto y etapa (el `id` de `etapas.lista`). La prevista la carga quien edita el pipeline; la real
+/// la graba sola el pase de etapa (`moverProyecto`), con la misma hora que el historial.
+model ProyectoEtapaFecha {
+  id          String    @id @default(cuid())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId    String
+  proyecto    Proyecto  @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId  String
+  etapaId     String
+  prevista    DateTime?
+  real        DateTime?
+  previstaPor String?
+  realPor     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([tenantId, proyectoId, etapaId])
+  @@index([tenantId, prevista])
+}
+
+/// O07: obligación cargada a mano (tipo del parámetro `calendario.tiposObligacion`), con responsable, vencimiento y días
+/// de aviso. `avisadaEl` hace que el aviso salga una sola vez; `envio` hace que el alta repetida deje una sola fila.
+model ProyectoObligacion {
+  id                String    @id @default(cuid())
+  tenant            Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId          String
+  proyecto          Proyecto? @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId        String?
+  tipo              String
+  titulo            String
+  responsableId     String?
+  responsableNombre String
+  venceEl           DateTime
+  diasAviso         Int
+  avisadaEl         DateTime?
+  hechaEl           DateTime?
+  envio             String
+  creadaPor         String
+  createdAt         DateTime  @default(now())
+
+  @@unique([tenantId, envio])
+  @@index([tenantId, venceEl])
+}
+
+/// O04: la salida «cancelado», distinta de «perdido»: sólo Dirección, con motivo. No mueve plata: las cuotas pendientes se
+/// anulan como con «perdido» y lo que queda por resolver a mano se guarda en `pendientes`.
+model ProyectoCancelacion {
+  id             String    @id @default(cuid())
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
+  tenantId       String
+  proyecto       Proyecto  @relation(fields: [proyectoId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  proyectoId     String
+  motivo         String
+  criterio       String
+  cuotasAnuladas Int
+  pendientes     Json
+  autorId        String
+  autorNombre    String
+  canceladoEl    DateTime  @default(now())
+  reabiertoEl    DateTime?
+  reabiertoPor   String?
+
+  @@unique([proyectoId, tenantId])
 }
