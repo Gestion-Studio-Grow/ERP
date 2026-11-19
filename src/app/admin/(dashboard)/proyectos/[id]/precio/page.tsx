@@ -10,7 +10,7 @@ import { fechaCorta, pesos, porcentaje } from "@/lib/proyectos/core";
 import { exigirVer, filtroDeProyectos, puede } from "@/lib/proyectos/gestion.server";
 import { defDe, EMPRESA, type Clave } from "@/lib/proyectos/parametros/catalogo";
 import { contextoDelPrecio, estadoDelPrecio, type EstadoPrecio, type FotoPrecio } from "@/lib/proyectos/precio-proyecto.server";
-import { REDONDEO, type Tablero } from "@/lib/proyectos/precio-proyecto-core";
+import { REDONDEO, totalesDelNeto, type Tablero } from "@/lib/proyectos/precio-proyecto-core";
 import { campo, etiqueta, tarjeta } from "../../_vista";
 import { FormularioPrecio } from "./_formularios";
 
@@ -156,7 +156,7 @@ function VistaTablero({ t, e, funciones, tope }: { t: Tablero; e: EstadoPrecio; 
 function Reparto({ e, conceptos, edita, proyectoId }: { e: EstadoPrecio; conceptos: readonly { id: string; nombre: string }[]; edita: boolean; proyectoId: string }) {
   const filas = conceptos.map((c) => {
     const personas = e.equipo.reduce((s, m) => s + (e.reparto[c.id]?.[m.id] ?? 0), 0);
-    return { c, personas, empresa: Math.round((100 - personas) * 100) / 100 };
+    return { c, personas, empresa: Math.round((100 - personas) * 100) / 100 }; // no-es-plata: un porcentaje para leer
   });
   return (
     <section className={cn(tarjeta, "mb-4")} aria-labelledby="t-reparto">
@@ -199,7 +199,7 @@ function Foto({ f, funciones, conceptos }: { f: FotoPrecio; funciones: readonly 
       <p className="mt-1 text-sm text-muted">Versión {f.version}, aprobada por {f.aprobadoPor}. Es la foto de la aprobación: no cambia aunque cambien los parámetros o el equipo.</p>
       <dl className="mt-2 text-sm">
         <Renglon titulo="Total de venta, sin IVA" valor={plata(f.totalVenta)} fuerte />
-        <Renglon titulo={`Con IVA ${porcentaje(f.ivaPct)}`} valor={pesos(Math.round(f.totalVenta * (1 + f.ivaPct / 100)) / 100)} />
+        <Renglon titulo={`Con IVA ${porcentaje(f.ivaPct)}`} valor={pesos(totalesDelNeto(f.totalVenta / 100, f.ivaPct).total)} />
         <Renglon titulo="Subtotal" valor={plata(f.subtotal)} />
         <Renglon titulo="IIB y GA" valor={plata(f.iibGa)} />
         <Renglon titulo="Redondeo bruto" valor={plata(f.redondeoBruto)} />
