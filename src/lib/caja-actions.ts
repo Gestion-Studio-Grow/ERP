@@ -31,7 +31,7 @@ import { isFrozenDay, frozenDayMessage, notaFaltanteDelArqueo, NO_SE_ABRE_CON_EL
 import { dateStrInBusinessTz } from "@/lib/datetime";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { requireCapability } from "@/lib/authz";
-import { pantallaAccion, requirePantalla } from "@/lib/require-app";
+import { pantallaAccion, puedeAbrirLaPantalla, requirePantalla } from "@/lib/require-app";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { tenantTransaction } from "@/lib/rls";
 import { emitirCajaAbierta, emitirCajaTurnoCerrada } from "@/eventos/del-core";
@@ -415,6 +415,9 @@ export async function getAperturaEnVender(): Promise<AperturaSugerida | null> {
   // La tarjeta abre la caja (casilla 8): quien vende sin `cash:manage` sigue vendiendo, sin la
   // tarjeta. NO redirige: la pantalla de vender no puede caerse por esto (PLAN permisos §11.3).
   if (!permisoEfectivo(user, "cash:manage")) return null;
+  // La tarjeta abre la caja con `openCashSession`, que exige Caja o Vender (casa, rol de gestión, producto): sin ninguna de
+  // las dos, ni la tarjeta ni el esperado del cajón (MIA-141, hueco 1). Tampoco redirige.
+  if (!(await puedeAbrirLaPantalla("caja-del-dia", "vender"))) return null;
   if (isDemoSandbox()) return null;
   const tenantId = await getCurrentTenantId();
   const hoy = dateStrInBusinessTz(new Date());
