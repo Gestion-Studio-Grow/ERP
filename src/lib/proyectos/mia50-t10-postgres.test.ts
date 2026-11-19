@@ -61,6 +61,9 @@ async function armar(base: BaseEfimera) {
   const admin = await persona("Administra", "ADMINISTRACION");
   const admin2 = await persona("Adminequipo", "ADMINISTRACION");
   const dir = a.duenia.id;
+  // MIA-179: quien revisa o aprueba necesita ficha (sin `personaId`, falla cerrado). La dueña tiene la suya, de Dirección y fuera
+  // del equipo de Z; el caso sin ficha tiene su propio test al final.
+  await duenio.proyectoPersona.create({ data: { tenantId: a.id, userId: dir, nombre: "Dirección", email: a.duenia.email, rol: "DIRECCION" } });
 
   const como = async <R>(usuarioId: string, fn: () => Promise<R>) => {
     try {
@@ -142,7 +145,7 @@ async function armar(base: BaseEfimera) {
   const liq = (proyectoId: string) => enA((tx) => tx.proyectoLiquidacionProyecto.findMany({ where: { proyectoId }, include: { lineas: true } }));
   const totales = (lineas: { clave: string; personaId: string | null; total: bigint }[]) =>
     Object.fromEntries(lineas.map((l) => [l.personaId === prod.personaId ? "prod" : l.personaId === com.personaId ? "com" : l.personaId ? "otro" : "empresa", Number(l.total)]));
-  return { a, b, duenio, enA, acc, empresa, lectura, tenantTransaction, como, valor, form, z, comprobante, cobrar, liq, totales, prod, com, admin, admin2, dir, respaldos };
+  return { a, b, duenio, enA, acc, empresa, lectura, tenantTransaction, como, valor, form, z, comprobante, cobrar, liq, totales, prod, com, admin, admin2, dir, respaldos, sf, sfc };
 }
 
 async function preparar(t: import("node:test").TestContext) {
@@ -305,4 +308,30 @@ test("C-O23 · sin cobrar todo no entra y lo dice; cobrado, 1 línea por persona
   assert.equal(egresos[0].type, "EGRESO");
   assert.equal(deProd.total, 55_000, "sueldo fijo 0 + la línea del proyecto");
   assert.equal(egresos[0].amount, 55_000);
+});
+
+// MIA-179 (ola 4, observación 4(b) de la certificación de T10): Dirección por el rol del ERP (dueño) y SIN ficha en Equipo no
+// tiene `personaId`, así que «no cobra en el proyecto» no se puede comprobar. Falla cerrado: no revisa ni aprueba, y no se
+// escribe nada. Esperados escritos a mano antes de correr: 2 rechazos que nombran la ficha; la liquidación sigue en BORRADOR y
+// después en REVISADA; 0 renglones de historial de esa persona.
+test("MIA-179 · Dirección sin ficha (dueño por el rol del ERP) no revisa ni aprueba: falla cerrado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const otro = await p.duenio.user.create({ data: { tenantId: p.a.id, name: "Dueño sin ficha", email: "duenio-sin-ficha@mia50t10.test", passwordHash: "x", role: "OWNER" }, select: { id: true, email: true } });
+  assert.equal(await p.duenio.proyectoPersona.count({ where: { tenantId: p.a.id, userId: otro.id } }), 0, "no tiene ficha");
+  const u = { id: otro.id, tenantId: p.a.id, email: otro.email, role: "OWNER" };
+  const act = p.valor(await p.como(otro.id, () => p.sf.datosDeActivacion(u, "Factoque")));
+  const activado = p.valor(await p.como(otro.id, () => p.sf.comprobarCodigo(u, p.sfc.codigoDelPaso(act.secreto, p.sfc.pasoDe(Date.now())))));
+  assert.equal(activado.ok, true, "su factor quedó activo: el rechazo no es por el código");
+  const respaldo = (activado as { codigos?: string[] }).codigos![0];
+
+  const z = await p.z();
+  ok(p.valor(await p.como(p.admin.userId, () => p.acc.declararCostosCompletos(p.form({ proyectoId: z.id })))));
+  rechazo(p.valor(await p.como(otro.id, () => p.acc.revisarLiquidacionProyecto(p.form({ proyectoId: z.id, nota: "" })))), /ficha/i);
+  assert.equal((await p.liq(z.id))[0].estado, "BORRADOR", "sin ficha no revisa");
+
+  ok(p.valor(await p.como(p.admin.userId, () => p.acc.revisarLiquidacionProyecto(p.form({ proyectoId: z.id, nota: "" })))));
+  rechazo(p.valor(await p.como(otro.id, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId: z.id, codigo: respaldo })))), /ficha/i);
+  assert.equal((await p.liq(z.id))[0].estado, "REVISADA", "sin ficha no aprueba");
+  assert.equal(await p.duenio.proyectoCambio.count({ where: { proyectoId: z.id, autor: "Dueño sin ficha" } }), 0, "no escribió historial");
 });

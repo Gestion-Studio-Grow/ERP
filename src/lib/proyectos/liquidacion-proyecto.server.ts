@@ -17,7 +17,7 @@ import { parametrosDelNegocio } from "./parametros/leer.server";
 import type { ParticipanteFoto } from "./precio-proyecto-core";
 import { actorActual, proyectoVisible, puede, type Actor } from "./gestion.server";
 import { CATALOGO } from "./parametros/catalogo";
-import { calcularLiquidacion, comparacionesDeRevision, listaParaLaMensual, nombreDeLineaMensual, type Comparacion, type LiquidacionCalculada } from "./liquidacion-proyecto-core";
+import { calcularLiquidacion, comparacionesDeRevision, listaParaLaMensual, nombreDeLineaMensual, SIN_FICHA_NO_REVISA, type Comparacion, type LiquidacionCalculada } from "./liquidacion-proyecto-core";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -294,10 +294,12 @@ export async function panelDeLiquidacion(a: Actor, proyectoId: string): Promise<
   let motivo: string | null = null;
   if (cab.estado === "BORRADOR") {
     if (!puede(a, "liquidaciones", "editar")) motivo = "La revisa Administración o Dirección.";
+    else if (!a.personaId) motivo = SIN_FICHA_NO_REVISA;
     else if (cobraEl) motivo = "Cobrás en este proyecto: la revisa otra persona.";
     else accion = "REVISAR";
   } else if (cab.estado === "REVISADA") {
     if (a.rol !== "DIRECCION") motivo = "La aprueba Dirección con el código de su app.";
+    else if (!a.personaId) motivo = SIN_FICHA_NO_REVISA;
     else if (cobraEl) motivo = "Cobrás en este proyecto: la aprueba otra persona de Dirección.";
     else accion = "APROBAR";
   }

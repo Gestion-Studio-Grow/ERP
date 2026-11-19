@@ -14,7 +14,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { actorActual, proyectoVisible, puede, registrarCambio, type Actor } from "./gestion.server";
 import { hayM3 } from "./precio-foto.server";
 import { comprobarCodigo } from "./segundo-factor.server";
-import { cierraAlCentavo, comparacionesDeRevision, rechazoDeRevision } from "./liquidacion-proyecto-core";
+import { cierraAlCentavo, comparacionesDeRevision, rechazoDeRevision, SIN_FICHA_NO_REVISA } from "./liquidacion-proyecto-core";
 import { eventoTerminado, hayM5, liquidacionDelProyecto, medirProyecto, quienesCobran, rendicionesPendientes, SIN_M5 } from "./liquidacion-proyecto.server";
 import type { ParticipanteFoto } from "./precio-proyecto-core";
 
@@ -118,8 +118,10 @@ export async function declararCostosCompletos(formData: FormData): Promise<Resul
 }
 
 async function exigirQueNoCobre(tx: Prisma.TransactionClient, a: Actor, proyectoId: string, lineas: readonly { personaId: string | null }[]) {
+  // MIA-179: sin ficha (p. ej. el dueño, Dirección por su rol del ERP) no se sabe si cobra; falla cerrado.
+  if (!a.personaId) throw new Rechazo(SIN_FICHA_NO_REVISA);
   const cobran = await quienesCobran(tx, a.tenantId, proyectoId, lineas.map((l) => ({ personaId: l.personaId }) as ParticipanteFoto));
-  if (a.personaId && cobran.has(a.personaId)) throw new Rechazo(COBRA);
+  if (cobran.has(a.personaId)) throw new Rechazo(COBRA);
 }
 
 /**

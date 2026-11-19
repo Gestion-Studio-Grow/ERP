@@ -173,4 +173,10 @@ export function listaParaLaMensual(e: { estado: string; cuandoSePaga: string; po
 }
 
 /** El nombre de la línea en la liquidación mensual. */
+/**
+ * MIA-179 (observación 4(b) de T10): sin ficha en Equipo no hay `personaId` y «no cobra en el proyecto» no se puede
+ * comprobar. Revisar y aprobar fallan cerrado; el panel muestra este motivo en lugar del botón.
+ */
+export const SIN_FICHA_NO_REVISA = "Tu usuario no tiene ficha en Equipo: sin ella no se puede comprobar que no cobrás en el proyecto. Pedí que te la vinculen.";
+
 export const nombreDeLineaMensual = (proyecto: string) => `Proyecto · ${proyecto}`;
