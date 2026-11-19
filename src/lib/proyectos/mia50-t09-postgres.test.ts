@@ -336,3 +336,54 @@ test("Ficha · «Pagado a proveedores» cuenta el gasto cargado ya pagado, sin c
   const linea = (fila.pendientes as string[]).find((x) => x.startsWith("Pagos a proveedores"));
   assert.match(linea ?? "", /^Pagos a proveedores: 2 por \$\s?3\.207\.500\b/, linea);
 });
+
+// Vuelta 2 (MIA-161): el gasto de una parte pagada sigue siendo «Pagado» aunque su cuota deje de correr (cancelar la anula,
+// o el plan nuevo la saca). Esperados a mano: ítem de costo 2.000 con proveedor → anticipo 1.000 + saldo 1.000; se pagan 400
+// del anticipo → la ficha dice 400 (no 800: la cuota viva ya lo cuenta). Anulada la cuota → sigue 400, como lo lista cancelar.
+let parteN = 0;
+async function fichaPagadoCon400(p: NonNullable<Awaited<ReturnType<typeof preparar>>>) {
+  const proveedor = (await p.duenio.supplier.create({ data: { tenantId: p.a.id, name: `Proveedor T09 ${++parteN}` }, select: { id: true } })).id;
+  const evento = new Date(Date.now() + 40 * 86_400_000);
+  const pr = await p.duenio.proyecto.create({
+    data: { tenantId: p.a.id, numero: 990_000 + parteN, clientId: p.a.clientes[0], nombre: "T09 parte", servicio: "EVENTOS", etapa: "APROBADO", brief: "Stand", responsable: "Comercial", fechaArmado: new Date(evento.getTime() - 2 * 86_400_000), fechaEvento: evento, fechaDesarme: new Date(evento.getTime() + 86_400_000) },
+    select: { id: true },
+  });
+  const pres = await p.duenio.proyectoPresupuesto.create({ data: { tenantId: p.a.id, proyectoId: pr.id, version: 1, estado: "APROBADO", token: `t09p-${pr.id}`, ivaPct: 21 }, select: { id: true } });
+  await p.duenio.proyectoItem.create({ data: { tenantId: p.a.id, presupuestoId: pres.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 3000, costo: 2000, supplierId: proveedor } });
+  const gestion = await import("./gestion.server");
+  p.valor(await p.como(p.usuarios.direccion, () => gestion.regenerarCuotas(p.a.id, pr.id)));
+  const anticipo = await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: pr.id, tipo: "PAGO", anuladoEl: null, clave: { endsWith: ":anticipo" } }, select: { id: true, monto: true, prevista: true } });
+  assert.deepEqual({ monto: anticipo.monto, prevista: anticipo.prevista }, { monto: 1000, prevista: false });
+  ok(p.valor(await p.como(p.usuarios.direccion, () => p.ficha.marcarCuota(p.form({ id: anticipo.id, medio: "TRANSFERENCIA", monto: "400" })))));
+  const fichaServer = await import("./ficha.server");
+  const pagado = async () =>
+    p.valor(await p.como(p.usuarios.direccion, async () => {
+      const a = await gestion.actorActual();
+      const cab = (await fichaServer.cabeceraFicha(a, pr.id))!;
+      return (await fichaServer.datosResumen(a, cab, fichaServer.vistaDe(a))).finanzas!.pagado;
+    }));
+  assert.equal(await pagado(), 400, "la cuota viva con su parte: 400, no 800");
+  return { id: pr.id, proveedor, anticipo: anticipo.id, pagado, gestion };
+}
+
+test("Ficha · pago parcial y después cancelar: la cuota anulada no se lleva lo pagado (sigue 400, como lo lista cancelar)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const f = await fichaPagadoCon400(p);
+  ok(p.valor(await p.como(p.usuarios.direccion, () => p.etapasAcc.cancelarProyecto(p.form({ id: f.id, motivo: "Se suspendió" })))));
+  assert.ok((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: f.anticipo }, select: { anuladoEl: true } })).anuladoEl, "cancelar anuló la cuota");
+  const fila = await p.enA((tx) => tx.proyectoCancelacion.findFirstOrThrow({ where: { proyectoId: f.id }, select: { pendientes: true } }));
+  const linea = (fila.pendientes as string[]).find((x) => x.startsWith("Pagos a proveedores"));
+  assert.match(linea ?? "", /^Pagos a proveedores: 1 por \$\s?400\b/, linea);
+  assert.equal(await f.pagado(), 400);
+});
+
+test("Ficha · pago parcial y después el plan saca la cuota (anticipo 0 %): lo pagado en parte sigue en «Pagado»", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const f = await fichaPagadoCon400(p);
+  await p.duenio.proyectoProveedorFicha.create({ data: { tenantId: p.a.id, supplierId: f.proveedor, anticipoPct: 0 } });
+  p.valor(await p.como(p.usuarios.direccion, () => f.gestion.regenerarCuotas(p.a.id, f.id)));
+  assert.ok((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: f.anticipo }, select: { anuladoEl: true } })).anuladoEl, "el plan sacó el anticipo");
+  assert.equal(await f.pagado(), 400);
+});
