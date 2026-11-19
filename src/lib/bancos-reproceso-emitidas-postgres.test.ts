@@ -21,6 +21,22 @@ const fd = (nombre: string, lineas: string[]) => {
   f.set("archivo", new File([lineas.join("\r\n")], nombre, { type: "text/csv" }));
   return f;
 };
+type Duenio = Awaited<ReturnType<typeof prismaComoDuenio>>;
+/**
+ * Espera a que alguien quede trabado en el candado advisory que tiene `pidDelCandado` (la conexión
+ * de la transacción del test). No mira las esperas de todo el servidor: `pg_locks` es global y, en CI,
+ * los otros archivos (cada uno con su base) también esperan candados advisory (PLAT-026).
+ */
+async function esperarTrabadoEnMiCandado(duenio: Duenio, pidDelCandado: number, topeMs = 15_000) {
+  const limite = Date.now() + topeMs;
+  for (;;) {
+    const [{ n }] = await duenio.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM pg_locks l
+      WHERE l.locktype = 'advisory' AND NOT l.granted AND ${pidDelCandado}::int = ANY(pg_blocking_pids(l.pid))`;
+    if (n > 0) return;
+    if (Date.now() > limite) assert.fail(`nadie quedó esperando el candado del test (pid ${pidDelCandado}) en ${topeMs} ms`);
+    await new Promise((r) => setImmediate(r));
+  }
+}
 
 test("ATAQUE R: confirmar mapeo con una fila facturada en el medio → la borra y recrea el cobro como AUTO con otra clave", async (t) => {
   const base = await laBase(t);
@@ -46,28 +62,25 @@ test("ATAQUE R: confirmar mapeo con una fila facturada en el medio → la borra 
   // El candado de importaciones lo toma el test y lo suelta cuando "emitió".
   let soltar!: () => void;
   const suelta = new Promise<void>((r) => (soltar = r));
-  let tomado!: () => void;
-  const yaTomado = new Promise<void>((r) => (tomado = r));
+  let tomado!: (pid: number) => void;
+  const yaTomado = new Promise<number>((r) => (tomado = r));
   const candado = duenio.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`bancos-importacion:${neg.id}`}, 0))`;
-      tomado();
+      const [{ pid }] = await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
+      tomado(pid);
       await suelta;
     },
     { timeout: 20_000, maxWait: 20_000 },
   );
-  await yaTomado;
+  const pidDelCandado = await yaTomado;
 
   // Mapeo corregido (descripción ← otra columna): el usuario lo confirma.
   const mapeo = { ...v1.mapeo, columnas: { ...v1.mapeo.columnas, descripcion: 4 } };
   const confirmar = como(() => acciones.confirmarMapeoAction(v1.importacionId, mapeo));
 
   // Esperar a que el re-proceso pase la guarda "nada emitido" y quede trabado en el candado.
-  for (;;) {
-    const [{ n }] = await duenio.$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
-    if (n > BigInt(0)) break;
-    await new Promise((r) => setImmediate(r));
-  }
+  await esperarTrabadoEnMiCandado(duenio, pidDelCandado);
   // "Emitir automáticas" en ese hueco: el lote real (claim, factura e invoiceId en su transacción).
   const em = await emitirPropuestas(neg.id, [fila.id]);
   assert.equal(em.emitidas, 1, JSON.stringify(em));
@@ -107,23 +120,20 @@ test("R4 · emisión en vuelo: el re-proceso borra la fila `emitida` sin factura
   // (auto→emitida, confirmado) y queda trabada en `facturarCobros`, antes de crear la factura.
   let soltar!: () => void;
   const suelta = new Promise<void>((r) => (soltar = r));
-  let tomado!: () => void;
-  const yaTomado = new Promise<void>((r) => (tomado = r));
+  let tomado!: (pid: number) => void;
+  const yaTomado = new Promise<number>((r) => (tomado = r));
   const candado = duenio.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`cobro-facturado:${neg.id}:banco:${fila.hash}`}))`;
-      tomado();
+      const [{ pid }] = await tx.$queryRaw<{ pid: number }[]>`SELECT pg_backend_pid() AS pid`;
+      tomado(pid);
       await suelta;
     },
     { timeout: 30_000, maxWait: 20_000 },
   );
-  await yaTomado;
+  const pidDelCandado = await yaTomado;
   const emision = emitirPropuestas(neg.id, [fila.id]);
-  for (;;) {
-    const [{ n }] = await duenio.$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
-    if (n > BigInt(0)) break;
-    await new Promise((r) => setImmediate(r));
-  }
+  await esperarTrabadoEnMiCandado(duenio, pidDelCandado);
   assert.equal((await duenio.movimientoImportado.findUniqueOrThrow({ where: { id: fila.id } })).estadoPropuesta, "emitida");
 
   // El re-proceso: la fila `emitida` no tiene factura ni libro → no cuenta como facturada.
