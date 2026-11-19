@@ -10,6 +10,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireApp } from "@/lib/require-app";
+import { exigirPuertaDeGestion } from "@/lib/proyectos/puerta-de-gestion.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { diaLegible } from "@/lib/libros/fecha-fiscal";
@@ -49,6 +50,8 @@ function Tarjeta({ label, value, hint, tono }: { label: string; value: string; h
 
 export default async function FlujoPage({ searchParams }: { searchParams: Promise<{ h?: string }> }) {
   const user = await requireApp("flujo-de-fondos");
+  // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · ver» del rol de Proyectos, también sin el layout.
+  await exigirPuertaDeGestion("empresa", "ver");
   const { h } = await searchParams;
   const horizonte = leerHorizonte(h);
   const tenantId = await getCurrentTenantId();

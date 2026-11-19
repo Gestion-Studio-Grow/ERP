@@ -8,7 +8,7 @@ import { toDataURL } from "qrcode";
 import { authSecret } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { rolDelActor } from "./gestion-core";
-import { BLOQUEO_MS, cifrarSecreto, crearPase, descifrarSecreto, direccionParaLaApp, hashDeRespaldo, leerPase, MAX_INTENTOS, nuevosCodigosDeRespaldo, rigeSegundoPaso, ROLES_CON_SEGUNDO_PASO, verificarCodigo, VIGENCIA_PASE_MS } from "./segundo-factor-core";
+import { abreVentana, BLOQUEO_MS, CAMPO_CODIGO, cifrarSecreto, crearPase, descifrarSecreto, direccionParaLaApp, hashDeRespaldo, leerPase, MAX_INTENTOS, nuevosCodigosDeRespaldo, pideCodigoAhora, rigeSegundoPaso, ROLES_CON_SEGUNDO_PASO, verificarCodigo, VIGENCIA_PASE_MS, type AccionSensible } from "./segundo-factor-core";
 
 const COOKIE_PASE = "admin_segundo_paso";
 const EN_PRODUCCION = process.env.NODE_ENV === "production";
@@ -116,4 +116,35 @@ export async function comprobarCodigo(u: UsuarioDelIngreso, codigo: string): Pro
     data: intentos >= MAX_INTENTOS ? { intentos: 0, bloqueadoHasta: new Date(ahora + BLOQUEO_MS) } : { intentos },
   });
   return { ok: false, error: ERROR_CODIGO };
+}
+
+// ── MIA-50 T11 (O47, D10): el código en el momento de una acción sensible ──────────────────────────────────────────────
+// No cambia nada de lo ya exportado (T10 llama a `comprobarCodigo` en O22): esto lo usa. El código se consume como en el
+// ingreso (`ultimoPaso` en la base), así que el mismo código dos veces: la segunda rechaza. La ventana de D10 vive en una
+// cookie firmada con su propia clave, atada a la persona, y sólo la abre y la usa «pagar».
+
+const COOKIE_VENTANA = "admin_ventana_pagos";
+const SIN_CODIGO = "Esto pide el código de tu app de verificación en este momento. Escribilo y volvé a probar.";
+const SIN_ACTIVAR = "Esto pide el código de tu app de verificación, y todavía no la activaste. Activala al ingresar y volvé a probar.";
+
+/**
+ * null si puede seguir; si no, el motivo para mostrar, y la acción vuelve sin escribir nada. Sólo donde rige el segundo paso
+ * (`rigeSegundoPaso`): en el resto de los negocios (CH) no pide nada.
+ */
+export async function exigirCodigoEnElMomento(u: UsuarioDelIngreso, formData: FormData, accion: AccionSensible): Promise<string | null> {
+  if (!rigeSegundoPaso(await rubroDe(u.tenantId))) return null;
+  const jar = await cookies();
+  const ahora = Date.now();
+  const ventana = leerPase(jar.get(COOKIE_VENTANA)?.value, ahora, clave("ventana")) === u.id;
+  if (!pideCodigoAhora(accion, ventana)) return null;
+  const f = await prisma.proyectoSegundoFactor.findUnique({ where: { tenantId_userId: { tenantId: u.tenantId, userId: u.id } }, select: { activadoEl: true } });
+  if (!f?.activadoEl) return SIN_ACTIVAR;
+  const codigo = String(formData.get(CAMPO_CODIGO) ?? "").trim();
+  if (!codigo) return SIN_CODIGO;
+  const r = await comprobarCodigo(u, codigo);
+  if (!r.ok) return r.error;
+  if (abreVentana(accion)) {
+    jar.set(COOKIE_VENTANA, crearPase(u.id, ahora, clave("ventana")), { httpOnly: true, sameSite: "strict", secure: EN_PRODUCCION, path: "/admin", maxAge: VIGENCIA_PASE_MS / 1000 });
+  }
+  return null;
 }

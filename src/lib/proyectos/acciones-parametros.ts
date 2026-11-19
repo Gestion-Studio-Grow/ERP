@@ -3,7 +3,7 @@
 // ============================================================================
 // PARÁMETROS DEL MÓDULO — escrituras (MIA T03, O45). Sólo Dirección; el servidor valida tipo, rango y sumas; cada cambio
 // deja un renglón de historial con antes y después. Acotado al negocio de la sesión (y a su política en la base).
-// Los de precio y de reparto pedirán el segundo factor desde T11 (plan § 4.1): este archivo no lo pide todavía.
+// Los de precio y de reparto piden el segundo factor en el momento (MIA-50 T11, O47: `exigirCodigoEnElMomento`).
 // ============================================================================
 
 import { revalidatePath } from "next/cache";
@@ -14,6 +14,8 @@ import { actorActual, type Actor } from "./gestion.server";
 import { defDe, esClave, type Clave, type ConId } from "./parametros/catalogo";
 import { huerfanosAlCambiar, validarValor, valorDelFormulario, valoresDe } from "./parametros/validar";
 import { parametrosDelNegocio } from "./parametros/leer.server";
+import { exigirCodigoEnElMomento } from "./segundo-factor.server";
+import { parametroPideCodigo } from "./segundo-factor-core";
 
 export type Resultado = { ok: true; sinCambios?: boolean } | { ok: false; error: string };
 
@@ -38,6 +40,11 @@ export async function guardarParametro(formData: FormData): Promise<Resultado> {
   const clave = String(formData.get("clave") ?? "");
   if (!esClave(clave)) return { ok: false, error: "Ese parámetro no existe." };
   const def = defDe(clave as Clave);
+  // MIA-50 T11 (O47): los de precio y de reparto piden el código de la app en este momento; sin él, nada se escribe.
+  if (parametroPideCodigo(def.grupo)) {
+    const sinCodigo = await exigirCodigoEnElMomento(a.user, formData, "parametros");
+    if (sinCodigo) return { ok: false, error: sinCodigo };
+  }
   const provisional = formData.get("provisional") === "on" || formData.get("provisional") === "1";
   try {
     const r = await tenantTransaction(async (tx) => {
@@ -78,6 +85,11 @@ export async function volverAlValorDelRubro(formData: FormData): Promise<Resulta
   const clave = String(formData.get("clave") ?? "");
   if (!esClave(clave)) return { ok: false, error: "Ese parámetro no existe." };
   const def = defDe(clave as Clave);
+  // MIA-50 T11 (O47): los de precio y de reparto piden el código de la app en este momento; sin él, nada se escribe.
+  if (parametroPideCodigo(def.grupo)) {
+    const sinCodigo = await exigirCodigoEnElMomento(a.user, formData, "parametros");
+    if (sinCodigo) return { ok: false, error: sinCodigo };
+  }
   try {
     const r = await tenantTransaction(async (tx) => {
       await trabar(tx, a.tenantId, clave);

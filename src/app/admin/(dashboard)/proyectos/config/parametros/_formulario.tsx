@@ -44,28 +44,34 @@ export function FormParametro({ accion, clave, provisional, children }: { accion
   );
 }
 
-export function VolverAlRubro({ accion, clave }: { accion: Accion; clave: string }) {
+/** `codigo`: el pedido del código de la app (MIA-50 T11, O47), cuando el parámetro lo pide; va dentro de la confirmación. */
+export function VolverAlRubro({ accion, clave, codigo }: { accion: Accion; clave: string; codigo?: ReactNode }) {
   const [abierto, setAbierto] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const router = useRouter();
-  const hacer = () =>
+  const hacer = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
     iniciar(async () => {
-      const fd = new FormData();
       fd.set("clave", clave);
       const r = await accion(fd).catch(() => ({ ok: false as const, error: "No se pudo. Probá de nuevo." }));
       if (!r.ok) return setError(r.error);
       setAbierto(false);
       router.refresh();
     });
+  };
   return (
     <div className="grid gap-1">
       {abierto ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-strong">¿Volver al valor del rubro?</span>
-          <button type="button" disabled={ocupado} onClick={hacer} className={cn(buttonClasses("solid", "md"), "min-h-11")}>{ocupado ? "…" : "Sí"}</button>
-          <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>No</button>
-        </div>
+        <form onSubmit={hacer} className="grid gap-2">
+          {codigo}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-strong">¿Volver al valor del rubro?</span>
+            <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11")}>{ocupado ? "…" : "Sí"}</button>
+            <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>No</button>
+          </div>
+        </form>
       ) : (
         <button type="button" onClick={() => setAbierto(true)} className={cn(buttonClasses("ghost", "md"), "min-h-11 justify-self-start")}>Volver al valor del rubro</button>
       )}

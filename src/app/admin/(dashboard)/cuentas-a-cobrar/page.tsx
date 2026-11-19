@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireApp } from "@/lib/require-app";
+import { exigirPuertaDeGestion } from "@/lib/proyectos/puerta-de-gestion.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { agingOf, summarizeAging } from "@/lib/cuentas/aging";
@@ -48,6 +49,8 @@ function aFila(c: CuentaACobrarConSaldo, ahora: Date): DebtRowVM {
 
 export default async function CuentasACobrarPage() {
   const user = await requireApp("cuentas-a-cobrar");
+  // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · ver» del rol de Proyectos, también sin el layout.
+  await exigirPuertaDeGestion("empresa", "ver");
   const tenantId = await getCurrentTenantId();
   // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
   const enLibro = await cuentasCorrientesDe(tenantId);

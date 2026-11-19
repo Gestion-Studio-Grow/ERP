@@ -228,6 +228,13 @@ function edicionPermite(app: AppDescriptor, n: NegocioApps): boolean {
   // pedía además el perfil Empresa, que con el motor de perfiles apagado no tiene nadie: la página
   // decía «no está disponible». Sin el módulo asignado, sigue decidiendo el perfil, como hoy.
   if (n.contexto?.origen === "producto" && app.modulo !== null && n.contexto.modulos.has(app.modulo)) return true;
+  // MIA-50 T11 (Adenda 2): dentro del panel cerrado de un vertical (la productora), una app que el panel admite y tiene su
+  // módulo asignado no pide además el perfil, igual que en el piloto: Cuentas a cobrar y a pagar se prenden asignando el
+  // módulo. Sin el módulo asignado, sigue decidiendo el perfil, como hoy. Fuera de un panel cerrado (CH), nada cambia.
+  if (app.modulo !== null && new Set(n.modulosAsignados).has(app.modulo)) {
+    const panel = appDelPanelCerrado(n);
+    if (panel && panel.id !== app.id && entraEnElPanel(panel, app)) return true;
+  }
   // Hoy las pantallas de edición sólo se suman con el motor de perfiles prendido
   // (`menuItemsParaTenant`: ENTERPRISE_NAV_ITEMS sólo si `activeProfile !== null`).
   if (n.perfil === null) return false;

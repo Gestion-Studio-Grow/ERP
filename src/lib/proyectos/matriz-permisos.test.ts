@@ -4,7 +4,7 @@
  * cambiada sin cambiar la matriz o una `requireCapabilityFueraDeLaAgenda` suelta lo ponen rojo. Después, rol × ruta × acción.
  */
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { test } from "node:test";
 import { dejaPasar, PUERTAS_DE_ACCIONES, PUERTAS_DE_RUTAS, recorridoDeLaMatriz, terminosDe } from "./matriz-permisos";
@@ -12,6 +12,9 @@ import { dejaPasar, PUERTAS_DE_ACCIONES, PUERTAS_DE_RUTAS, recorridoDeLaMatriz, 
 const RAIZ = path.resolve(import.meta.dirname, "../../..");
 const LIB = path.join(RAIZ, "src/lib/proyectos");
 const APP = path.join(RAIZ, "src/app/admin/(dashboard)/proyectos");
+const DASH = path.join(RAIZ, "src/app/admin/(dashboard)");
+/** MIA-50 T11 (Adenda 2): las apps del ERP que, con el panel de Proyectos cerrado, piden el módulo «Empresa». */
+const APPS_DEL_ERP = ["cuentas-a-cobrar", "cuentas-a-pagar", "flujo"];
 const leer = (f: string) => readFileSync(f, "utf8");
 const archivos = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(path.join(dir, n)).isDirectory() ? archivos(path.join(dir, n)) : [path.join(dir, n)]));
 
@@ -28,14 +31,17 @@ const PATRONES: [RegExp, (m: RegExpMatchArray) => string][] = [
   [/sinRendiciones\(\w+, "(\w+)"\)/g, (m) => `REND:${m[1]}`],
   [/puedeReintegrarRendicion\(/g, () => "ROL:aprueba"],
   [/cambiaLosPermisos\(/g, () => "MATRIZ"],
+  [/(?:exigir|sin)PuertaDeGestion\("(\w+)", "(ver|editar)"\)/g, (m) => `${m[2] === "ver" ? "V" : "E"}:${m[1]}`],
 ];
 const puertasEn = (codigo: string) => PATRONES.flatMap(([re, f]) => [...codigo.matchAll(re)].map(f));
 
 /** Cada acción exportada con su puerta: la de su cuerpo y la de los ayudantes del mismo archivo que llama. */
 function accionesDelCodigo(): Map<string, string[]> {
   const res = new Map<string, string[]>();
-  for (const f of readdirSync(LIB).filter((n) => /^acciones.*\.ts$/.test(n) && !n.includes(".test.")).sort()) {
-    const src = leer(path.join(LIB, f));
+  const deProyectos = readdirSync(LIB).filter((n) => /^acciones.*\.ts$/.test(n) && !n.includes(".test.")).sort().map((f) => [f, path.join(LIB, f)] as const);
+  const delErp = APPS_DEL_ERP.map((a) => [`${a}/actions.ts`, path.join(DASH, a, "actions.ts")] as const).filter(([, p]) => existsSync(p));
+  for (const [f, archivo] of [...deProyectos, ...delErp]) {
+    const src = leer(archivo);
     const marcas = [...src.matchAll(/^(export )?(async )?function (\w+)|^const (\w+) = /gm)].map((m) => ({ nombre: m[3] ?? m[4], exportada: !!m[1], en: m.index ?? 0 }));
     const cuerpos = new Map(marcas.map((m, i) => [m.nombre, { ...m, cuerpo: src.slice(m.en, marcas[i + 1]?.en ?? src.length).replace(/^[^{]*\{/, "{") }]));
     const puertas = (nombre: string, vistos = new Set<string>()): string[] => {
@@ -52,14 +58,15 @@ function accionesDelCodigo(): Map<string, string[]> {
 
 /** La puerta de entrada de cada página (lo de adentro, como las casillas de Permisos, lo deciden sus acciones). */
 function rutasDelCodigo(): Map<string, string[]> {
-  return new Map(
-    archivos(APP)
-      .filter((f) => f.endsWith(`${path.sep}page.tsx`))
-      .map((f) => [`/${path.relative(APP, path.dirname(f)).split(path.sep).join("/")}`.replace(/\/$/, "") || "/", [...new Set(puertasEn(leer(f)).filter((t) => /^(V|E|PLATA):/.test(t)))].sort()] as const),
-  );
+  const puertas = (f: string) => [...new Set(puertasEn(leer(f)).filter((t) => /^(V|E|PLATA):/.test(t)))].sort();
+  const paginas = (dir: string) => archivos(dir).filter((f) => f.endsWith(`${path.sep}page.tsx`));
+  const deProyectos = paginas(APP).map((f) => [`/${path.relative(APP, path.dirname(f)).split(path.sep).join("/")}`.replace(/\/$/, "") || "/", puertas(f)] as const);
+  // MIA-50 T11: las páginas de las apps del ERP de la Adenda 2, con su ruta entera (`/admin/…`).
+  const delErp = APPS_DEL_ERP.flatMap((a) => paginas(path.join(DASH, a))).map((f) => [`/admin/${path.relative(DASH, path.dirname(f)).split(path.sep).join("/")}`, puertas(f)] as const);
+  return new Map([...deProyectos, ...delErp]);
 }
 
-const ROLES = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "SIN_FICHA"] as const;
+const ROLES = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "PRODUCCION_CAMPO", "SIN_FICHA"] as const;
 
 test("A1 · cada acción de Proyectos está en la matriz con la puerta que pide su código, y ninguna sobra", () => {
   const codigo = accionesDelCodigo();
@@ -105,7 +112,7 @@ test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
   }
   // Nadie fuera de Dirección y Administración mueve cuentas, liquidaciones ni revisa rendiciones.
   const plataDeLaEmpresa = todas.filter((a) => /E:(empresa|liquidaciones)|REND:revisar|ROL:aprueba/.test(PUERTAS_DE_ACCIONES[a]) && !/\|/.test(PUERTAS_DE_ACCIONES[a].split(" — ")[0]));
-  for (const rol of ["COMERCIAL", "DISENO", "PRODUCCION", "SIN_FICHA"] as const) assert.deepEqual(r[rol].acciones.filter((a) => plataDeLaEmpresa.includes(a)), [], `${rol} toca plata de la empresa`);
+  for (const rol of ["COMERCIAL", "DISENO", "PRODUCCION", "PRODUCCION_CAMPO", "SIN_FICHA"] as const) assert.deepEqual(r[rol].acciones.filter((a) => plataDeLaEmpresa.includes(a)), [], `${rol} toca plata de la empresa`);
   // La foto fijada: cuántas rutas y acciones abre cada rol. Si cambia una puerta o la fábrica, esto cambia a propósito.
   assert.deepEqual(
     Object.fromEntries(recorridoDeLaMatriz().map((f) => [f.rol, [f.rutas.length, f.acciones.length]])),
@@ -117,7 +124,10 @@ test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
     // +4 acciones de T09 (acciones-etapas, MIA-151): las 3 de «pipeline» en editar para Comercial y Producción; cancelar, sólo Dirección.
     // MIA-50 T08 vuelta 3: +1 acción (tiposDeRetencion, la puerta de marcarCuota, E:pagos|empresa) para Dirección, Administración y Producción.
     // Ola 3 integrada (MIA-167, MIA-170): B + Δ T07 + Δ T08 + Δ T09 + Δ T08 vuelta 3.
-    { DIRECCION: [43, 156], ADMINISTRACION: [32, 61], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 122], SIN_FICHA: [10, 11] },
+    // MIA-50 T11 (Adenda 2): +5 rutas del ERP (las listas y los detalles [id] de Cuentas a cobrar y a pagar, y Flujo; la ficha decía
+    // «+3» contando sólo las apps) y +4 acciones (el cobro, el pago y los dos de cheques), para quien tiene «Empresa»: Dirección y
+    // Administración. Nadie más cambia. Rol nuevo Producción de campo (O47): sólo lo suyo, el proyecto y la ficha en ver.
+    { DIRECCION: [48, 160], ADMINISTRACION: [37, 65], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 122], PRODUCCION_CAMPO: [15, 12], SIN_FICHA: [10, 11] },
   );
 });
 

@@ -8,6 +8,9 @@ import { borrarLiquidacion, publicarBorradores } from "@/lib/proyectos/acciones-
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { accionesMovil, cabezaMovil, celdaMovil, cuerpoMovil, filaMovil, tablaMovil } from "../_tabla";
 import { BotonDosPasos, EditarExtras, GenerarLiquidaciones, PagarLiquidacion } from "./_controles";
+import { CampoCodigo } from "@/components/segundo-paso/CampoCodigo";
+import { rigeSegundoPaso } from "@/lib/proyectos/segundo-factor-core";
+import { rubroDe } from "@/lib/proyectos/segundo-factor.server";
 
 /**
  * `paga`: Dirección o Administración (el servidor lo vuelve a decidir, y nadie se paga lo propio). `yo`: quien mira; la
@@ -15,7 +18,9 @@ import { BotonDosPasos, EditarExtras, GenerarLiquidaciones, PagarLiquidacion } f
  */
 export async function TabLiquidaciones({ tenantId, mes, edita, paga = false, yo }: { tenantId: string; mes?: string; edita: boolean; paga?: boolean; yo: { personaId: string | null; userId: string } }) {
   const periodo = mes && periodoValido(mes) ? mes : claveMes(new Date());
-  const [filas, cuentas] = await Promise.all([liquidacionesDelPeriodo(tenantId, periodo), paga ? cuentasEnPesos(tenantId) : []]);
+  const [filas, cuentas, rubro] = await Promise.all([liquidacionesDelPeriodo(tenantId, periodo), paga ? cuentasEnPesos(tenantId) : [], paga ? rubroDe(tenantId) : null]);
+  // MIA-50 T11 (O47, D10): pagar pide el código de la app en el momento, donde rigen los dos pasos.
+  const dosPasos = paga && rigeSegundoPaso(rubro);
   const esMia = (f: (typeof filas)[number]) => esLoPropio(yo, { personaId: f.personaId, userId: f.persona.userId });
   const borradores = filas.filter((f) => f.estado === "BORRADOR" && !esMia(f)).length;
   return (
@@ -84,7 +89,7 @@ export async function TabLiquidaciones({ tenantId, mes, edita, paga = false, yo 
                         {edita && f.estado === "BORRADOR" && !esMia(f) && <EditarExtras id={f.id} persona={f.persona.nombre} base={f.base} manuales={extras.filter((e) => e.manual)} />}
                         {edita && f.estado === "BORRADOR" && !esMia(f) && <BotonDosPasos accion={borrarLiquidacion} campos={{ id: f.id }} etiqueta="Borrar" pregunta="Las rendiciones que tenía quedan libres. ¿Borrar el borrador?" />}
                         {esMia(f) && f.estado !== "PAGADA" && <p className="max-w-56 text-xs text-muted">Es tuya: la arma, la publica y la paga otra persona de Dirección o Administración.</p>}
-                        {paga && f.estado === "PUBLICADA" && !esMia(f) && <PagarLiquidacion id={f.id} total={pesos(f.total)} cuentas={cuentas} />}
+                        {paga && f.estado === "PUBLICADA" && !esMia(f) && <PagarLiquidacion id={f.id} total={pesos(f.total)} cuentas={cuentas} codigo={dosPasos ? <CampoCodigo accion="pagar" id={`codigo-${f.id}`} /> : null} />}
                         <Link href={`/admin/proyectos/imprimir-liquidacion/${f.id}`} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>PDF</Link>
                       </div>
                     </td>

@@ -212,7 +212,8 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
  * servidor baja ese saldo en la misma transacción que el egreso. Las cuentas (sólo las de pesos) llegan del servidor:
  * quien paga sueldos no necesita permiso sobre las cuentas de la empresa para elegir una.
  */
-export function PagarLiquidacion({ id, total, cuentas }: { id: string; total: string; cuentas: readonly { id: string; nombre: string }[] }) {
+/** `codigo`: el pedido del código de la app (MIA-50 T11, O47), donde rigen los dos pasos; va dentro del formulario. */
+export function PagarLiquidacion({ id, total, cuentas, codigo }: { id: string; total: string; cuentas: readonly { id: string; nombre: string }[]; codigo?: ReactNode }) {
   const { error, ocupado, correr } = useAccion();
   const [abierto, setAbierto] = useState(false);
   const router = useRouter();
@@ -237,6 +238,7 @@ export function PagarLiquidacion({ id, total, cuentas }: { id: string; total: st
         {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
       </select>
       <SelectCuenta cuentas={cuentas} />
+      {codigo}
       <div className="flex gap-1">
         <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 flex-1")}>{ocupado ? "…" : "Pagar"}</button>
         <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>Volver</button>
