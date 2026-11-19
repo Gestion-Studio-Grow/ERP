@@ -2,8 +2,9 @@
 //
 // C-O14: total a mano; menor que el subtotal → rechazo con cero cambios; sobre el tope → se guarda y el envío espera a Dirección.
 // C-O15: fuera del rango (sin margen, § 3) espera a Dirección; con rango abierto, dentro del rango se aplica; con el cliente
-//        aprobado, sólo Dirección y con motivo.
-// C-O16: el plan de cobro y el tope salen del total congelado (× IVA), no de los ítems; cambiar ítems o % no los mueve.
+//        aprobado, sólo Dirección y con motivo (Producción y Comercial, rechazados).
+// C-O16: el plan de cobro y el tope salen del total congelado (× IVA), no de los ítems; cambiar ítems, % o el margen general
+//        no los mueve. El cobro que pasa el tope se rechaza, también con N a la vez, con doble envío y con reintento.
 // C-O18: la foto se escribe en la misma transacción que la aprobación, una sola aunque aprueben N a la vez; no se modifica;
 //        cambiar 3 parámetros y el equipo después la deja idéntica.
 // C-O50: reparto por persona y concepto (el redondeo no se reparte; suma ≤ 100 / = 100 con la empresa); carrera de N guardados.
@@ -35,6 +36,7 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   const publica = await import("./acciones");
   const { regenerarCuotas, tiposDeCambio } = await import("./gestion.server");
   const { cobranzasDelNegocio } = await import("./cobranza.server");
+  const { configProyectos } = await import("./datos.server");
 
   const form = (campos: Record<string, string>) => {
     const fd = new FormData();
@@ -188,6 +190,18 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   assert.match((await direccion(() => guardar({ total: "1.500.000", motivo: "ajuste" }))).error ?? "", /no cambia/);
   const tres = await direccion(() => guardar({ total: "1.490.000", rentabilidad: "31", margenError: "4", iibGa: "8", motivo: "Ajuste de Dirección después de aprobar" }));
   assert.equal(tres.ok, true, tres.error);
+  // Comercial tampoco (vuelta MIA-155): la recepcionista pasa a Comercial. Por defecto Comercial no ve costos y no entra; con
+  // los costos habilitados por el negocio, llega y se rechaza igual. Ningún rechazo escribe.
+  await duenio.proyectoPersona.update({ where: { id: prod.id }, data: { rol: "COMERCIAL" } });
+  const precioAntes = await fila();
+  const deComercial = () => produccion(() => guardar({ total: "1.490.000", rentabilidad: "33", motivo: "Lo pide Comercial" }));
+  assert.match((await deComercial()).error ?? "", /no tenés permiso para verlos/);
+  const permisoCostos = { tenantId: a.id, rol: "COMERCIAL", modulo: "costos" };
+  await duenio.proyectoPermiso.upsert({ where: { tenantId_rol_modulo: permisoCostos }, create: { ...permisoCostos, ver: true }, update: { ver: true } });
+  assert.match((await deComercial()).error ?? "", /sólo Dirección/);
+  assert.deepEqual(await fila(), precioAntes, "el rechazo de Comercial no escribe");
+  await duenio.proyectoPermiso.delete({ where: { tenantId_rol_modulo: permisoCostos } });
+  await duenio.proyectoPersona.update({ where: { id: prod.id }, data: { rol: "PRODUCCION" } });
   // … y el equipo: sale Comercial (su reparto se va con él).
   assert.equal((await direccion(() => ficha.quitarEquipo(form({ proyectoId: p.id, id: eqCom.id })))).ok, true);
   const fotoDespues = await enA((tx) => tx.proyectoPrecioFoto.findUniqueOrThrow({ where: { id: foto.id } }));
@@ -197,16 +211,50 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   const cuotasCliente = () => duenio.proyectoCuota.findMany({ where: { tenantId: a.id, proyectoId: p.id, tipo: "COBRO", anuladoEl: null }, orderBy: { clave: "asc" }, select: { clave: true, monto: true } });
   const plan1 = await cuotasCliente();
   assert.deepEqual(plan1.map((c) => c.monto), [901_450, 901_450], JSON.stringify(plan1));
-  const tope = async () => {
-    const r = await ejecutarAccion({ negocio: a, usuario: { id: a.duenia.id } }, async () => (await cobranzasDelNegocio(a.id, await tiposDeCambio(a.id), 0, [p.id])).get(p.id)!.total);
-    return (r as { valor: number }).valor;
+  const cobranza = async () => {
+    const r = await ejecutarAccion({ negocio: a, usuario: { id: a.duenia.id } }, async () => (await cobranzasDelNegocio(a.id, await tiposDeCambio(a.id), (await configProyectos(a.id)).margenPct, [p.id])).get(p.id)!);
+    return (r as { valor: { total: number; porCobrar: number } }).valor;
   };
+  const tope = async () => (await cobranza()).total;
   assert.equal(await tope(), 1_802_900, "el tope de cobro es el total congelado con IVA");
-  // Cambian los ítems de la versión aprobada y el margen general del negocio: las cuotas y el tope no se mueven.
+  // Cambian los ítems de la versión aprobada: las cuotas y el tope no se mueven.
   await duenio.proyectoItem.update({ where: { id: item.id }, data: { precio: 3_000_000, costo: 1_500_000 } });
   await ejecutarAccion({ negocio: a, usuario: { id: a.duenia.id } }, () => regenerarCuotas(a.id, p.id));
   assert.deepEqual((await cuotasCliente()).map((c) => c.monto), [901_450, 901_450]);
   assert.equal(await tope(), 1_802_900);
+  // … y el margen general del negocio (35 → 80 %): tampoco.
+  await duenio.proyectoConfig.upsert({ where: { tenantId: a.id }, create: { tenantId: a.id, margenPct: 80 }, update: { margenPct: 80 } });
+  assert.equal((await duenio.proyectoConfig.findUniqueOrThrow({ where: { tenantId: a.id } })).margenPct, 80);
+  await ejecutarAccion({ negocio: a, usuario: { id: a.duenia.id } }, () => regenerarCuotas(a.id, p.id));
+  assert.deepEqual((await cuotasCliente()).map((c) => c.monto), [901_450, 901_450]);
+  assert.equal(await tope(), 1_802_900);
+
+  // ── C-O16 · el cobro que pasa el tope congelado se rechaza, también con N a la vez (molde plata fila 1, R5) ──
+  // Con los ítems subidos (3.000.000) y el margen en 80 %, el tope sigue siendo 1.802.900: 5 cobros de 450.000 a la vez →
+  // entran 4 (1.800.000) y el quinto se rechaza. Sin el candado o sin la verificación entran los 5 (2.250.000).
+  const cobrar = (monto: string, extra: Record<string, string> = {}) => direccion(() => publica.registrarCobro(form({ proyectoId: p.id, medio: "TRANSFERENCIA", monto, ...extra })));
+  const cobrado = async () => {
+    const pagos = await enA((tx) => tx.proyectoPago.findMany({ where: { proyectoId: p.id, anuladoEl: null }, select: { monto: true } }));
+    return { n: pagos.length, total: pagos.reduce((s, x) => s + x.monto, 0) };
+  };
+  const cinco = await Promise.all(Array.from({ length: 5 }, () => cobrar("450000")));
+  assert.equal(cinco.filter((r) => r.ok).length, 4, JSON.stringify(cinco));
+  assert.match(cinco.find((r) => !r.ok)?.error ?? "", /falta cobrar|pasa/i);
+  assert.deepEqual(await cobrado(), { n: 4, total: 1_800_000 });
+  // Al borde: falta 2.900. Uno más (2.901) se rechaza y no escribe; 2.900 entra.
+  const pasado = await cobrar("2901");
+  assert.equal(pasado.ok, false);
+  assert.deepEqual(await cobrado(), { n: 4, total: 1_800_000 });
+  // El de 2.900 con doble envío (los dos a la vez, la misma clave) y después un reintento: un solo cobro.
+  const claveO16 = `o16-borde-${p.id}`.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+  const doble = await Promise.all([cobrar("2900", { claveEnvio: claveO16 }), cobrar("2900", { claveEnvio: claveO16 })]);
+  assert.ok(doble.every((r) => r.ok), JSON.stringify(doble));
+  assert.deepEqual(await cobrado(), { n: 5, total: 1_802_900 }, "el doble envío asienta una vez");
+  assert.equal((await cobrar("2900", { claveEnvio: claveO16 })).ok, true, "el reintento responde lo ya grabado");
+  assert.deepEqual(await cobrado(), { n: 5, total: 1_802_900 });
+  assert.deepEqual(await cobranza().then((c) => [c.total, c.porCobrar]), [1_802_900, 0]);
+  assert.equal((await cobrar("1")).ok, false, "cobrado el total congelado, no entra un peso más");
+  assert.deepEqual(await cobrado(), { n: 5, total: 1_802_900 });
 
   // ── R5: el negocio B no ve ni toca nada del A ──
   const deB = await en(b, "duenia", () => precio.guardarPrecio(form({ proyectoId: p.id, total: "1.490.000" })));
