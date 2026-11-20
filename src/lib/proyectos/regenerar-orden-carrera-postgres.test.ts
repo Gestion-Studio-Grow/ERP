@@ -105,10 +105,19 @@ test("MIA-219 · regenerar el plan mientras la cuota que sobra se enlaza y entra
       await c.query("BEGIN");
       await c.query(`SELECT id FROM "ProyectoCuota" WHERE id = $1 FOR UPDATE`, [anticipo.id]);
       const yo = (await c.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+      // MIA-221: `pg_stat_activity` se lee DENTRO de esta transacción (la del candado), y Postgres la congela en la primera
+      // lectura de la transacción: una conexión que el pool de la app abre después no aparece nunca, y el test esperaba
+      // hasta el plazo a una Administración trabada que no podía ver (3 de 14 en local, 2 de 2 en CI). Cada lectura
+      // descarta la foto antes (`pg_stat_clear_snapshot`). Contraprueba: sin esto y con `DB_IDLE_TIMEOUT_MS=1` (el pool
+      // abre conexiones nuevas siempre) el test da rojo siempre.
+      const activas = async <F extends pg.QueryResultRow>(sql: string, params: unknown[] = []) => {
+        await c.query("SELECT pg_stat_clear_snapshot()");
+        return (await c.query<F>(sql, params)).rows;
+      };
       /** Para el mensaje de falla: qué espera cada conexión de esta base y detrás de quién. */
-      const quienEspera = async () =>
-        (await c.query("SELECT pid, state, wait_event_type AS tipo, wait_event AS evento, pg_blocking_pids(pid) AS detras, left(query, 90) AS consulta FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND state <> 'idle'")).rows;
-      const trabadosDetras = async (pid: number) => (await c.query<{ pid: number }>("SELECT pid FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))", [pid])).rows.map((x) => x.pid);
+      const quienEspera = () =>
+        activas("SELECT pid, state, wait_event_type AS tipo, wait_event AS evento, pg_blocking_pids(pid) AS detras, left(query, 90) AS consulta FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND state <> 'idle'");
+      const trabadosDetras = async (pid: number) => (await activas<{ pid: number }>("SELECT pid FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))", [pid])).map((x) => x.pid);
 
       let termino = false;
       const ajuste = regenerar().finally(() => (termino = true));
