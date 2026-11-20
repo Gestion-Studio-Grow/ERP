@@ -108,3 +108,17 @@ test("papel para MIA: un descuento oculto resta en «Otros conceptos», como en 
   assert.equal(p.lineas.at(-1)?.total, -20);
   assert.equal(p.neto, 80);
 });
+
+// GSG-MIA-256 · el precio que Dirección corrigió a mano en un ítem del despiece no se pisa al volver a pasarlo. La
+// corrección se reconoce por el historial: `guardarCampoItem` deja «Precio de venta · …» o «Recargo % · …» con el id del
+// ítem (el pase del despiece no escribe historial por ítem). Esos ítems actualizan cantidad y costo, no el precio.
+test("MIA-256 · volver a pasar el despiece respeta el precio corregido a mano", () => {
+  const items = itemsDelDespiece(lineas, 30);
+  const existentes = [{ id: "i1", origen: "despiece:d1" }, { id: "i2", origen: "despiece:d2" }];
+  const plan = planDePase(existentes, items, new Set(["i2"]));
+  assert.deepEqual(plan.actualizar.map((u) => [u.id, u.conservaPrecio]), [["i1", false], ["i2", true]]);
+  assert.deepEqual(planDePase(existentes, items).actualizar.map((u) => u.conservaPrecio), [false, false], "sin corrección, el precio sigue al despiece");
+  assert.equal(esCorreccionDePrecio("Precio de venta · Tablero MDF"), true);
+  assert.equal(esCorreccionDePrecio("Recargo % · Tablero MDF"), true);
+  assert.equal(esCorreccionDePrecio("Cantidad · Tablero MDF"), false);
+});
