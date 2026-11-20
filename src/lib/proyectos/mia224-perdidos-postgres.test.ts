@@ -17,7 +17,7 @@ import assert from "node:assert/strict";
 import pg from "pg";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
-import { avanceDeCobro } from "./ficha-core";
+import { avanceDeCobro, vendidoDelCliente } from "./ficha-core";
 
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
@@ -81,7 +81,7 @@ async function preparar(t: import("node:test").TestContext) {
   const ficha = await import("./acciones-ficha");
   const gestion = await import("./gestion.server");
   const { cobranzasDelNegocio, tiposDeCambio } = await import("./cobranza.server");
-  const { configProyectos } = await import("./datos.server");
+  const { configProyectos, proyectosDelCliente } = await import("./datos.server");
   const { recuadrosDeCuotas } = await import("./empresa.server");
   const form = (c: Record<string, string>) => {
     const fd = new FormData();
@@ -98,9 +98,9 @@ async function preparar(t: import("node:test").TestContext) {
    * Proyecto aprobado por $ 1.210 (1.000 + IVA 21 %, anticipo del cliente 50 % = $ 605) con un ítem de un proveedor que
    * cuesta $ 400: el plan suma cuotas de pago a ese proveedor.
    */
-  const proyecto = async (etapa = "APROBADO") => {
+  const proyecto = async (etapa = "APROBADO", clientId = a.clientes[0]) => {
     const p = await duenio.proyecto.create({
-      data: { tenantId: a.id, numero: ++numero, clientId: a.clientes[0], nombre: `Stand 224 ${numero}`, servicio: "ARQUITECTURA", etapa, moneda: "ARS", fechaArmado: new Date(EVENTO.getTime() - 2 * DIA), fechaEvento: EVENTO, fechaDesarme: new Date(EVENTO.getTime() + DIA) },
+      data: { tenantId: a.id, numero: ++numero, clientId, nombre: `Stand 224 ${numero}`, servicio: "ARQUITECTURA", etapa, moneda: "ARS", fechaArmado: new Date(EVENTO.getTime() - 2 * DIA), fechaEvento: EVENTO, fechaDesarme: new Date(EVENTO.getTime() + DIA) },
       select: { id: true },
     });
     const pres = await duenio.proyectoPresupuesto.create({ data: { tenantId: a.id, proyectoId: p.id, version: 1, estado: "APROBADO", token: `m224-${p.id}`, ivaPct: 21, respondidoEl: new Date("2026-11-02T12:00:00Z"), respondidoPor: "Cliente" }, select: { id: true } });
@@ -124,7 +124,10 @@ async function preparar(t: import("node:test").TestContext) {
       return (await cobranzasDelNegocio(a.id, tc, config.margenPct, [proyectoId])).get(proyectoId)!;
     });
   const claveCobranza = (proyectoId: string) => `cobranza-proyecto:${a.id}:${proyectoId}`;
-  return { base, duenio, a, ficha, form, enSesion, proyecto, deudaProveedor, cuotasPago, etapa, mover, marcar, aPagar, cobranza, claveCobranza };
+  /** Lo que muestra «Vendido (aprobado, con IVA)» en la ficha del cliente (MIA-232 · H3). */
+  const vendidoDe = async (clientId: string) => vendidoDelCliente(await enSesion(() => proyectosDelCliente(clientId)));
+  const clienteNuevo = async () => (await duenio.client.create({ data: { tenantId: a.id, name: `Cliente 232 ${++numero}`, phone: `+54911${String(numero).padStart(8, "0")}` }, select: { id: true } })).id;
+  return { base, duenio, a, ficha, form, enSesion, proyecto, deudaProveedor, cuotasPago, etapa, mover, marcar, aPagar, cobranza, claveCobranza, vendidoDe, clienteNuevo };
 }
 
 test("D2 · perder con deuda a un proveedor: sus cuotas siguen vivas en «A pagar», con su proyecto, y se pagan sin reabrir", async (t) => {
@@ -227,4 +230,70 @@ test("D4 · volver a otra etapa comercial (Diseño) no toca la aprobación: la d
   const { id, presupuestoId } = await p.proyecto("APROBADO");
   assert.equal((await p.mover(id, "DISENO")).ok, true);
   assert.equal((await p.duenio.proyectoPresupuesto.findUniqueOrThrow({ where: { id: presupuestoId }, select: { estado: true } })).estado, "APROBADO");
+});
+
+// ============================================================================
+// GSG-MIA-232 · hallazgos de la certificación GSG-PR215-v1 (H1-H3), por el flujo real (`moverProyecto`).
+// ============================================================================
+
+test("H1 · perder con un motivo que empieza con «Cancelado: » no cancela: la deuda con el proveedor sigue y el proyecto no queda cancelado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { id } = await p.proyecto("PRODUCCION");
+  const deuda = await p.deudaProveedor(id);
+  assert.ok((JSON.parse(deuda) as unknown[]).length > 0, "el plan tiene cuotas de pago al proveedor");
+  const r = await p.mover(id, "PERDIDO", "Cancelado: el cliente se bajó");
+  assert.equal(await p.deudaProveedor(id), deuda, `las cuotas al proveedor no se anulan (${JSON.stringify(r)})`);
+  const { motivoPerdida } = await p.duenio.proyecto.findUniqueOrThrow({ where: { id }, select: { motivoPerdida: true } });
+  assert.ok(!motivoPerdida?.startsWith("Cancelado: "), `el motivo libre no deja el proyecto como cancelado (${motivoPerdida})`);
+  assert.equal(r.ok, false, "se rechaza: «Cancelado: » es la marca de la cancelación de Dirección");
+  // Contraprueba: el mismo motivo escrito de otra forma pierde como siempre y conserva la deuda (D2).
+  assert.equal((await p.mover(id, "PERDIDO", "El cliente canceló: se bajó")).ok, true);
+  assert.notEqual((await p.etapa(id)).perdidoEl, null);
+  assert.equal(await p.deudaProveedor(id), deuda);
+});
+
+test("H2 · un proyecto que volvió a Pedido y perdió la aprobación no pasa a Confirmado (ni más allá) hasta que el cliente apruebe una versión", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { id, presupuestoId } = await p.proyecto("APROBADO");
+  assert.equal((await p.mover(id, "PEDIDO")).ok, true);
+  for (const destino of ["APROBADO", "PRODUCCION"]) {
+    const r = await p.mover(id, destino);
+    assert.equal(r.ok, false, `a ${destino} sin la aprobación del cliente: no pasa (${JSON.stringify(r)})`);
+    assert.equal((await p.etapa(id)).etapa, "PEDIDO", `sigue en Pedido tras intentar ${destino}`);
+  }
+  // Las etapas comerciales siguen como hoy.
+  assert.equal((await p.mover(id, "PROPUESTA")).ok, true, "a Propuesta pasa");
+  assert.equal((await p.mover(id, "APROBADO")).ok, false, "desde Propuesta tampoco pasa a Confirmado sin aprobar");
+  // El cliente aprueba: ahora sí.
+  const r = await p.enSesion(() => p.ficha.registrarRespuesta(p.form({ id: presupuestoId, respuesta: "APROBADO", nombre: "Cliente" })));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal((await p.mover(id, "APROBADO")).ok, true, "con la versión aprobada pasa a Confirmado");
+  assert.equal((await p.etapa(id)).etapa, "APROBADO");
+});
+
+test("H2 · contraprueba: un proyecto que nunca tuvo aprobación pasa de Pedido a Confirmado como hoy (con el aviso de la compuerta)", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { id, presupuestoId } = await p.proyecto("PEDIDO");
+  await p.duenio.proyectoPresupuesto.update({ where: { id: presupuestoId }, data: { estado: "ENVIADO", respondidoEl: null, respondidoPor: null } });
+  const r = await p.mover(id, "APROBADO");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal((await p.etapa(id)).etapa, "APROBADO");
+});
+
+test("H3 · la ficha del cliente no suma un perdido en «Vendido (aprobado, con IVA)»; un proyecto vivo sí", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const cliente = await p.clienteNuevo();
+  const vivo = await p.proyecto("PRODUCCION", cliente);
+  const perdido = await p.proyecto("PRODUCCION", cliente);
+  // A mano: cada uno 1.000 + madera 400 × 1,35 = 1.540, + IVA 21 % = 1.863,40.
+  assert.equal(await p.vendidoDe(cliente), 3726.8, "los dos vivos: 2 × 1.863,40");
+  assert.equal((await p.mover(perdido.id, "PERDIDO", "Eligió otro proveedor")).ok, true);
+  assert.equal(await p.vendidoDe(cliente), 1863.4, "el perdido sale de Vendido; queda el vivo");
+  assert.equal((await p.mover(perdido.id, "PRODUCCION")).ok, true, "reabrir");
+  assert.equal(await p.vendidoDe(cliente), 3726.8, "reabierto vuelve a sumar");
+  void vivo;
 });

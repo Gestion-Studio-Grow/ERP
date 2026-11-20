@@ -37,6 +37,12 @@ export function planQueSigue<T extends { tipo: string }>(plan: readonly T[], p: 
  */
 export const cobroFrenadoPorPerdido = (c: { tipo: string; pagadoEl: Date | string | null; proyecto?: { perdidoEl: Date | string | null } | null }): boolean => !c.pagadoEl && !!c.proyecto?.perdidoEl && !perdidoAdmite(c.tipo);
 
+/**
+ * «Vendido (aprobado, con IVA)» de la ficha de un cliente: la suma del total aprobado de sus proyectos. PURA.
+ */
+export const vendidoDelCliente = (proyectos: readonly { t: { total: number } | null; perdidoEl: Date | string | null }[]): number =>
+  redondear(proyectos.reduce((s, p) => s + (p.t?.total ?? 0), 0));
+
 /** Un lead sigue abierto hasta que el cliente confirma o se pierde. */
 export const ETAPAS_DE_LEAD = ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"] as const;
 

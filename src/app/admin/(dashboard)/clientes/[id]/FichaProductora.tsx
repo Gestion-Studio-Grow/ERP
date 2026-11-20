@@ -9,6 +9,7 @@ import { ButtonLink } from "@/components/ui";
 import { getClient } from "@/lib/actions";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { proyectosDelCliente, veLaPlata } from "@/lib/proyectos/datos.server";
+import { vendidoDelCliente } from "@/lib/proyectos/ficha-core";
 import { etapaLabel, pesos, redondear, SERVICIO_LABEL, type Servicio } from "@/lib/proyectos/core";
 import type { SessionUser } from "@/lib/session";
 import { claseBotonWhatsApp } from "../boton-whatsapp";
@@ -25,7 +26,7 @@ export default async function FichaProductora({ id, user }: { id: string; user: 
   const puedeEditar = permisoEfectivo(user, "clients:manage");
   const conPlata = await veLaPlata(user);
   const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere: false, puedeEditar });
-  const vendido = redondear(proyectos.reduce((s, p) => s + (p.t?.total ?? 0), 0));
+  const vendido = vendidoDelCliente(proyectos);
   const cobrado = redondear(proyectos.reduce((s, p) => s + p.cobrado, 0));
   // `porCobrar` de cada proyecto sale de la cobranza (cobranza-core), igual que Clientes, Rentabilidad y Administración.
   const porCobrar = redondear(proyectos.reduce((s, p) => s + p.porCobrar, 0));
