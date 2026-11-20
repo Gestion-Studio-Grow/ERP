@@ -126,6 +126,8 @@ export async function Adicionales({ a, vista, proyectoId, baseAprobada }: { a: A
   const sectores = par["costos.sectores"].valor;
   const categorias = par["costos.categorias"].valor;
   const verCosto = vista.costos;
+  // MIA-249: el precio del adicional es venta: sin `vista.importes` (Producción) no se ve ni se carga (la acción lo rechaza).
+  const venta = vista.importes;
   // MIA-236 · «2A»: el costo y el anticipo de la línea son el pago al proveedor; sin la plata no se ofrecen (la acción los rechaza igual).
   const cargaCosto = edita && (await veLaPlata(a.user));
   return (
@@ -159,9 +161,13 @@ export async function Adicionales({ a, vista, proyectoId, baseAprobada }: { a: A
               </div>
               <dl className="mb-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                 {verCosto && <Numero titulo="Costo" valor={centavos(t.costo)} />}
-                <Numero titulo="Precio sin IVA" valor={centavos(t.precio)} />
-                <Numero titulo={`IVA ${porcentaje(ad.ivaPct)}`} valor={centavos(t.iva)} />
-                <Numero titulo="Precio con IVA" valor={centavos(t.precioConIva)} />
+                {venta && (
+                  <>
+                    <Numero titulo="Precio sin IVA" valor={centavos(t.precio)} />
+                    <Numero titulo={`IVA ${porcentaje(ad.ivaPct)}`} valor={centavos(t.iva)} />
+                    <Numero titulo="Precio con IVA" valor={centavos(t.precioConIva)} />
+                  </>
+                )}
               </dl>
               {ad.respondidoPor && <p className="mb-2 text-sm">Respondió {ad.respondidoPor} el {fechaCorta(ad.respondidoEl)}{ad.motivoRechazo && `: «${ad.motivoRechazo}»`}</p>}
 
@@ -182,7 +188,13 @@ export async function Adicionales({ a, vista, proyectoId, baseAprobada }: { a: A
                         </div>
                         <div className="flex flex-wrap items-center gap-2 tabular-nums">
                           <span>
-                            {cant} × {centavos(l.precioCentavos)} = <strong className="text-strong">{centavos(subtotalCentavos(l, l.precioCentavos))}</strong>
+                            {venta ? (
+                              <>
+                                {cant} × {centavos(l.precioCentavos)} = <strong className="text-strong">{centavos(subtotalCentavos(l, l.precioCentavos))}</strong>
+                              </>
+                            ) : (
+                              `cantidad ${cant}`
+                            )}
                             {verCosto && <span className="text-muted"> (costo {centavos(subtotalCentavos(l, l.costoCentavos))})</span>}
                           </span>
                           {borrador && edita && <BotonConConfirmacion accion={borrarLineaAdicional} ocultos={{ adicionalId: ad.id, lineaId: l.id }} texto="Borrar" textoConfirma="Sí, borrar la línea" etiqueta={`Borrar ${l.detalle}`} />}
@@ -227,7 +239,7 @@ export async function Adicionales({ a, vista, proyectoId, baseAprobada }: { a: A
                     <label className={etiqueta}>Días<input name="dias" inputMode="numeric" className={campo} /></label>
                     <span className="hidden sm:block" />
                     {cargaCosto ? <label className={etiqueta}>Costo unitario ($)<input name="costo" inputMode="decimal" className={campo} /></label> : <span className="hidden sm:block" />}
-                    <label className={etiqueta}>Precio unitario sin IVA ($)<input name="precio" inputMode="decimal" className={campo} /></label>
+                    {venta ? <label className={etiqueta}>Precio unitario sin IVA ($)<input name="precio" inputMode="decimal" className={campo} /></label> : <span className="hidden sm:block" />}
                     <SubmitButton className={cn(buttonClasses("outline", "md"), "sm:col-span-2 sm:self-end")}>Agregar línea</SubmitButton>
                     <p className="text-sm text-muted sm:col-span-4">
                       Personal: completá puestos, horas y días (los tres); la cantidad sale de multiplicarlos. Importes en pesos (provisional a confirmar).

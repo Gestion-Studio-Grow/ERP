@@ -13,7 +13,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { sePuedeEditar } from "./core";
 import { veLaPlata } from "./datos.server";
 import { numeroDe } from "./ficha-core";
-import type { ModuloGestion } from "./gestion-core";
+import { veLaVenta, type ModuloGestion } from "./gestion-core";
 import { actorActual, actorDelProyecto, proyectoVisible, puede, regenerarCuotas, registrarCambio, type Actor } from "./gestion.server";
 import { valoresDelNegocio } from "./parametros/leer.server";
 import { aCentavos, errorDeAnticipo, errorDeAprobador, errorDeListas, errorDeMarcaPrevision, errorDePersonal, esPersonal, ESTADO_ADICIONAL_LABEL, type EstadoAdicional } from "./presupuesto-core";
@@ -223,6 +223,8 @@ export async function agregarLineaAdicional(formData: FormData): Promise<Resulta
   const { a, ad, tenantId } = r;
   if (ad.estado !== "BORRADOR") return mal("Este adicional ya se envió.");
   if ((txt(formData.get("costo")) || txt(formData.get("anticipoPct"))) && !(await veLaPlata(a.user))) return mal(COSTO_ADICIONAL_SIN_PLATA);
+  // MIA-249: el precio de la línea es venta: Producción ve sólo los costos.
+  if (txt(formData.get("precio")) && !veLaVenta(a.rol)) return mal("El precio al cliente es la venta: tu puesto ve sólo los costos. Cargá la línea sin precio.");
   const sector = txt(formData.get("sector"));
   const categoria = txt(formData.get("categoria"));
   const detalle = txt(formData.get("detalle")).slice(0, 200);

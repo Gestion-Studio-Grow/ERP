@@ -9,7 +9,7 @@ import { etapaLabel } from "./core";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { bloqueDeDatos, type AgenteId, type MensajeAgente } from "./diseno-core";
 import { actorDelProyecto, columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
-import { codigoProyecto, costoTotalItem, ESTADO_ITEM_LABEL, ESTADO_TAREA_LABEL, totalesFicha, ventaTotalItem, type ModuloGestion } from "./gestion-core";
+import { codigoProyecto, columnasSinVenta, costoTotalItem, ESTADO_ITEM_LABEL, ESTADO_TAREA_LABEL, totalesFicha, ventaTotalItem, type ModuloGestion } from "./gestion-core";
 import { errorDeGratis, imagenDeGratis, MODELO_IMAGEN_GRATIS, MODELO_TEXTO_GRATIS, pedidoDeImagen, pedidoDeTexto, textoDeGratis, urlGratis } from "./ia-gratis-core";
 import { aDataUri, tipoDeImagen, urlPollinations } from "./ia-pollinations-core";
 import { describirStand, ESQUEMA_STAND, INSTRUCCIONES_STAND, leerStandPropuesto } from "./ia-stand-core";
@@ -330,7 +330,9 @@ export async function contextoDeAgente(actor: Actor, id: AgenteId, proyectoId: s
   }
   if ((alcance.ficha && ve("ficha")) || alcance.plata) {
     const [viva, config, tc] = await Promise.all([versionViva(tenantId, proyectoId), configProyectos(tenantId), tiposDeCambio(tenantId)]);
-    const ocultas = columnasOcultas(a);
+    // MIA-249: la venta y el margen, por donde ya se decide en la ficha (`columnasSinVenta`): Producción ve sólo los costos.
+    const ocultas = [...columnasOcultas(a), ...columnasSinVenta(a.rol)];
+    const veVenta = ve("cotizaciones") && !ocultas.includes("venta");
     const veCostos = ve("costos");
     const items = (viva?.items ?? []).map((i) => ({ original: i, ficha: aItemFicha(i) }));
     if (alcance.ficha && ve("ficha")) {
@@ -345,13 +347,13 @@ export async function contextoDeAgente(actor: Actor, id: AgenteId, proyectoId: s
             i.fechaLimite && `límite ${fechaDe(i.fechaLimite)}`,
             ve("proveedores") ? i.supplier?.name : null,
             veCostos && !ocultas.includes("costoTotal") ? `costo ${costoTotalItem(ficha, tc)}` : null,
-            ve("cotizaciones") ? `venta ${ventaTotalItem(ficha, tc, config.margenPct)}` : null,
+            veVenta ? `venta ${ventaTotalItem(ficha, tc, config.margenPct)}` : null,
           ),
         ),
       });
     }
     const t = totalesFicha(items.map((i) => i.ficha), tc, config.margenPct);
-    const totales = [ve("cotizaciones") ? `Venta total ${t.venta}` : null, veCostos && !ocultas.includes("costoTotal") ? `Costo total ${t.costo}` : null, veCostos && !ocultas.includes("margen") ? `Margen ${t.margen} (${t.margenPct} %)` : null].filter((x): x is string => !!x);
+    const totales = [veVenta ? `Venta total ${t.venta}` : null, veCostos && !ocultas.includes("costoTotal") ? `Costo total ${t.costo}` : null, veCostos && !ocultas.includes("margen") ? `Margen ${t.margen} (${t.margenPct} %)` : null].filter((x): x is string => !!x);
     if (totales.length > 0) secciones.push({ titulo: "Totales, en pesos", lineas: totales });
   }
   if (alcance.plata && ve("pagos")) {

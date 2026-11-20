@@ -32,7 +32,7 @@ import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
 import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, CUOTA_ENLAZADA, cuotaEnOrdenPendiente, cuotaPagadaPorOrden, listoAnulado, listoMarcada, listoParcial } from "./avisos-cuota";
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
-import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
+import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, columnasSinVenta, veLaVenta, veTodosLosProyectos } from "./gestion-core";
 import { actorDelProyecto, avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, rehaceLosPagos, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { FALTA_APROBACION, FALTA_REAPROBAR, frenaSinAprobacion, tipoDeArchivoSubido, VOLVIO_A_PEDIDO, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
@@ -524,7 +524,8 @@ const ETIQUETA_CAMPO: Record<string, string> = {
 
 // Tocan el precio final: lo que Dirección aprobó ya no es lo que se va a enviar.
 const CAMPOS_DE_PRECIO = new Set(["cantidad", "costo", "moneda", "recargoPct", "precio"]);
-const CAMPOS_DE_COSTOS: Record<string, string | null> = { costo: "costoUnit", moneda: "costoUnit", recargoPct: "recargo", precio: null, costoReal: "costoTotal" };
+// MIA-249: el precio es la venta y el recargo, el margen en %: los cierra `columnasSinVenta` (Producción ve sólo los costos).
+const CAMPOS_DE_COSTOS: Record<string, string> = { costo: "costoUnit", moneda: "costoUnit", recargoPct: "recargo", precio: "venta", costoReal: "costoTotal" };
 const SIN_EFECTO_EN_CUOTAS = new Set(["estadoItem", "visibleCliente", "costoReal"]);
 
 /** Guarda un campo al salir de él. Un número mal tipeado se rechaza: nunca queda en cero callado. */
@@ -544,8 +545,7 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
   if (!(campo in ETIQUETA_CAMPO)) return mal("Ese campo no se puede editar.");
   if (campo in CAMPOS_DE_COSTOS) {
     if (!puede(a, "costos", "editar")) return mal("No tenés permiso para cambiar costos ni precios.");
-    const columna = CAMPOS_DE_COSTOS[campo];
-    if (columna && columnasOcultas(a).includes(columna)) return mal("No tenés permiso para cambiar costos ni precios.");
+    if ([...columnasOcultas(a), ...columnasSinVenta(a.rol)].includes(CAMPOS_DE_COSTOS[campo])) return mal("No tenés permiso para cambiar costos ni precios.");
   }
   const valor = String(d.valor ?? "").trim();
   let data: Prisma.ProyectoItemUncheckedUpdateManyInput;
@@ -930,6 +930,8 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
   // Otro cambio de venta (evento en otra moneda): lo tipeado en esa moneda manda (`precioAlCambiarCambio`). Con plata ya
   // contabilizada (cobros o una versión aprobada) no se cambia por un guardado de textos: se anula y se registra bien.
   const cambiaCambio = pr.proyecto.moneda !== "ARS" && tcVenta !== pr.tcVenta;
+  // MIA-249: el cambio de venta mueve el total que se le cobra al cliente: es venta.
+  if (cambiaCambio && !veLaVenta(a.rol)) return mal("El cambio de venta es la venta: tu puesto ve sólo los costos.");
   if (cambiaCambio && !(tcVenta !== null && tcVenta > 0)) return mal("El tipo de cambio tiene que ser mayor que cero.");
   const viejo = cambiaCambio ? cambioDeVenta(pr.proyecto.moneda, pr.tcVenta, await tiposDeCambio(tenantId)) : 0;
   const r = await tenantTransaction(async (tx): Promise<"ok" | "contabiliza" | "cambio"> => {

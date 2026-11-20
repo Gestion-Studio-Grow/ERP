@@ -239,6 +239,11 @@ export async function datosCotizacion(a: Actor, proyectoId: string) {
   // MIA-199 · P3-2: cada versión con su total vendido congelado (foto de la aprobación), si lo tiene: el panel muestra
   // ése como «Total sin IVA», el mismo que la propuesta y los cobros, no la suma de renglones.
   const congelados = await totalesCongelados(prisma, a.tenantId, versiones.map((v) => v.id));
+  // MIA-249: sin la venta (`vistaDe(a).importes`: Producción, o un proyecto ajeno), la versión sale sin precio, recargo,
+  // foto, total congelado, cambio de venta ni link a la propuesta. La pestaña igual los oculta; acá no salen del servidor.
+  if (!vistaDe(a).importes) {
+    return versiones.map((v) => ({ ...v, token: "", foto: null, tcVenta: null, congelado: null, items: v.items.map((i) => ({ ...i, precio: 0, recargoPct: null })) }));
+  }
   return versiones.map((v) => ({ ...v, congelado: congelados.get(v.id) ?? null }));
 }
 

@@ -201,7 +201,8 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
   }));
   if (ganada === "base") return { ok: false, error: BASE_YA_APROBADA };
   if (!ganada) return { ok: false, error: "Esta propuesta ya fue respondida." };
-  // Confirmado: de acá salen los cobros y los pagos.
+  // Confirmado: de acá salen los cobros. Los pagos a proveedores NO (MIA-243 · 2A): el link no tiene sesión, así que
+  // `rehaceLosPagos` da falso y los pagos quedan «por revisar» hasta que Administración los rehace (GSG-PR214-v9 C1, obs. 2).
   if (d.aprueba) await regenerarCuotas(tenantId, pr.proyectoId);
   await auditPublic({ action: d.aprueba ? "proyecto.propuesta.aprobar" : "proyecto.propuesta.rechazar", entity: "ProyectoPresupuesto", entityId: pr.id, changes: { nombre } });
   revalidatePath(`/propuesta/${d.token}`);

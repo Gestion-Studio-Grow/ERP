@@ -42,15 +42,18 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
   const versiones = await datosCotizacion(a, p.id);
   const recargo = config.margenPct;
   const verMargen = !vista.ocultas.has("margen");
+  // MIA-249: la venta (total, planillas, propuesta, papeles y «Qué cambió») sólo con `vista.importes` (`veLaVenta`):
+  // Producción ve las versiones y sus textos, no lo que se le vende al cliente. `datosCotizacion` ya no la manda.
+  const venta = vista.importes;
   const foto = (v: (typeof versiones)[number]) => (esFoto(v.foto) ? v.foto : fotoDeVersion(v.items, tc, recargo));
-  const abierta = versiones.find((v) => v.id === ver);
-  const comparada = versiones.find((v) => v.id === cambios);
+  const abierta = venta ? versiones.find((v) => v.id === ver) : undefined;
+  const comparada = venta ? versiones.find((v) => v.id === cambios) : undefined;
   const anterior = comparada ? versiones.find((v) => v.version < comparada.version) : undefined;
   const diferencia = comparada && anterior ? cambiosEntreVersiones(foto(anterior), foto(comparada)) : null;
   const enComparada = (n: number) => importeDeVenta(n, p.moneda, cambioDeVenta(p.moneda, comparada?.tcVenta, tc));
   const viva = versiones[0];
   const hayBorrador = !!viva && sePuedeEditar(viva.estado);
-  const planillaViva = viva ? planillaDeVenta(viva.items, tc, recargo) : null;
+  const planillaViva = viva && venta ? planillaDeVenta(viva.items, tc, recargo) : null;
   // O10: una sola base aprobada por proyecto (la garantiza la base con M2); los cambios después van como adicional.
   const baseAprobada = versiones.find((v) => v.estado === "APROBADO") ?? null;
   const wa = waLink(p.client.phone, `Hola ${p.client.name}! Te compartimos la propuesta de ${negocio.nombre} para "${p.nombre}":`);
@@ -69,7 +72,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
             )}
             {baseAprobada && vista.editaCotizaciones && <p className="text-sm text-muted">No se abre otra versión: un cambio va como adicional, más abajo.</p>}
             {/* MIA T07: el precio por total (tablero, Dirección, reparto y la foto de la aprobación). */}
-            {vista.costos && <Link href={`/admin/proyectos/${p.id}/precio`} className="inline-flex min-h-11 items-center text-sm underline">Precio del proyecto: tablero y reparto</Link>}
+            {vista.costos && venta && <Link href={`/admin/proyectos/${p.id}/precio`} className="inline-flex min-h-11 items-center text-sm underline">Precio del proyecto: tablero y reparto</Link>}
           </div>
           {vista.editaCotizaciones && ofreceNuevaVersion({ baseAprobada: !!baseAprobada, hayBorrador }) && (
             <FormAccion accion={nuevaVersion} className="flex flex-wrap items-center gap-2">
@@ -104,7 +107,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                   )}
                 </div>
                 <dl className="mb-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                  <Numero titulo="Total sin IVA" valor={importeDeVenta(t.venta, p.moneda, cambio)} />
+                  {venta && <Numero titulo="Total sin IVA" valor={importeDeVenta(t.venta, p.moneda, cambio)} />}
                   {verMargen && <Numero titulo={editable ? "Margen" : enviado ? "Margen al enviar" : "Margen al cambio de hoy"} valor={margenParaMostrar(enviado && fotoGuardada ? { margen: enviado.margen, margenPct: enviado.pct, costoCargado: fotoGuardada.some((i) => (i.costo as number) > 0) } : t, (n) => importeDeVenta(n, p.moneda, cambio))} />}
                   <Numero titulo="Fecha" valor={fechaCorta(v.enviadoEl ?? v.createdAt)} />
                   <Numero titulo="Quién" valor={v.creadoPor ?? "—"} />
@@ -112,14 +115,18 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                 {v.nota && <p className="mb-1 text-sm">Nota: {v.nota}</p>}
                 {v.respondidoPor && <p className="mb-1 text-sm">Respondió {v.respondidoPor} el {fechaCorta(v.respondidoEl)}{v.motivoRechazo && `: «${v.motivoRechazo}»`}</p>}
                 <div className="flex flex-wrap items-center gap-2">
-                  <Link href={`?tab=cotizacion&ver=${v.id}`} scroll={false} className={buttonClasses("outline", "md")}>Ver</Link>
-                  {n < versiones.length - 1 && <Link href={`?tab=cotizacion&cambios=${v.id}`} scroll={false} className={buttonClasses("outline", "md")}>Qué cambió</Link>}
-                  <a href={`/admin/proyectos/imprimir/venta/${p.id}/pdf?version=${v.id}`} className={buttonClasses("outline", "md")}>PDF</a>
-                  <a href={`/admin/proyectos/imprimir/venta/${p.id}?version=${v.id}`} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Imprimir</a>
-                  <a href={`/admin/proyectos/imprimir/venta/${p.id}/xlsx?version=${v.id}`} className={buttonClasses("outline", "md")}>Excel</a>
-                  {!editable && <a href={ruta} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Ver propuesta</a>}
-                  {!editable && <CopiarLink ruta={ruta} />}
-                  {wa && v.estado === "ENVIADO" && <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Abrir WhatsApp</a>}
+                  {venta && (
+                    <>
+                      <Link href={`?tab=cotizacion&ver=${v.id}`} scroll={false} className={buttonClasses("outline", "md")}>Ver</Link>
+                      {n < versiones.length - 1 && <Link href={`?tab=cotizacion&cambios=${v.id}`} scroll={false} className={buttonClasses("outline", "md")}>Qué cambió</Link>}
+                      <a href={`/admin/proyectos/imprimir/venta/${p.id}/pdf?version=${v.id}`} className={buttonClasses("outline", "md")}>PDF</a>
+                      <a href={`/admin/proyectos/imprimir/venta/${p.id}?version=${v.id}`} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Imprimir</a>
+                      <a href={`/admin/proyectos/imprimir/venta/${p.id}/xlsx?version=${v.id}`} className={buttonClasses("outline", "md")}>Excel</a>
+                      {!editable && <a href={ruta} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Ver propuesta</a>}
+                      {!editable && <CopiarLink ruta={ruta} />}
+                      {wa && v.estado === "ENVIADO" && <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>Abrir WhatsApp</a>}
+                    </>
+                  )}
                 </div>
 
                 {editable && a.rol === "DIRECCION" && vista.editaCotizaciones && !v.aprobadoInternoEl && (
@@ -136,7 +143,7 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                       <label className={etiqueta}>Presentación para el cliente<textarea name="presentacion" rows={3} defaultValue={v.presentacion} className={areaTexto} /></label>
                       <label className={etiqueta}>Condiciones<textarea name="condiciones" rows={3} defaultValue={v.condiciones} className={areaTexto} /></label>
                       <label className={cn(etiqueta, "max-w-40")}>IVA %<input name="ivaPct" defaultValue={String(v.ivaPct).replace(".", ",")} inputMode="decimal" className={campo} /></label>
-                      {p.moneda !== "ARS" && <label className={cn(etiqueta, "max-w-64")}>Cambio de venta: pesos por {p.moneda}<input name="tcVenta" defaultValue={cambio > 0 ? String(cambio).replace(".", ",") : ""} inputMode="decimal" className={campo} /></label>}
+                      {p.moneda !== "ARS" && venta && <label className={cn(etiqueta, "max-w-64")}>Cambio de venta: pesos por {p.moneda}<input name="tcVenta" defaultValue={cambio > 0 ? String(cambio).replace(".", ",") : ""} inputMode="decimal" className={campo} /></label>}
                       <SubmitButton className={buttonClasses("outline", "md")}>Guardar textos</SubmitButton>
                     </FormAccion>
                     <FormAccion accion={enviarCotizacion}>
