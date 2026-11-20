@@ -95,3 +95,12 @@ test("O36 · repartoDelCobro: falta 100.000 y retienen 3.000 → entran 97.000; 
   assert.deepEqual(repartoDelCobro(5000, null, 5000), { ok: true, entra: 0, retenido: 5000 });
   assert.equal(repartoDelCobro(0, null, 0).ok, false);
 });
+
+test("MIA-267 · el rechazo por cobrar de más muestra lo que falta con formato de plata, en la moneda de la cuota", () => {
+  const r = repartoDelCobro(1808950, null, 1808951);
+  assert.equal(r.ok, false);
+  assert.match(!r.ok ? r.error : "", /\(\$\s1\.808\.950\)/);
+  assert.doesNotMatch(!r.ok ? r.error : "", /1808950/);
+  const usd = repartoDelCobro(1500.5, 1500, 10, "USD");
+  assert.match(!usd.ok ? usd.error : "", /US\$\s1\.500,50/);
+});

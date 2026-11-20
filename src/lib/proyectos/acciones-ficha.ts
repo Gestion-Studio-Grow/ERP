@@ -1062,7 +1062,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     retProvisional = pr["retenciones.cuentanComoCobrado"].provisional || pr["retenciones.tipos"].provisional;
   }
   const retenidoEnMoneda = redondear(retenidas.reduce((s, r) => s + r.importe, 0));
-  const reparto = retenidas.length > 0 ? repartoDelCobro(pendiente, parte !== null ? redondear(parte) : null, retenidoEnMoneda) : null;
+  const reparto = retenidas.length > 0 ? repartoDelCobro(pendiente, parte !== null ? redondear(parte) : null, retenidoEnMoneda, c.moneda) : null;
   if (reparto && !reparto.ok) return mal(reparto.error);
   if (reparto && !(reparto.entra > 0)) return mal("Lo retenido cubre toda la cuota: registrá al menos lo que entró al banco.");
   // `cancela`: lo que la cuota da por cobrado con este envío (lo que entra y, si cuenta, lo retenido); `parcial`: eso, si

@@ -7,7 +7,7 @@
 //  O38  la huella de una línea del extracto: el mismo archivo dos veces (o a la vez) no duplica.
 //  O36  las retenciones sufridas al cobrar: lo que entra a la cuenta más lo retenido no pasa lo que falta.
 
-import { leerNumero, redondear } from "./core";
+import { leerNumero, pesos, redondear } from "./core";
 import { centavosDe } from "@/lib/dinero/redondeo";
 
 /** «AAAA-MM-DD» del día en Argentina (UTC−3, sin horario de verano). */
@@ -171,11 +171,11 @@ export function leerRetenciones(
  * retenido. Con «una parte», entra esa parte. Lo que entra más lo retenido nunca pasa lo que falta; lo que entra es
  * mayor que 0 salvo que la retención cubra todo (un cobro 100 % retenido también salda).
  */
-export function repartoDelCobro(pendiente: number, parte: number | null, retenido: number): { ok: true; entra: number; retenido: number } | { ok: false; error: string } {
+export function repartoDelCobro(pendiente: number, parte: number | null, retenido: number, moneda = "ARS"): { ok: true; entra: number; retenido: number } | { ok: false; error: string } {
   const ret = redondear(retenido);
   if (ret < 0) return { ok: false, error: "Las retenciones no pueden ser negativas." };
   const entra = parte !== null ? redondear(parte) : redondear(pendiente - ret);
-  if (entra < 0 || redondear(entra + ret) > redondear(pendiente) + 0.005) return { ok: false, error: `Lo cobrado más lo retenido pasa lo que le falta a la cuota (${redondear(pendiente)}).` };
+  if (entra < 0 || redondear(entra + ret) > redondear(pendiente) + 0.005) return { ok: false, error: `Lo cobrado más lo retenido pasa lo que le falta a la cuota (${pesos(pendiente, moneda)}).` };
   if (!(entra > 0) && !(ret > 0)) return { ok: false, error: "No hay nada para cobrar." };
   return { ok: true, entra, retenido: ret };
 }
