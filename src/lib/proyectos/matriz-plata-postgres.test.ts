@@ -325,6 +325,7 @@ test("MIA-215 · matriz de plata: cada rol que no ve la plata rechaza cada acci�
   await t.test("MIA-237 · Administración (usuario OWNER): ve la plata y los proyectos, no administra usuarios", () => probarAdministracion(m));
   await t.test("MIA-238 · productor comercial: en un proyecto que no es suyo no ve cobrado, por cobrar ni costos (pantalla y llamada directa)", () => probarComercialAjeno(m));
   await t.test("MIA-238 · una OWNER sin ficha activa que no es la Dueña (su ficha de Administración, de baja) no hereda Dirección ni usuarios", () => probarOwnerDeBaja(m));
+  await t.test("MIA-239 · productor comercial: en un proyecto ajeno no ve la venta (Pipeline, ficha, IA) ni edita cotizaciones, precio, equipo ni el estimado", () => probarComercialVentaAjena(m));
   await t.test("MIA-237 · puertas de MIA-236: % de anticipo del proveedor y costos al presupuesto, sólo quien corresponde", () => probarPuertasMia236(m));
 });
 
@@ -649,4 +650,81 @@ async function probarOwnerDeBaja(m: Mundo) {
     { adm: await mira("ADMINISTRACION-BAJA/OWNER"), dir: await mira("DIRECCION-BAJA/OWNER"), duenia: await mira("DIRECCION/OWNER") },
     { adm: { rol: "SIN_FICHA", usuarios: false }, dir: { rol: "DIRECCION", usuarios: true }, duenia: { rol: "DIRECCION", usuarios: true } },
   );
+}
+
+/**
+ * MIA-239 · «ve sólo lo cobrado y lo que falta cobrar de sus proyectos» (opción B, lectura de ORQ-007): en un proyecto ajeno
+ * (fuera de su `ProyectoEquipo`) el productor comercial no ve NINGÚN importe, tampoco la venta, ni edita cotizaciones,
+ * precio, reparto, el estimado o el equipo (sumarse al equipo le abriría la plata). Ve el lead: nombre, cliente y etapa.
+ * Mismo control de MIA-238 (`actorDelProyecto` / `veLaPlataDelProyecto`). Hecho a mano: ítem de $ 1.000 de venta.
+ */
+async function probarComercialVentaAjena(m: Mundo) {
+  const gestion = await import("./gestion.server");
+  const ficha = await import("./ficha.server");
+  const ia = await import("./ia.server");
+  const accFicha = await import("./acciones-ficha");
+  const ajeno = await m.proyecto();
+  const propio = await m.proyecto();
+  const yo = m.persona("COMERCIAL/RECEPTION");
+  const fuera = ["COMERCIAL/RECEPTION", "COMERCIAL/PROFESSIONAL"].map((c) => m.persona(c));
+  await m.duenio.proyectoEquipo.deleteMany({ where: { proyectoId: ajeno.id, personaId: { in: fuera } } });
+  await m.duenio.proyecto.update({ where: { id: ajeno.id }, data: { presupuestoEstimado: 5000 } });
+  const leer = async (clave: string) => {
+    const r = await m.como(clave, async () => {
+      const a0 = await gestion.actorActual();
+      const tarjetas = await ficha.tableroPipeline(a0);
+      const tarjeta = (id: string) => {
+        const t = tarjetas.find((x) => x.id === id);
+        assert.ok(t, `${clave} ve el lead ${id} en el Pipeline`);
+        return { venta: t.venta ?? null, ventaTexto: t.ventaTexto ?? null, nombre: !!t.nombre, cliente: !!t.cliente, etapa: !!t.etapa };
+      };
+      const a = await gestion.actorDelProyecto(a0, ajeno.id);
+      const cab = await ficha.cabeceraFicha(a, ajeno.id);
+      assert.ok(cab, `${clave} sigue viendo el proyecto (el lead)`);
+      const v = ficha.vistaDe(a);
+      const fi = await ficha.datosFicha(a, cab, v);
+      const contexto = await ia.contextoDeAgente(a0, "analista", ajeno.id);
+      return {
+        pipelineAjeno: tarjeta(ajeno.id),
+        pipelinePropio: tarjeta(propio.id).venta,
+        vista: { importes: v.importes, cotizaciones: v.cotizaciones, editaCotizaciones: v.editaCotizaciones, fichaEdita: v.fichaEdita },
+        ventaFicha: fi.filas.map((f) => (f as { venta?: number }).venta ?? null),
+        iaConVenta: /venta/i.test(contexto),
+      };
+    });
+    assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
+    return (r as { valor: Record<string, unknown> }).valor;
+  };
+  const AJENO = {
+    pipelineAjeno: { venta: null, ventaTexto: null, nombre: true, cliente: true, etapa: true },
+    pipelinePropio: 1000,
+    vista: { importes: false, cotizaciones: false, editaCotizaciones: false, fichaEdita: false },
+    ventaFicha: [null],
+    iaConVenta: false,
+  };
+  assert.deepEqual({ rec: await leer("COMERCIAL/RECEPTION"), prof: await leer("COMERCIAL/PROFESSIONAL") }, { rec: AJENO, prof: AJENO });
+  // Control: Dirección, en el mismo proyecto, ve la venta de $ 1.000 en el Pipeline, la ficha y la IA (la sonda no está ciega).
+  const dir = await leer("DIRECCION/OWNER");
+  assert.deepEqual([(dir.pipelineAjeno as { venta: number }).venta, dir.ventaFicha, dir.iaConVenta], [1000, [1000], true]);
+
+  // Llamadas directas, como Comercial con «Cotizaciones · editar» y «Pipeline · editar» de fábrica.
+  const versiones = () => m.duenio.proyectoPresupuesto.count({ where: { proyectoId: ajeno.id } });
+  const antesVersiones = await versiones();
+  const nv = await m.como("COMERCIAL/RECEPTION", () => accFicha.nuevaVersion(form({ proyectoId: ajeno.id })));
+  const nvValor = nv.tipo === "respuesta" ? (nv.valor as { ok: boolean; error?: string }) : null;
+  assert.equal(nvValor?.ok, false, `nuevaVersion en un proyecto ajeno: ${JSON.stringify(nv)}`);
+  assert.match(nvValor?.error ?? "", /permiso/);
+  assert.equal(await versiones(), antesVersiones);
+  // Sumarse al equipo de un proyecto ajeno le abriría la plata: no.
+  const eq = await m.como("COMERCIAL/RECEPTION", () => accFicha.asignarEquipo(form({ proyectoId: ajeno.id, personaId: yo, funcion: "" })));
+  assert.equal(eq.tipo === "respuesta" ? (eq.valor as { ok: boolean }).ok : null, false, `asignarEquipo en un proyecto ajeno: ${JSON.stringify(eq)}`);
+  assert.equal(await m.duenio.proyectoEquipo.count({ where: { proyectoId: ajeno.id, personaId: yo } }), 0);
+  // El estimado y el anticipo son plata: guardar los datos del lead no los toca.
+  const dd = await m.como("COMERCIAL/RECEPTION", () => accFicha.guardarDatos(form({ id: ajeno.id, nombre: "Lead renombrado", moneda: "ARS", presupuestoEstimado: "999999", anticipoClientePct: "10" })));
+  assert.equal(dd.tipo, "respuesta", JSON.stringify(dd));
+  const tras = await m.duenio.proyecto.findUniqueOrThrow({ where: { id: ajeno.id }, select: { nombre: true, presupuestoEstimado: true, anticipoClientePct: true } });
+  assert.deepEqual(tras, { nombre: "Lead renombrado", presupuestoEstimado: 5000, anticipoClientePct: 50 });
+  // Control: en su propio proyecto, la misma llamada sí llega al negocio (no la frena el permiso).
+  const nvPropio = await m.como("COMERCIAL/RECEPTION", () => accFicha.nuevaVersion(form({ proyectoId: propio.id })));
+  assert.doesNotMatch(nvPropio.tipo === "respuesta" ? ((nvPropio.valor as { error?: string }).error ?? "") : "", /permiso/);
 }
