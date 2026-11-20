@@ -13,6 +13,8 @@ export const ESTADO_ORDEN_LABEL: Record<EstadoOrden, string> = { PENDIENTE: "Par
 
 /** «OP 00000012». PURA. */
 export const numeroDeOrden = (n: number): string => `OP ${String(n).padStart(8, "0")}`;
+/** MIA-211 · S1: el `pagadoPor` que deja una orden de pago en la cuota que paga («OP 00000012»). */
+export const esNumeroDeOrden = (s: string | null | undefined): boolean => /^OP \d{8}$/.test(s ?? "");
 
 export interface ComprobanteParaOrden {
   id: string;

@@ -17,6 +17,11 @@ export function pesosConEquivalente(enPesos: number, cob: Pick<Cobranza, "enMone
 /** Una cuota de pago enlazada a un comprobante se paga con una orden de pago, no a mano (CERT-4 y M4c). */
 export const CUOTA_ENLAZADA = "Esta cuota está enlazada a un comprobante del proveedor: se paga con una orden de pago, en Proveedores › Órdenes de pago.";
 
+/** MIA-211 · S1: una cuota que pagó una orden de pago no se anula desde la cuota (la plata salió por la orden). */
+export function cuotaPagadaPorOrden(orden: string | null | undefined): string {
+  return `Esta cuota la pagó ${orden ? `la orden de pago ${orden}` : "una orden de pago"}: para devolver la plata, anulá la orden en Proveedores › Órdenes de pago.`;
+}
+
 export function listoMarcada(esCobro: boolean, importeEnPesos: number, cuota?: { monto: number; cobra: number; moneda: string }): string {
   const listo = `Listo: cuota marcada como ${esCobro ? "cobrada" : "pagada"} (${pesos(importeEnPesos)}).`;
   // P-06: una cuota de cobro que se marca por menos que su importe lo dice, con la diferencia y por qué no se cobra.

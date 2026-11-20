@@ -5,6 +5,7 @@ import { aPesos, codigoProyecto, diasDeAtraso, estadoCuota } from "@/lib/proyect
 import { FILTROS_CUOTA, pasaFiltro, type FiltroCuota } from "@/lib/proyectos/empresa-core";
 import { proveedoresActivos, type CuotaDelNegocio, type GastoSinPagar, type SinCalendarioDelNegocio } from "@/lib/proyectos/empresa.server";
 import type { PagadoDeCuota } from "@/lib/proyectos/cobranza-core";
+import { esNumeroDeOrden } from "@/lib/proyectos/orden-pago-core";
 import { anularCuotaEmpresa, crearPagoEmpresa, desenlazarCuotaFactura, enlazarCuotaFactura } from "@/lib/proyectos/acciones-empresa";
 import { aCobrarPorCuota, facturasParaEnlazar, type ACobrarDeCuota } from "@/lib/proyectos/moneda-bancos.server";
 import { TRAMOS_FACTURA, TRAMO_LABEL, type TramoFactura } from "@/lib/proyectos/moneda-bancos-core";
@@ -247,7 +248,11 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
                         {cubierta && !deEmpresa && !c.auto && editaPagos && c.proyecto && <BotonDosPasos accion={quitarMovimiento} campos={{ id: c.id, proyectoId: c.proyecto.id }} etiqueta="Quitar" pregunta="¿Quitar esta cuota? Lo cobrado sigue registrado." />}
                         {est !== "PAGADA" && !cubierta && !c.noSeCobra && puedeMarcar && <MarcarCuota id={c.id} deEmpresa={deEmpresa} etiqueta={tipo === "COBRO" ? "Cobrado" : "Pagar"} falta={falta} moneda={c.moneda} concepto={c.concepto} esCobro={c.tipo === "COBRO"} />}
                         {est === "PAGADA" && <span className="whitespace-nowrap text-xs text-muted">{fechaCorta(c.pagadoEl)}{c.medio ? ` · ${c.medio.toLowerCase().replace("_", " ")}` : ""}</span>}
-                        {deEmpresa && editaEmpresa && <BotonDosPasos accion={anularCuotaEmpresa} campos={{ id: c.id }} etiqueta="Anular" pregunta={est === "PAGADA" ? "¿Anular? La plata vuelve al libro." : "¿Anular?"} />}
+                        {deEmpresa && est === "PAGADA" && esNumeroDeOrden(c.pagadoPor) ? (
+                          <span className="max-w-56 text-xs text-muted">Pagada con la orden {c.pagadoPor}. Para devolver la plata, anulá la orden en Proveedores › Órdenes de pago.</span>
+                        ) : (
+                          deEmpresa && editaEmpresa && <BotonDosPasos accion={anularCuotaEmpresa} campos={{ id: c.id }} etiqueta="Anular" pregunta={est === "PAGADA" ? "¿Anular? La plata vuelve al libro." : "¿Anular?"} />
+                        )}
                       </div>
                     </td>
                   </tr>

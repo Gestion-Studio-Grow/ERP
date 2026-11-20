@@ -38,6 +38,8 @@ export async function cuotasDelNegocio(tenantId: string) {
       moneda: true,
       venceEl: true,
       pagadoEl: true,
+      // MIA-211 · S1: «OP 00000012» si la pagó una orden de pago (la pantalla no ofrece anularla desde la cuota).
+      pagadoPor: true,
       medio: true,
       factura: true,
       comentario: true,
