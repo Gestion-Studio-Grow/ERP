@@ -10,6 +10,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { tenantTransaction } from "@/lib/rls";
 import type { Prisma } from "@/generated/prisma/client";
 import { crearLead } from "./acciones-ficha";
 import type { Resultado } from "./acciones";
@@ -61,10 +62,10 @@ export async function pedirBorradorConsulta(d: { id: string }): Promise<Resultad
   const cliente = delCliente(c.mensajes);
   const brief = mezclarBrief(previo, validarBriefDeModelo(r.brief, cliente));
   const problemas = revisarRespuesta(r.borrador, { entrante: cliente });
-  await prisma.$transaction([
-    prisma.consultaMensaje.create({ data: { tenantId: a.tenantId, consultaId: c.id, direccion: "SALIENTE", origen: "AGENTE", texto: r.borrador, envio: "BORRADOR", problemas } }),
-    prisma.consulta.update({ where: { id: c.id }, data: { brief: brief as Prisma.InputJsonValue, ultimaActividad: new Date() } }),
-  ]);
+  await tenantTransaction(async (tx) => {
+    await tx.consultaMensaje.create({ data: { tenantId: a.tenantId, consultaId: c.id, direccion: "SALIENTE", origen: "AGENTE", texto: r.borrador, envio: "BORRADOR", problemas } });
+    await tx.consulta.update({ where: { id: c.id }, data: { brief: brief as Prisma.InputJsonValue, ultimaActividad: new Date() } });
+  });
   refrescar(c.id);
   return { ok: true, problemas };
 }
@@ -155,10 +156,10 @@ export async function registrarRespuestaExterna(d: { id: string; via: string }):
   if (!via) return { ok: false, error: "Elegí por dónde se respondió." };
   const c = await prisma.consulta.findFirst({ where: { id: acotarEntrante(d.id, 40), tenantId: a.tenantId, estado: { not: "CONVERTIDA" } }, select: { id: true } });
   if (!c) return { ok: false, error: SIN_CONSULTA };
-  await prisma.$transaction([
-    prisma.consultaMensaje.create({ data: { tenantId: a.tenantId, consultaId: c.id, direccion: "SALIENTE", origen: "PERSONA", texto: `${a.nombre} respondió por ${via} (registrado a mano).`, envio: "NO_APLICA", autor: a.nombre } }),
-    prisma.consulta.update({ where: { id: c.id }, data: { ultimaActividad: new Date(), estado: "EN_CALIFICACION" } }),
-  ]);
+  await tenantTransaction(async (tx) => {
+    await tx.consultaMensaje.create({ data: { tenantId: a.tenantId, consultaId: c.id, direccion: "SALIENTE", origen: "PERSONA", texto: `${a.nombre} respondió por ${via} (registrado a mano).`, envio: "NO_APLICA", autor: a.nombre } });
+    await tx.consulta.update({ where: { id: c.id }, data: { ultimaActividad: new Date(), estado: "EN_CALIFICACION" } });
+  });
   refrescar(c.id);
   return { ok: true };
 }

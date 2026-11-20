@@ -33,7 +33,7 @@ test("MIA-257 · si falla la segunda escritura del lote, la primera no queda (re
       await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${a.id}, true)`;
       return fn(tx);
     });
-  const comoDuenia = (fn: () => Promise<unknown>) => ejecutarAccion({ negocio: a, usuario: { id: a.duenia.id } }, fn).catch((e: unknown) => ({ tipo: "lanzó", error: String(e) }));
+  const comoDuenia = (fn: () => Promise<unknown>) => ejecutarAccion({ negocio: a, usuario: { id: a.duenia.id } }, fn).then((r) => (r.tipo === "respuesta" ? (r as { valor: unknown }).valor : r)).catch((e: unknown) => ({ tipo: "lanzó", error: String(e) }));
   const fallaAlActualizar = async (tabla: string, prender: boolean) => {
     await duenio.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION mia257_falla() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'mia257: falla la segunda escritura'; END $$`);
     await duenio.$executeRawUnsafe(prender ? `CREATE TRIGGER mia257_falla BEFORE UPDATE ON "${tabla}" FOR EACH ROW EXECUTE FUNCTION mia257_falla()` : `DROP TRIGGER mia257_falla ON "${tabla}"`);
@@ -45,10 +45,10 @@ test("MIA-257 · si falla la segunda escritura del lote, la primera no queda (re
   const mensajes = () => enA((tx) => tx.consultaMensaje.count({ where: { consultaId: consulta.id } }));
   await fallaAlActualizar("Consulta", true);
   const r1 = await comoDuenia(() => registrarRespuestaExterna({ id: consulta.id, via: "WHATSAPP" }));
-  assert.notDeepEqual(r1, { tipo: "respuesta", valor: { ok: true } }, "con la consulta sin actualizar, no puede responder que salió");
+  assert.notDeepEqual(r1, { ok: true }, "con la consulta sin actualizar, no puede responder que salió");
   assert.equal(await mensajes(), 0, "falló la consulta: el mensaje «respondió por WhatsApp» no queda suelto");
   await fallaAlActualizar("Consulta", false);
-  assert.deepEqual(await comoDuenia(() => registrarRespuestaExterna({ id: consulta.id, via: "WHATSAPP" })), { tipo: "respuesta", valor: { ok: true } });
+  assert.deepEqual(await comoDuenia(() => registrarRespuestaExterna({ id: consulta.id, via: "WHATSAPP" })), { ok: true });
   assert.equal(await mensajes(), 1);
   assert.equal((await enA((tx) => tx.consulta.findUniqueOrThrow({ where: { id: consulta.id }, select: { estado: true } }))).estado, "EN_CALIFICACION");
 
@@ -61,10 +61,10 @@ test("MIA-257 · si falla la segunda escritura del lote, la primera no queda (re
   const archivo = () => enA((tx) => tx.proyectoArchivo.count({ where: { id: f.id } }));
   await fallaAlActualizar("ProyectoIdea", true);
   const r2 = await comoDuenia(() => eliminarImagenDelProyecto({ proyectoId: p.id, ref }));
-  assert.notDeepEqual(r2, { tipo: "respuesta", valor: { ok: true, quitadaDeLaFicha: true } });
+  assert.notDeepEqual(r2, { ok: true, quitadaDeLaFicha: true });
   assert.equal(await archivo(), 1, "falló la ficha: la imagen no se borra (la ficha no queda apuntando a nada)");
   await fallaAlActualizar("ProyectoIdea", false);
-  assert.deepEqual(await comoDuenia(() => eliminarImagenDelProyecto({ proyectoId: p.id, ref })), { tipo: "respuesta", valor: { ok: true, quitadaDeLaFicha: true } });
+  assert.deepEqual(await comoDuenia(() => eliminarImagenDelProyecto({ proyectoId: p.id, ref })), { ok: true, quitadaDeLaFicha: true });
   assert.equal(await archivo(), 0);
   assert.deepEqual((await enA((tx) => tx.proyectoIdea.findUniqueOrThrow({ where: { proyectoId: p.id }, select: { imagenes: true } }))).imagenes, []);
 });
