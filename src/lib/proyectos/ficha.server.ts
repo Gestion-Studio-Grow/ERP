@@ -186,7 +186,8 @@ export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
   const vivas = new Set(cuotas.map((c) => c.id));
   const deCuota = new Set(asientos.filter((x) => x.entidadId && vivas.has(x.entidadId)).map((x) => x.despues));
   const pagadoDirecto = gastosPagados.filter((g) => !deCuota.has(g.id)).reduce((x, g) => x + g.neto + g.iva, 0);
-  const finanzas = deCuotas && { ...deCuotas, aPagar: redondear(deCuotas.aPagar + gastosSinPagar.reduce((x, g) => x + g.neto + g.iva, 0)), pagado: redondear(deCuotas.pagado + pagadoDirecto) };
+  // MIA-224 · D3: un perdido mide su avance contra la venta original (`avanceDeCobro`).
+  const finanzas = deCuotas && { ...deCuotas, ventaOriginal: cob?.ventaOriginal ?? null, aPagar: redondear(deCuotas.aPagar + gastosSinPagar.reduce((x, g) => x + g.neto + g.iva, 0)), pagado: redondear(deCuotas.pagado + pagadoDirecto) };
   return { personas, finanzas, cantCuotas: cuotas.length, cantChecklist };
 }
 

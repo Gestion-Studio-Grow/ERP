@@ -297,7 +297,7 @@ export function propuestasDeConciliacion<T extends CuotaLeida & { id: string }>(
  * (como antes: la de un perdido queda para decidir); «Por cobrar» y «Por pagar a proveedores», todos (un perdido no tiene
  * nada por cobrar, y lo que se le debe a un proveedor se debe igual).
  * Un perdido no es una venta: queda afuera como en «Facturación» de Dirección (`estaConfirmado`). Decisión 1 = A del
- * veredicto MIA-094, PROVISIONAL A CONFIRMAR POR EL DUEÑO (B: dejarlo con otro nombre para el total).
+ * veredicto MIA-094, la decidió el dueño el 20/11 (MIA-224).
  */
 export function totalesDeRentabilidad(
   filas: readonly { perdidoEl: Date | null; t: { neto: number; ganancia: number } | null; real: { gananciaReal: number | null; porPagar: number }; porCobrar: number }[],

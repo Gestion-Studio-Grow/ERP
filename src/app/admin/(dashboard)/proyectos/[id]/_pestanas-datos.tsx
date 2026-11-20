@@ -118,11 +118,13 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
               {vista.costos && <Numero titulo="Pagado a proveedores" valor={pesos(finanzas.pagado)} />}
               {vista.costos && <Numero titulo="A pagar" valor={pesos(finanzas.aPagar)} alerta={finanzas.cantPagosVencidos > 0} />}
             </dl>
-            {avance === null ? (
-              <p className="mt-3 text-xs text-muted">Proyecto perdido: no se le cobra más. Lo cobrado queda como cobrado.</p>
-            ) : (
+            {p.perdidoEl && <p className="mt-3 text-xs text-muted">Proyecto perdido: no se le cobra más. Lo cobrado queda como cobrado.</p>}
+            {avance !== null && (
               <>
-                <p className="mt-3 text-xs text-muted">Avance de cobro: {porcentaje(Math.round(avance))}</p>
+                <p className="mt-3 text-xs text-muted">
+                  Avance de cobro: {porcentaje(Math.round(avance))}
+                  {p.perdidoEl && finanzas.ventaOriginal ? ` de la venta original (${pesos(finanzas.ventaOriginal)})` : ""}
+                </p>
                 <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface" role="progressbar" aria-valuenow={Math.round(avance)} aria-valuemin={0} aria-valuemax={100} aria-label="Avance de cobro">
                   <div className="h-full bg-accent" style={{ width: `${Math.min(100, avance)}%` }} />
                 </div>

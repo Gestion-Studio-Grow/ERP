@@ -1,6 +1,7 @@
 // FICHA DEL PROYECTO — reglas puras de las pantallas de proyectos: pipeline, versiones, planilla de venta y cashflow.
 // Sin base ni React. Las reglas de plata viven en gestion-core.ts; acá, lo que las une a la pantalla.
 
+import { esCancelado } from "./cancelacion-core";
 import { ETAPAS, leerNumero, redondear } from "./core";
 import { claveFoto, costoTotalItem, ventaTotalItem, type CuotaLeida, type FotoItem, type LineaCashflow } from "./gestion-core";
 
@@ -13,10 +14,21 @@ export const PERDIDO_NO_COBRA = "Este proyecto está perdido: no se le registran
 /**
  * Qué se mueve en un proyecto perdido, igual en la pantalla y en el servidor: un cobro no (no debe nada, pregunta 2 = A);
  * un pago a proveedor sí, marcar su cuota o cargarlo a mano, sin reabrir: es plata que se debe igual. Decisión 2 = A del
- * veredicto MIA-094, PROVISIONAL A CONFIRMAR POR EL DUEÑO (B: esconder el botón y exigir reabrir). Falla cerrada: sólo PAGO
- * pasa; un tipo desconocido no (la columna es un String sin CHECK; observación del par revisor de MIA-099).
+ * veredicto MIA-094, confirmada por el dueño el 20/11 (MIA-224). Falla cerrada: sólo PAGO pasa; un tipo desconocido no (la
+ * columna es un String sin CHECK; observación del par revisor de MIA-099).
  */
 export const perdidoAdmite = (tipo: string): boolean => tipo === "PAGO";
+
+/**
+ * Las cuotas del plan que siguen corriendo según cómo salió el proyecto. Vivo: todas. Perdido: sólo las de pago a proveedor
+ * (decisión 2 del dueño, 20/11, MIA-224: «queda en el proyecto trazado y queda en deuda a ese proveedor»), las mismas
+ * claves, así que reabrir no las duplica. Cancelado: ninguna (C-O04: Dirección resuelve a mano lo que queda). PURA.
+ */
+export function planQueSigue<T extends { tipo: string }>(plan: readonly T[], p: { perdidoEl: Date | null; motivoPerdida: string | null }): T[] {
+  if (!p.perdidoEl) return [...plan];
+  if (esCancelado(p.motivoPerdida)) return [];
+  return plan.filter((c) => perdidoAdmite(c.tipo));
+}
 
 /**
  * Una cuota sin marcar de un proyecto perdido que la regla de arriba no admite (un cobro): no se cobra y no está pendiente
@@ -282,11 +294,12 @@ export function cambioVisible(c: { entidad: string; campo: string }, permisos: {
 
 /**
  * «Avance de cobro» del Estado financiero de la ficha, 0 a 100: lo cobrado sobre lo cobrado más lo que falta cobrar.
- * Un perdido no tiene avance (null, no se muestra): no le falta nada y un «100 %» diría que se cobró la venta. Decisión
- * 3 = A del veredicto MIA-094, PROVISIONAL A CONFIRMAR POR EL DUEÑO (B: lo cobrado contra la venta original).
+ * Un perdido no le falta nada y un «100 %» diría que se cobró la venta: su avance es lo cobrado contra la venta original
+ * (decisión 3 = B del dueño, 20/11, MIA-224, PROVISIONAL A CONFIRMAR CON ALE). Sin venta original (perdido sin versión
+ * aprobada), null: no se muestra.
  */
-export function avanceDeCobro(f: { cobrado: number; aCobrar: number } | null | undefined, perdido: boolean): number | null {
-  if (perdido) return null;
+export function avanceDeCobro(f: { cobrado: number; aCobrar: number; ventaOriginal?: number | null } | null | undefined, perdido: boolean): number | null {
+  if (perdido) return f?.ventaOriginal && f.ventaOriginal > 0 ? (f.cobrado / f.ventaOriginal) * 100 : null;
   return f && f.cobrado + f.aCobrar > 0 ? (f.cobrado / (f.cobrado + f.aCobrar)) * 100 : 0;
 }
 

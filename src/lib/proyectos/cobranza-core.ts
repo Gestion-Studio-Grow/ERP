@@ -124,6 +124,8 @@ export interface Cobranza {
   sueltos: number;
   /** Lo cobrado por cada cuota marcada, por id de cuota (sólo si hay alguno). */
   deCuotas?: Readonly<Record<string, CobroDeCuota>>;
+  /** Sólo en un perdido: el total aprobado antes de perderlo, en pesos (contra eso se mide su avance, MIA-224 · D3). */
+  ventaOriginal?: number;
 }
 
 /** Cobros sueltos y cobros por cuota de una lista de cobros registrados; `hoyDe`: lo que vale cada uno en H. PURA. */
@@ -192,11 +194,12 @@ export function cobranzaEnMoneda(totalEnPesos: number, cobros: readonly CobroReg
  * La cobranza de un proyecto PERDIDO (pregunta 2 = A, provisional a confirmar por el dueño): no se le debe nada y lo
  * cobrado sigue cobrado. El total baja a lo cobrado, así `total − cobrado = saldo` sigue valiendo y ninguna pantalla
  * (ficha, Finanzas, Rentabilidad, clientes) muestra un saldo que no se cobra. Un saldo a favor del cliente (se cobró de
- * más) se conserva: devolverlo es otra operación. Idea del WIP de MIA-089, tomada por MIA-094. PURA.
+ * más) se conserva: devolverlo es otra operación. Idea del WIP de MIA-089, tomada por MIA-094. La venta de antes queda en
+ * `ventaOriginal`, para medir el avance de cobro (decisión 3 = B, MIA-224). PURA.
  */
 export function cobranzaDePerdido(c: Cobranza): Cobranza {
   const conMoneda = c.enMoneda && { enMoneda: { ...c.enMoneda, total: Math.min(c.enMoneda.total, c.enMoneda.cobrado), saldo: Math.min(0, c.enMoneda.saldo) } };
-  return { ...c, total: Math.min(c.total, c.cobrado), saldo: Math.min(0, c.saldo), porCobrar: 0, ...conMoneda };
+  return { ...c, total: Math.min(c.total, c.cobrado), saldo: Math.min(0, c.saldo), porCobrar: 0, ventaOriginal: c.total, ...conMoneda };
 }
 
 /**

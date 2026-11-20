@@ -4,6 +4,7 @@
 //
 //  V1  ir y volver de etapa no toca una cuota que ya fue firme (vencimiento, monto, estado) y «Cobros vencidos» no baja;
 //      con un cobro registrado no se vuelve antes de Confirmado (pregunta 1 = A, provisional a confirmar por el dueño).
+//      Volver a Lead quita la aprobación (D4 del dueño, MIA-224): la vuelta a Confirmado es la re-aprobación del cliente.
 //  V2  perdido: no queda nada por cobrar en ninguna pantalla (pregunta 2 = A) y el servidor no cobra ni marca.
 //  V3  reabrir, también soltando la tarjeta en otra columna, vuelve a la etapa que tenía (pregunta 3 = A) con sus cuotas.
 //  V4  carreras con dos conexiones, en los dos órdenes, detrás del candado de la cobranza.
@@ -140,10 +141,11 @@ async function preparar(t: import("node:test").TestContext) {
   return { base, duenio, a, acciones, ficha, empresa, gestion, form, enSesion, proyecto, anticipo, foto, etapa, mover, marcar, cobrar, porCobrar, administracion, rentabilidad, direccion, cashflowProveedores, claveCobranza };
 }
 
-test("V1 · Confirmado → Lead → Confirmado sin cobros: la seña firme y vencida (26/10) conserva vencimiento, monto y estado, y «Cobros vencidos» no baja", async (t) => {
+test("V1 · Confirmado → Lead → el cliente vuelve a aprobar, sin cobros: la seña firme y vencida (26/10) conserva vencimiento, monto y estado, y «Cobros vencidos» no baja", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const id = await p.proyecto();
+  const version = await p.duenio.proyectoPresupuesto.findFirstOrThrow({ where: { proyectoId: id }, select: { id: true } });
   const s = await p.anticipo(id);
   await p.duenio.proyectoCuota.update({ where: { id: s.id }, data: { venceEl: VENCIO } });
   const antes = await p.foto(id);
@@ -152,7 +154,9 @@ test("V1 · Confirmado → Lead → Confirmado sin cobros: la seña firme y venc
   const enLead = await p.anticipo(id);
   assert.equal(enLead.venceEl.toISOString(), VENCIO.toISOString(), "en Lead la seña firme no cambia de fecha");
   assert.equal(enLead.prevista, false, "en Lead la seña que ya fue firme sigue firme");
-  assert.equal((await p.mover(id, "APROBADO")).ok, true);
+  // MIA-224 · D4: en Lead la versión perdió la aprobación; vuelve a Confirmado cuando el cliente la aprueba de nuevo.
+  assert.equal((await p.enSesion(() => p.ficha.registrarRespuesta(p.form({ id: version.id, respuesta: "APROBADO", nombre: "Cliente" })))).ok, true);
+  assert.equal((await p.etapa(id)).etapa, "APROBADO", "aprobar devuelve el proyecto a Confirmado");
   assert.equal(await p.foto(id), antes, "ida y vuelta: las cuotas quedan como estaban");
   const despues = (await p.administracion()).resumen;
   assert.equal(despues.cobrosVencidos, vencidosAntes.cobrosVencidos, "«Cobros vencidos» (monto) no baja sin cobrar");
@@ -466,7 +470,7 @@ test("N8b (MIA-094) · un gasto a mano sin pagar del proveedor que ya tiene una 
 
 // ── GSG-MIA-099 · cierre del NO CUMPLE de MIA-094 (veredicto `00-ESTADO/certificacion/GSG-MIA-094.md`, «Qué falta» 1-5) ──
 
-test("T (MIA-099) · igualdad Rentabilidad = Dirección con un perdido confirmado: «Vendido» = «Facturación» y «Ganancia presupuestada» = «Margen» (decisión 1 = A, provisional a confirmar por el dueño)", async (t) => {
+test("T (MIA-099) · igualdad Rentabilidad = Dirección con un perdido confirmado: «Vendido» = «Facturación» y «Ganancia presupuestada» = «Margen» (decisión 1 = A, la decidió el dueño el 20/11 · MIA-224)", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { totalesDeRentabilidad } = await import("./empresa-core");
