@@ -1,8 +1,9 @@
 // MIA T07 (GSG-MIA-149) — Postgres real, la app como `app_rls` (sin BYPASSRLS), Server Actions reales. Caso Z del plan § 2.1.
 //
 // C-O14: total a mano; menor que el subtotal → rechazo con cero cambios; sobre el tope → se guarda y el envío espera a Dirección.
+// MIA-246: Producción no carga el precio ni el reparto (es la venta; ve sólo los costos); quien edita sin ser Dirección es Comercial.
 // C-O15: fuera del rango (sin margen, § 3) espera a Dirección; con rango abierto, dentro del rango se aplica; con el cliente
-//        aprobado, sólo Dirección y con motivo (Producción y Comercial, rechazados).
+//        aprobado, sólo Dirección y con motivo (Comercial, rechazado).
 // C-O16: el plan de cobro y el tope salen del total congelado (× IVA), no de los ítems; cambiar ítems, % o el margen general
 //        no los mueve. El cobro que pasa el tope se rechaza, también con N a la vez, en los tres caminos que cobran:
 //        «Registrar cobro», «Marcar cobrado» y la cuota de cobro a mano. El doble envío y el reintento se prueban en
@@ -51,9 +52,12 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
     assert.equal(r.tipo, "respuesta", JSON.stringify(r));
     return (r as { valor: R }).valor;
   };
-  /** Dirección = la dueña (sin ficha); Producción = la recepcionista con ficha de Producción (edita cotizaciones y ve costos). */
+  /** Dirección = la dueña (sin ficha). La recepcionista empieza con ficha de Producción y pasa a Comercial: desde MIA-246 el
+   *  precio por total es la venta y Producción ve sólo los costos (orden del dueño del 20/11, BRIEF-MIA-246.md:7 y :9),
+   *  así que quien carga el precio sin ser Dirección es Comercial (edita cotizaciones, ve la venta y los costos de su cartera). */
   const direccion = (fn: () => Promise<R>) => en(a, "duenia", fn);
   const produccion = (fn: () => Promise<R>) => en(a, "recepcion", fn);
+  const comercial = produccion;
   type Tx = Parameters<Parameters<typeof duenio.$transaction>[0]>[0];
   const enA = <T>(fn: (tx: Tx) => Promise<T>): Promise<T> =>
     duenio.$transaction(async (tx) => {
@@ -73,15 +77,23 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   const enviar = () => direccion(() => ficha.enviarCotizacion(form({ id: v1.id })));
   const aprobarInterno = async () => assert.equal((await direccion(() => ficha.aprobarInterno(form({ id: v1.id })))).ok, true);
 
+  // ── MIA-246: Producción no carga el precio por total (es la venta); el rechazo no escribe. Después, la ficha pasa a Comercial ──
+  for (const intento of [() => guardar({ total: "1.490.000" }), () => precio.guardarReparto(form({ proyectoId: p.id, [`reparto.DEFENSA.${eqProd.id}`]: "20", "reparto.DEFENSA.EMPRESA": "80" }))]) {
+    assert.equal((await produccion(intento)).error, "El precio por total es la venta: tu puesto ve sólo los costos.");
+  }
+  assert.equal(await fila(), null, "el rechazo a Producción no escribe el precio");
+  assert.equal(await enA((tx) => tx.proyectoEquipoReparto.count({ where: { proyectoId: p.id } })), 0, "ni el reparto");
+  await duenio.proyectoPersona.update({ where: { id: prod.id }, data: { rol: "COMERCIAL" } });
+
   // ── C-O14 · Z-mín: menor que el subtotal → rechazo y cero cambios ──
-  const zmin = await produccion(() => guardar({ total: "1.400.000" }));
+  const zmin = await comercial(() => guardar({ total: "1.400.000" }));
   assert.equal(zmin.ok, false);
   assert.match(zmin.error ?? "", /menor que el subtotal/);
   assert.equal(await fila(), null, "el rechazo no escribe nada");
   assert.equal(await enA((tx) => tx.proyectoCambio.count({ where: { tenantId: a.id, entidad: "ProyectoPrecio" } })), 0);
 
   // ── C-O14 · Z-tope: 7 % > 5 % → se guarda, el envío espera a Dirección ──
-  const ztope = await produccion(() => guardar({ total: "1.532.258,06" }));
+  const ztope = await comercial(() => guardar({ total: "1.532.258,06" }));
   assert.equal(ztope.ok, true, ztope.error);
   assert.match(ztope.listo ?? "", /Dirección/);
   const f1 = await fila();
@@ -92,7 +104,7 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   const aprobo = await direccion(() => precio.aprobarPrecio(form({ proyectoId: p.id })));
   assert.equal(aprobo.ok, true, aprobo.error);
   assert.equal((await fila())?.topeAprobadoCentavos, BigInt(10725806));
-  assert.equal((await produccion(() => precio.aprobarPrecio(form({ proyectoId: p.id })))).error, "Esto lo aprueba Dirección.");
+  assert.equal((await comercial(() => precio.aprobarPrecio(form({ proyectoId: p.id })))).error, "Esto lo aprueba Dirección.");
   // Aprobado el redondeo, frena la función que cobra y no tiene a nadie (O50).
   assert.match((await enviar()).error ?? "", /Falta asignar a alguien del equipo en: Comercial/);
   assert.equal((await direccion(() => ficha.asignarEquipo(form({ proyectoId: p.id, personaId: com.id, funcion: "Comercial a mano" })))).error, "Elegí una función del negocio.", "R8: la función sale del catálogo");
@@ -100,13 +112,13 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   const eqCom = await duenio.proyectoEquipo.findFirstOrThrow({ where: { proyectoId: p.id, personaId: com.id }, select: { id: true } });
 
   // ── El total de Z: 1.490.000 (4,36 % ≤ 5 %): no pide nada; un total nuevo pide aprobar los precios otra vez ──
-  const z = await produccion(() => guardar({ total: "1.490.000" }));
+  const z = await comercial(() => guardar({ total: "1.490.000" }));
   assert.equal(z.listo, "Listo: precio guardado.", z.error);
   assert.equal((await duenio.proyectoPresupuesto.findUniqueOrThrow({ where: { id: v1.id } })).aprobadoInternoEl, null);
   assert.equal((await fila())?.redondeoNetoCentavos, -BigInt(4225806));
 
   // ── C-O15: sin margen, cualquier cambio espera a Dirección; Dirección lo aplica directo ──
-  const fuera = await produccion(() => guardar({ total: "1.490.000", rentabilidad: "35" }));
+  const fuera = await comercial(() => guardar({ total: "1.490.000", rentabilidad: "35" }));
   assert.match(fuera.listo ?? "", /Rentabilidad\) esperan a Dirección/);
   const f2 = await fila();
   assert.equal((f2?.porcentajes as { rentabilidad: number }).rentabilidad, 30, "no se aplica");
@@ -118,14 +130,14 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   assert.equal((await fila())?.pendientes, null);
   // Con rango abierto (fila del negocio), dentro del rango se aplica sin esperar.
   await enA((tx) => tx.proyectoParametro.create({ data: { tenantId: a.id, clave: "precio.rentabilidad", valor: { valor: 30, min: 20, max: 40 }, provisional: true, actualizadoPor: a.duenia.id, actualizadoNombre: "Dirección" } }));
-  const dentro = await produccion(() => guardar({ total: "1.490.000", rentabilidad: "32" }));
+  const dentro = await comercial(() => guardar({ total: "1.490.000", rentabilidad: "32" }));
   assert.equal(dentro.listo, "Listo: precio guardado.", dentro.error);
   assert.equal(((await fila())?.porcentajes as { rentabilidad: number }).rentabilidad, 32);
-  assert.equal((await produccion(() => guardar({ total: "1.490.000", rentabilidad: "30" }))).ok, true);
+  assert.equal((await comercial(() => guardar({ total: "1.490.000", rentabilidad: "30" }))).ok, true);
   await enA((tx) => tx.proyectoParametro.deleteMany({ where: { tenantId: a.id, clave: "precio.rentabilidad" } }));
 
   // ── C-O50: reparto ──
-  const rep = (campos: Record<string, string>) => produccion(() => precio.guardarReparto(form({ proyectoId: p.id, ...campos })));
+  const rep = (campos: Record<string, string>) => comercial(() => precio.guardarReparto(form({ proyectoId: p.id, ...campos })));
   assert.match((await rep({ [`reparto.REDONDEO.${eqProd.id}`]: "5" })).error ?? "", /redondeo no se reparte/);
   assert.match((await rep({ [`reparto.DEFENSA.${eqProd.id}`]: "60", [`reparto.DEFENSA.${eqCom.id}`]: "50" })).error ?? "", /más de 100/);
   assert.match((await rep({ [`reparto.DEFENSA.${eqProd.id}`]: "20", "reparto.DEFENSA.EMPRESA": "70" })).error ?? "", /suman 90 %/);
@@ -140,16 +152,16 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   assert.equal((await rep({ [`reparto.DEFENSA.${eqProd.id}`]: "20", [`reparto.DEFENSA.${eqCom.id}`]: "5", "reparto.DEFENSA.EMPRESA": "75" })).ok, true);
   // Carrera del total: N guardados a la vez → una fila, con uno de los totales pedidos.
   const totales = Array.from({ length: N }, (_, i) => 1_490_000 + i);
-  const carreraTotal = await Promise.all(totales.map((x) => produccion(() => guardar({ total: String(x) }))));
+  const carreraTotal = await Promise.all(totales.map((x) => comercial(() => guardar({ total: String(x) }))));
   assert.ok(carreraTotal.every((r) => r.ok), JSON.stringify(carreraTotal));
   assert.equal(await enA((tx) => tx.proyectoPrecio.count({ where: { proyectoId: p.id } })), 1);
-  assert.equal((await produccion(() => guardar({ total: "1.490.000" }))).ok, true);
+  assert.equal((await comercial(() => guardar({ total: "1.490.000" }))).ok, true);
 
   // ── Envío: sale; enviada, el precio no cambia ──
   await aprobarInterno();
   const envio = await enviar();
   assert.equal(envio.ok, true, envio.error);
-  assert.match((await produccion(() => guardar({ total: "1.500.000" }))).error ?? "", /ya se envió/);
+  assert.match((await comercial(() => guardar({ total: "1.500.000" }))).error ?? "", /ya se envió/);
 
   // ── C-O18: N aprobaciones a la vez (la del link del cliente y la que carga el equipo) → una aprobada y UNA foto ──
   const aprobaciones = await Promise.all(
@@ -187,19 +199,21 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   await app.query("ROLLBACK");
 
   // ── C-O15 con el cliente aprobado: sólo Dirección y con motivo; el total no cambia ──
-  assert.match((await produccion(() => guardar({ total: "1.490.000", margenError: "4" }))).error ?? "", /sólo Dirección/);
+  assert.match((await comercial(() => guardar({ total: "1.490.000", margenError: "4" }))).error ?? "", /sólo Dirección/);
   assert.match((await direccion(() => guardar({ total: "1.490.000", margenError: "4" }))).error ?? "", /motivo/);
   assert.match((await direccion(() => guardar({ total: "1.500.000", motivo: "ajuste" }))).error ?? "", /no cambia/);
   const tres = await direccion(() => guardar({ total: "1.490.000", rentabilidad: "31", margenError: "4", iibGa: "8", motivo: "Ajuste de Dirección después de aprobar" }));
   assert.equal(tres.ok, true, tres.error);
-  // Comercial tampoco (vuelta MIA-155): la recepcionista pasa a Comercial. MIA-237: el productor comercial ve costos de
-  // fábrica (fijo, «ve costos tmb»), así que llega y se rechaza por la regla del aprobado. El rechazo no escribe.
-  await duenio.proyectoPersona.update({ where: { id: prod.id }, data: { rol: "COMERCIAL" } });
+  // Comercial tampoco (vuelta MIA-155), ni con motivo. MIA-237: el productor comercial ve costos de fábrica (fijo,
+  // «ve costos tmb»), así que llega y se rechaza por la regla del aprobado. El rechazo no escribe.
   const precioAntes = await fila();
-  const deComercial = () => produccion(() => guardar({ total: "1.490.000", rentabilidad: "33", motivo: "Lo pide Comercial" }));
+  const deComercial = () => comercial(() => guardar({ total: "1.490.000", rentabilidad: "33", motivo: "Lo pide Comercial" }));
   assert.match((await deComercial()).error ?? "", /sólo Dirección/);
   assert.deepEqual(await fila(), precioAntes, "el rechazo de Comercial no escribe");
+  // Producción, con el cliente aprobado, sigue afuera por la venta (MIA-246), antes que por la regla del aprobado.
   await duenio.proyectoPersona.update({ where: { id: prod.id }, data: { rol: "PRODUCCION" } });
+  assert.equal((await produccion(() => guardar({ total: "1.490.000", rentabilidad: "33", motivo: "Lo pide Producción" }))).error, "El precio por total es la venta: tu puesto ve sólo los costos.");
+  assert.deepEqual(await fila(), precioAntes, "el rechazo de Producción no escribe");
   // … y el equipo: sale Comercial (su reparto se va con él).
   assert.equal((await direccion(() => ficha.quitarEquipo(form({ proyectoId: p.id, id: eqCom.id })))).ok, true);
   const fotoDespues = await enA((tx) => tx.proyectoPrecioFoto.findUniqueOrThrow({ where: { id: foto.id } }));
