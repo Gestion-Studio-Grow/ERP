@@ -146,6 +146,14 @@ export function totalesFicha(items: readonly ItemFicha[], tc: Readonly<Record<st
   return { items: items.length, venta, costo, margen, margenPct: venta > 0 ? redondear((margen / venta) * 100) : 0, costoCargado };
 }
 
+/** MIA-199 · P3-2: con el total vendido congelado (pesos sin IVA), la venta es ésa y el margen sale de ella. PURA. */
+export function conVentaCongelada(t: TotalesFicha, congelado: number | null | undefined): TotalesFicha {
+  if (congelado == null) return t;
+  const venta = redondear(congelado);
+  const margen = redondear(venta - t.costo);
+  return { ...t, venta, margen, margenPct: venta > 0 ? redondear((margen / venta) * 100) : 0 };
+}
+
 // ── Cuotas: lo que la ficha genera sola ─────────────────────────────────────
 
 export interface CuotaPlaneada {

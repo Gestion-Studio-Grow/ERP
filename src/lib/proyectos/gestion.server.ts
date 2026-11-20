@@ -25,7 +25,7 @@ import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_
 import { adicionalesDelProyecto, detallesDeLineas, diasDelPlan } from "./presupuesto-m2.server";
 import { cuotasDeAdicionales } from "./presupuesto-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
-import { totalesCongelados } from "./precio-foto.server";
+import { totalAMano, totalesCongelados } from "./precio-foto.server";
 
 export interface Actor {
   user: SessionUser;
@@ -301,8 +301,9 @@ export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: 
         detallesDeLineas(tx, tenantId, items.map((i) => i.id)),
         adicionalesDelProyecto(tx, tenantId, proyectoId),
         diasDelPlan(tenantId),
-        // MIA T07 · O16: aprobada con foto, el cobro del cliente sale del total congelado.
-        viva.estado === "APROBADO" ? totalesCongelados(tx, tenantId, [viva.id]) : new Map<string, number>(),
+        // MIA T07 · O16: aprobada con foto, el cobro del cliente sale del total congelado. MIA-199: antes de aprobar, del
+        // total escrito a mano (precio por total), si lo hay; si no, de la suma de renglones.
+        viva.estado === "APROBADO" ? totalesCongelados(tx, tenantId, [viva.id]) : p?.moneda === "ARS" ? totalAMano(tx, tenantId, proyectoId, viva.id) : new Map<string, number>(),
       ]);
       const proveedores = [...new Set([...items.map((i) => i.supplierId), ...adicionales.flatMap((a) => a.lineas.map((l) => l.supplierId))].filter((s): s is string => !!s))];
       const fichas = await tx.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });

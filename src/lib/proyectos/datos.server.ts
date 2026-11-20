@@ -110,6 +110,8 @@ export async function fichaProyecto(id: string) {
     tiposDeCambio(tenantId),
   ]);
   const vigente = proyecto.presupuestos.find((p) => p.estado === "APROBADO") ?? null;
+  // MIA-199 · P5-2: el total vendido congelado (la foto) antes de calcular: la ganancia real sale de él, no de los renglones.
+  if (vigente) await anotarCongelados(prisma, tenantId, [{ presupuestos: [vigente] }]);
   const totalesVigente = vigente ? totalesEnPesos(vigente, tc, config.margenPct) : null;
   const real = (await costoRealDeProyectos(tenantId, [{ id: proyecto.id, t: totalesVigente, gastos: proyecto.gastos, cuotas: proyecto.cuotas }], tc)).get(proyecto.id)!;
   // El costo presupuestado por rubro, en pesos: así se compara contra los gastos.
@@ -118,7 +120,7 @@ export async function fichaProyecto(id: string) {
   const pagosVivos = proyecto.pagos.filter((x) => !x.anuladoEl);
   const delProyecto = { moneda: proyecto.moneda, perdidoEl: proyecto.perdidoEl, presupuestos: vigente ? [vigente] : [], pagos: pagosVivos };
   // MIA T06 · O11: los adicionales aprobados suman al total, igual que al tope del cobro.
-  const [originales, adicionales] = await Promise.all([originalesDeCobros(tenantId, [delProyecto]), topeDeAdicionalesPorProyecto(prisma, tenantId, [proyecto.id]), anotarCongelados(prisma, tenantId, [delProyecto])]);
+  const [originales, adicionales] = await Promise.all([originalesDeCobros(tenantId, [delProyecto]), topeDeAdicionalesPorProyecto(prisma, tenantId, [proyecto.id])]);
   const { total: totalAprobado, cobrado, saldo } = cobranzaDe(delProyecto, tc, config.margenPct, originales, adicionales.get(proyecto.id) ?? 0);
   return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo, totalesVigente, real, rubros, proveedores: proveedores.map((s) => s.name) };
 }

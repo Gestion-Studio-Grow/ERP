@@ -159,6 +159,32 @@ export async function aPagarPorComprobante(tenantId: string) {
   return [...porProveedor.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
+/**
+ * MIA-199 · P5-1: lo que se debe por comprobantes SIN cuotas (lo de los que tienen cuotas ya lo cuentan sus cuotas de
+ * pago), en pesos, total y por proveedor. Así «A PAGAR» de Administración y «Por pagar» de Proveedores no dan $ 0 con
+ * comprobantes impagos. Sin M1, cero.
+ */
+export async function aPagarSinCuotas(tenantId: string, db: Db = prisma): Promise<{ total: number; porProveedor: Map<string, number> }> {
+  const filas = await siHayM1(() =>
+    db.proyectoComprobante.findMany({
+      where: { tenantId, anuladoEl: null, cuotas: { none: {} } },
+      select: { id: true, moneda: true, supplierId: true, ...SELECT_SALDO, pagos: { select: { importeCentavos: true, cuotaId: true, orden: { select: { estado: true } } } } },
+    }),
+  );
+  const porProveedor = new Map<string, number>();
+  if (!filas) return { total: 0, porProveedor };
+  const cambios = await cambiosDeComprobantes(db, tenantId, filas);
+  let total = 0;
+  for (const c of filas) {
+    const debe = cuentasDe(c).porPagar;
+    if (!(debe > 0)) continue;
+    const enPesos = enPesosDelComprobante(debe, c.moneda, cambios.get(c.id));
+    total += enPesos;
+    porProveedor.set(c.supplierId, (porProveedor.get(c.supplierId) ?? 0) + enPesos / 100);
+  }
+  return { total: total / 100, porProveedor };
+}
+
 /** Lo imputado a cada proyecto, en pesos, para `resultadoReal` (O13). Sin M1, nada. */
 export async function imputadoDeProyectos(tenantId: string, proyectoIds: readonly string[], db: Db = prisma): Promise<Map<string, Imputado>> {
   const salida = new Map<string, Imputado>();

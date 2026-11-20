@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { tenantTransaction } from "@/lib/rls";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { sePuedeEditar } from "./core";
-import { avisar, exigirEditar, proyectoVisible, puede, registrarCambio, usuariosDeDireccion, type Actor } from "./gestion.server";
+import { avisar, exigirEditar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDeDireccion, type Actor } from "./gestion.server";
 import { hayBaseAprobada } from "./presupuesto-base.server";
 import { calcularTablero, decisionDelTotal, errorDePorcentajes, topeDelNegocio, validarReparto, type PorcentajesProyecto } from "./precio-proyecto-core";
 import { contextoDelPrecio, estadoDelPrecio, fueraDelNegocio, hayM3, hayM4, trabarPrecio, type ContextoPrecio, type EstadoPrecio } from "./precio-proyecto.server";
@@ -161,6 +161,8 @@ export async function guardarPrecio(formData: FormData): Promise<ResultadoPrecio
       if (esperaTope) return "Guardado. El redondeo pasa el tope: la propuesta no sale hasta que Dirección lo apruebe.";
       return "Listo: precio guardado.";
     }, { tenantId });
+    // MIA-199 · P3-1: las cuotas previstas del cliente salen del total nuevo (antes quedaban con la suma de renglones).
+    await regenerarCuotas(tenantId, proyectoId);
     revalidatePath(`${RAIZ}/${proyectoId}`);
     revalidatePath(`${RAIZ}/${proyectoId}/precio`);
     return { ok: true, listo: r };

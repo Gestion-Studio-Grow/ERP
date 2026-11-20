@@ -11,7 +11,7 @@ import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, red
 import { MEDIO_RETENCION } from "@/lib/proyectos/moneda-bancos-core";
 import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, perdidoAdmite, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
-import { cambiosEntreVersiones, cambioDeVenta, estadoCuota, margenParaMostrar, MONEDAS, totalesFicha } from "@/lib/proyectos/gestion-core";
+import { cambiosEntreVersiones, cambioDeVenta, conVentaCongelada, estadoCuota, margenParaMostrar, MONEDAS, totalesFicha } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { textoPagado } from "@/lib/proyectos/cobranza-core";
@@ -80,10 +80,11 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
         {versiones.length === 0 && <p className="text-sm text-muted">Todavía no hay versiones.</p>}
         <ul className="grid gap-3">
           {versiones.map((v, n) => {
-            const t = totalesFicha(v.items.map(aItemFicha), tc, recargo);
+            const t = conVentaCongelada(totalesFicha(v.items.map(aItemFicha), tc, recargo), v.congelado);
             // Lo enviado guarda su costo; las versiones anteriores a esa foto siguen calculándose al cambio de hoy.
             const fotoGuardada = esFoto(v.foto) && v.foto.every((i) => typeof i.costo === "number") ? v.foto : null;
-            const enviado = fotoGuardada ? margenDeFoto(fotoGuardada) : null;
+            // Con el total congelado, el margen es el de ese total (no el de los renglones de la foto de ítems).
+            const enviado = fotoGuardada && v.congelado == null ? margenDeFoto(fotoGuardada) : null;
             const editable = sePuedeEditar(v.estado);
             const cambio = cambioDeVenta(p.moneda, v.tcVenta, tc);
             const ruta = `/propuesta/${v.token}`;

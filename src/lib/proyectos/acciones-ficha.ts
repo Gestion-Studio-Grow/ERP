@@ -18,7 +18,10 @@ import { auditAdmin } from "@/lib/audit-core";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { Prisma } from "@/generated/prisma/client";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
-import { esEtapa, etapaAlAprobar, etapaLabel, MEDIOS, metodoDeCaja, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
+import { esEtapa, etapaAlAprobar, etapaLabel, MEDIO_LABEL, MEDIOS, metodoDeCaja, pesos, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
+
+/** MIA-199 · P4-2: un cobro sin clave igual a otro de la misma cuota dentro de esta ventana es el mismo pedido repetido. */
+const VENTANA_COBRO_IGUAL_MS = 2 * 60_000;
 import { configProyectos } from "./datos.server";
 import { cobranzaConCuotas, envioYaGrabado, estaPerdido, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
 import { claveDeEnvio } from "./pago-columnas";
@@ -35,7 +38,7 @@ import { evaluarPase, textoDelPase, type Pase } from "./compuertas-core";
 import { parametrosDelNegocio, valorDelNegocio } from "./parametros/leer.server";
 import { aCentavos, leerRetenciones, MEDIO_RETENCION, notaDeRetencion, repartoDelCobro, type RetencionLeida } from "./moneda-bancos-core";
 import { anularRetencionesDelCobroTx, guardarFotoTx, hayM8, revertirCuentaTx } from "./moneda-bancos.server";
-import { GASTO_EN_RENDICION, SIN_COMPROBANTES, faltaLaMigracion } from "./rendiciones-core";
+import { GASTO_EN_RENDICION, SIN_COMPROBANTES, esClaveRepetida, faltaLaMigracion } from "./rendiciones-core";
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { EnlaceDeArreglo, ModuloGestion } from "./gestion-core";
@@ -999,13 +1002,20 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const cuenta = await cuentaParaCuota(tenantId, formData, { tipo: c.tipo, monto: cobra, moneda: c.moneda, importeEnPesos: importe });
   if (typeof cuenta === "string") return mal(cuenta);
   let faltaAhora = pendiente;
-  const ganada = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<boolean | "cambio" | "tope" | "repetido" | "perdido" | "enlazada"> => {
+  // MIA-199 · P4-2: la clave del envío también va a `ProyectoPago.claveEnvio` (índice único por negocio): dos pedidos
+  // iguales no graban dos cobros aunque fallara el candado. Sin esa migración (Gate 2), se graba como antes.
+  const claveCobro = esCobro && envio ? `cuota:${envio}`.slice(0, 80) : null;
+  const grabarCuota = (conClave: boolean) => transaccionQueAsienta(async (tx): Promise<boolean | "cambio" | "tope" | "repetido" | "perdido" | "enlazada" | "parecido"> => {
     // En fila con los otros cobros y pagos del proyecto (y sus anulaciones), y el pendiente leído de nuevo ADENTRO: si
     // entró o se anuló algo mientras tanto, se asentaría otro importe. Si cambió, no se graba nada (la cuenta y el importe
     // salieron del de afuera).
     await trabarCobranza(tx, tenantId, proyectoId);
     if (envio && (await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: esCobro ? "ProyectoPago" : "ProyectoGasto", campo: "Envío", antes: envio }, select: { id: true } }))) return "repetido";
-    if (!perdidoAdmite(c.tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido"; // MIA-089 · V2: un perdido no marca cuotas de cobro; una de pago a proveedor sí (decisión 2 = A, provisional a confirmar por el dueño). En fila con «Marcar perdido».
+    if (!perdidoAdmite(c.tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido";
+    // MIA-199 · P4-2: un pedido directo SIN clave (la pantalla siempre la manda) igual a un cobro de esta cuota que
+    // acaba de entrar (mismo importe y medio, vivo) no se graba: es el mismo pedido repetido. Con clave nueva (el
+    // formulario recargado), otro cobro igual de verdad entra. Ventana de 2 minutos (provisional a confirmar).
+    if (esCobro && !envio && (await tx.proyectoPago.findFirst({ where: { tenantId, proyectoId, anuladoEl: null, medio, nota: c.concepto.slice(0, 200), monto: { gte: importe - 0.005, lte: importe + 0.005 }, createdAt: { gte: new Date(Date.now() - VENTANA_COBRO_IGUAL_MS) } }, select: { id: true } }))) return "parecido"; // MIA-089 · V2: un perdido no marca cuotas de cobro; una de pago a proveedor sí (decisión 2 = A, provisional a confirmar por el dueño). En fila con «Marcar perdido».
     const ahora = esCobro ? await pendienteDeLaCuota(tenantId, proyectoId, id, tc, margenPct, tx) : { pendiente: await pendienteDelPago(tenantId, c, tc, tx), cob: null };
     if (ahora === null) return false;
     faltaAhora = ahora.pendiente;
@@ -1031,7 +1041,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     const base = { tenantId, sessionId: session?.id ?? null, method, amount: importe };
     let asiento: string;
     if (esCobro) {
-      const pago = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto: importe, nota: c.concepto.slice(0, 200), cobradoPor: a.nombre }, select: { id: true } });
+      const pago = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto: importe, nota: c.concepto.slice(0, 200), cobradoPor: a.nombre, ...(conClave && claveCobro && { claveEnvio: claveCobro }) }, select: { id: true } });
       asiento = pago.id;
       await asentarEnCajaTx(tx, "cobro", { ...base, type: "VENTA", reason: `${etiqueta}${parcial !== null ? " · parte" : ""}${cheque}`, proyectoPagoId: pago.id, createdBy: a.user.name });
       await guardarFotoTx(tx, tenantId, { origenTipo: "COBRO", origenId: pago.id, foto: { moneda: c.moneda, originalCentavos: aCentavos(cobra), cambioCentavos: cambioUsado, pesosCentavos: aCentavos(importe) }, cambioDia: null });
@@ -1075,9 +1085,19 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     }
     await avisar(tx, { tenantId, destinatarios: destinatarios2, tipo: esCobro ? "cobro" : "pago", texto: `${parcial !== null ? (esCobro ? "Se cobró una parte" : "Se pagó una parte") : esCobro ? "Se cobró" : "Se pagó"}: ${c.concepto}`, enlace: `${RAIZ}/${proyectoId}?tab=finanzas` });
     return true;
-  }));
+  });
+  const ganada = await oPeriodoCerrado(async () => {
+    try {
+      return await grabarCuota(true);
+    } catch (e) {
+      // Clave repetida en el índice: la grabó el otro pedido; la vuelta siguiente encuentra su «Envío» y da «repetido».
+      if (!claveCobro || !(faltaLaMigracion(e) || esClaveRepetida(e))) throw e;
+      return grabarCuota(!faltaLaMigracion(e));
+    }
+  });
   // O40: con el día de caja cerrado (o el mes congelado) no se asienta nada y se dice qué hacer.
   if (ganada instanceof PeriodoCerradoError) return mal(ganada.message);
+  if (ganada === "parecido") return mal(`Hace instantes entró un cobro igual de esta cuota (${pesos(importe)} por ${MEDIO_LABEL[medio as MedioPago] ?? medio}). No se grabó otra vez: si es otro cobro, recargá la página y cargalo de nuevo.`);
   // Perder contra otro cobro o contra una anulación: el cartel dice cuál y cuánto falta ahora.
   if (ganada === "cambio") return mal(avisoSaldoCambio(pendiente, faltaAhora, c.moneda, esCobro));
   if (ganada === "tope") return mal(avisoTopeMarcar(importe, leido.cob));

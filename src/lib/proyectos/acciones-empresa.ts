@@ -31,7 +31,7 @@ import { CUOTA_ENLAZADA, listoMarcada } from "./avisos-cuota";
 import { siHayM1, tomarCuotas } from "./comprobantes.server";
 import { randomUUID } from "node:crypto";
 import { aCentavos, esDiaValido, esOrigenConciliable, esTramo, huellasDelExtracto, MEDIO_RETENCION, signoDelOrigen, TRAMO_LABEL, type OrigenConciliable } from "./moneda-bancos-core";
-import { hayM6, hayM8, hoyArgentina, moverCuentaTx } from "./moneda-bancos.server";
+import { cuentasConMovimientos, hayM6, hayM8, hoyArgentina, moverCuentaTx } from "./moneda-bancos.server";
 import { valorDelNegocio } from "./parametros/leer.server";
 import { hayM5, lineasParaLaMensual, proyectosConReparto, reclamarAjustesTx, reclamarLineasDeProyectoTx, soltarDeLaMensualTx } from "./liquidacion-proyecto.server";
 
@@ -277,6 +277,8 @@ export async function guardarSaldo(formData: FormData): Promise<Resultado> {
   const id = txt(formData.get("id"));
   const c = await prisma.proyectoCuentaBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { saldo: true } });
   if (!c) return { ok: false, error: "Esa cuenta no existe." };
+  // MIA-199 (P4-3): con movimientos, el saldo es la suma de ellos; escribirlo a mano los pisaría.
+  if ((await cuentasConMovimientos(prisma, a.tenantId)).has(id)) return { ok: false, error: "Esta cuenta ya tiene cobros o pagos: su saldo sale de ellos y no se escribe a mano." };
   const saldo = redondear(numero(formData.get("saldo")));
   await prisma.proyectoCuentaBanco.updateMany({ where: { id, tenantId: a.tenantId }, data: { saldo } });
   await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "cuenta", entidadId: id, campo: "saldo", antes: c.saldo, despues: saldo, autor: a.nombre });

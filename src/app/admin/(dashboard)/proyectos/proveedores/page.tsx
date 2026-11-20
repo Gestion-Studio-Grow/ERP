@@ -25,7 +25,7 @@ export default async function ProveedoresDeProyectos({ searchParams }: { searchP
   const rubro = (RUBROS as readonly string[]).includes(sp.rubro ?? "") ? sp.rubro! : "";
   const q = (sp.q ?? "").slice(0, 100);
   const bajas = sp.bajas === "1";
-  const { proveedores, pendientes, porPagar, porPagarCuotas, verPlata } = await listaDeProveedores(a, { rubro, q, bajas });
+  const { proveedores, pendientes, porPagar, porPagarCuotas, porPagarComprobantes, verPlata } = await listaDeProveedores(a, { rubro, q, bajas });
   const edita = puede(a, "proveedores", "editar");
   const paga = verPlata && puede(a, "pagos", "editar") && veLaPlata(a.user);
 
@@ -96,8 +96,8 @@ export default async function ProveedoresDeProyectos({ searchParams }: { searchP
       {verPlata && (
         <section id="por-pagar" className={tarjeta} aria-label="Por pagar">
           <h2 className="mb-1 font-semibold text-strong">Por pagar</h2>
-          <p className="text-xl font-bold text-strong">{pesos(porPagar + porPagarCuotas)}</p>
-          <p className="mb-3 text-xs text-muted">Gastos cargados {pesos(porPagar)} · Cuotas de las fichas de estos proveedores {pesos(porPagarCuotas)}</p>
+          <p className="text-xl font-bold text-strong">{pesos(porPagar + porPagarCuotas + porPagarComprobantes)}</p>
+          <p className="mb-3 text-xs text-muted">Gastos cargados {pesos(porPagar)} · Cuotas de las fichas de estos proveedores {pesos(porPagarCuotas)} · Comprobantes sin cuotas {pesos(porPagarComprobantes)}</p>
           {pendientes.length === 0 ? (
             <p className="text-sm text-muted">No hay gastos por pagar.</p>
           ) : (

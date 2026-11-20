@@ -245,3 +245,26 @@ export async function facturasParaEnlazar(tenantId: string, db: Db = prisma): Pr
   const pv = (n: number) => String(n).padStart(4, "0");
   return filas.map((f) => ({ id: f.id, texto: `${pv(f.puntoVenta)}-${f.numero != null ? String(f.numero).padStart(8, "0") : "sin número"} · $ ${Number(f.total).toLocaleString("es-AR", { maximumFractionDigits: 2 })}${f.fecha ? ` · ${f.fecha.slice(6, 8)}/${f.fecha.slice(4, 6)}/${f.fecha.slice(0, 4)}` : ""}` }));
 }
+
+/**
+ * MIA-199 · P6: las cuentas para elegir al pagar una orden y la cuenta que movió esta orden (si ya se pagó). Sin M8: no
+ * hay cuentas que elegir (el pago va sólo al libro, como antes).
+ */
+export async function cuentasDeLaOrden(db: Db, tenantId: string, ordenId: string): Promise<{ cuentas: { id: string; nombre: string; moneda: string }[]; movida: string | null }> {
+  if (!(await hayM8(db))) return { cuentas: [], movida: null };
+  const [cuentas, mov] = await Promise.all([
+    db.proyectoCuentaBanco.findMany({ where: { tenantId }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, moneda: true } }),
+    db.proyectoMovCuenta.findFirst({ where: { tenantId, origenTipo: "ORDEN_PAGO", origenId: ordenId, anuladoEl: null }, select: { cuentaId: true } }),
+  ]);
+  return { cuentas, movida: mov ? (cuentas.find((c) => c.id === mov.cuentaId)?.nombre ?? null) : null };
+}
+
+/** MIA-199 (P4-3): las cuentas cuyo saldo ya movió el sistema (un cobro o un pago con cuenta). Su saldo sale de esos
+ *  movimientos: escribirlo a mano los pisaría. Sin M8 cuenta sólo las cuotas marcadas con cuenta. */
+export async function cuentasConMovimientos(db: Db, tenantId: string): Promise<Set<string>> {
+  const [movs, cuotas] = await Promise.all([
+    (await hayM8(db)) ? db.proyectoMovCuenta.groupBy({ by: ["cuentaId"], where: { tenantId } }) : [],
+    db.proyectoCuota.groupBy({ by: ["cuentaId"], where: { tenantId, cuentaId: { not: null } } }),
+  ]);
+  return new Set([...movs.map((m) => m.cuentaId), ...cuotas.flatMap((c) => (c.cuentaId ? [c.cuentaId] : []))]);
+}

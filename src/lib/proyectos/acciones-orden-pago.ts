@@ -23,7 +23,7 @@ import { asentarEnCajaTx, rechazoDePeriodo, transaccionQueAsienta } from "./peri
 import { marcaDeGastoProyecto } from "./marcas";
 import { esClaveRepetida } from "./rendiciones-core";
 import { claveDeEnvio } from "./pago-columnas";
-import { errorDeAprobacion, errorDeOrden, numeroDeOrden, SERIE_ORDEN_PAGO, type ComprobanteParaOrden, type LineaDeOrden } from "./orden-pago-core";
+import { avisoDeOrdenCreada, errorDeAprobacion, errorDelPago, errorDeOrden, numeroDeOrden, SERIE_ORDEN_PAGO, type ComprobanteParaOrden, type LineaDeOrden } from "./orden-pago-core";
 import { SIN_M1, tomarCuotas } from "./comprobantes.server";
 import { centavosDelTexto } from "./comprobantes-core";
 import { fotoEnPesos, type FotoEnPesos } from "./moneda-bancos-core";
@@ -187,7 +187,7 @@ export async function crearOrdenDesdeForm(formData: FormData): Promise<Resultado
     claveEnvio: txt("claveEnvio") || undefined,
     lineas: [{ comprobanteId: txt("comprobanteId"), cuotaId: txt("cuotaId") || null, importeCentavos: centavosDelTexto(txt("importe")) }],
   });
-  return r.ok ? { ...r, listo: `${numeroDeOrden(r.numero)} creada: la aprueba y la paga otra persona de Administración.` } : r;
+  return r.ok ? { ...r, listo: avisoDeOrdenCreada(r.numero) } : r;
 }
 
 // ── Aprobar y pagar ─────────────────────────────────────────────────────────
@@ -219,9 +219,19 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
     const monedas = [...new Set(o.lineas.map((l) => l.comprobante.moneda))];
     if (monedas.length > 1) return { ok: false, error: "La orden mezcla comprobantes en monedas distintas: hacé una orden por moneda." };
     const monedaOrden = monedas[0] ?? "ARS";
+    // MIA-199 · P6: la cuenta de la que sale (fuera del efectivo, obligatoria si el negocio tiene cuentas) y el día del
+    // pago (vacío = hoy; no posterior a hoy). Antes la pantalla no mandaba cuenta: el libro bajaba y el banco no.
+    const cuentaId = String(formData.get("cuentaId") ?? "").trim();
+    const fecha = String(formData.get("fecha") ?? "").trim() || null;
+    const m8 = await hayM8();
+    const hayCuentas = m8 && (await prisma.proyectoCuentaBanco.count({ where: { tenantId } })) > 0;
+    const malPago = errorDelPago({ medio: o.medio, cuentaId: cuentaId || null, hayCuentas, fecha, hoy: hoyArgentina() });
+    if (malPago) return { ok: false, error: malPago };
+    const diaDelPago = fecha ?? hoyArgentina();
+    const pagadaEl = fecha ? new Date(`${fecha}T12:00:00-03:00`) : new Date();
     let fotoOrden: { foto: FotoEnPesos; cambioDia: string | null; diferenciaCentavos: number } = { foto: fotoEnPesos("ARS", n(o.totalCentavos) / 100, 100), cambioDia: null, diferenciaCentavos: 0 };
     if (monedaOrden !== "ARS") {
-      const cambio = await cambioDelMovimiento(prisma, tenantId, monedaOrden, hoyArgentina());
+      const cambio = await cambioDelMovimiento(prisma, tenantId, monedaOrden, diaDelPago);
       if (!cambio.ok) return { ok: false, error: cambio.error };
       const foto = fotoEnPesos(monedaOrden, n(o.totalCentavos) / 100, cambio.cambioCentavos);
       const cambios = await cambiosDeComprobantes(prisma, tenantId, o.lineas.map((l) => ({ id: l.comprobanteId, moneda: l.comprobante.moneda })));
@@ -229,8 +239,7 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
       fotoOrden = { foto, cambioDia: cambio.dia, diferenciaCentavos: foto.pesosCentavos - registrado };
     }
     // T08 · O38: la orden pagada por transferencia sale de una cuenta del negocio (una sola vez; vuelve al anular).
-    const cuentaId = String(formData.get("cuentaId") ?? "").trim();
-    if (cuentaId && !(await hayM8())) return { ok: false, error: "Para elegir la cuenta falta una actualización de la base. Pagala sin cuenta." };
+    if (cuentaId && !m8) return { ok: false, error: "Para elegir la cuenta falta una actualización de la base. Pagala sin cuenta." };
     if (cuentaId && !(await cuentaDelNegocio(prisma, tenantId, cuentaId))) return { ok: false, error: "Esa cuenta no existe." };
     const error = errorDeAprobacion(user.id, [...new Set(o.lineas.map((l) => l.comprobante.cargadoPorId))]);
     if (error) return { ok: false, error };
@@ -253,7 +262,7 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
       if ([...tomadas.values()].some((q) => q.pagado)) return { pagada: false, anulado: false, cuotaPagada: true, proyectos: [] as (string | null)[] };
       const u = await tx.proyectoOrdenPago.updateMany({
         where: { tenantId, id, estado: "PENDIENTE" },
-        data: { estado: "PAGADA", aprobadaPorId: user.id, aprobadaNombre: user.name, pagadaEl: new Date() },
+        data: { estado: "PAGADA", aprobadaPorId: user.id, aprobadaNombre: user.name, pagadaEl },
       });
       if (u.count === 0) return { pagada: false, anulado: false, cuotaPagada: false, proyectos: [] as (string | null)[] };
       const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
@@ -266,6 +275,7 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
         reason: `${numeroDeOrden(o.numero)} · ${o.supplier.name}${medio === "CHEQUE" ? " · Cheque" : ""}`,
         proyectoOrdenPagoId: id,
         createdBy: marcaDeOrden(id),
+        ...(fecha && { occurredAt: pagadaEl }),
       });
       await guardarFotoTx(tx, tenantId, { origenTipo: "ORDEN_PAGO", origenId: id, foto: fotoOrden.foto, cambioDia: fotoOrden.cambioDia, diferenciaCentavos: fotoOrden.diferenciaCentavos });
       if (cuentaId) await moverCuentaTx(tx, tenantId, { cuentaId, origenTipo: "ORDEN_PAGO", origenId: id, importeEnPesos: -fotoOrden.foto.pesosCentavos / 100 });

@@ -381,7 +381,9 @@ test("C-O31 · costo en US$ al cambio del comprobante; la diferencia del pago va
   const o = await p.enSesion(() => p.ordenes.crearOrdenPago({ supplierId: s, medio: "TRANSFERENCIA", lineas: [{ comprobanteId: cid, cuotaId: null, importeCentavos: 100000 }] }));
   p.ok(o);
   const oid = (o as { id: string }).id;
-  p.ok(await p.admin(() => p.ordenes.aprobarYPagarOrden(p.form({ id: oid }))));
+  // MIA-199 · P6: por transferencia, con cuentas en el negocio, el pago dice de cuál sale.
+  const banco = await p.cuenta(2_000_000);
+  p.ok(await p.admin(() => p.ordenes.aprobarYPagarOrden(p.form({ id: oid, cuentaId: banco }))));
   const egresos = await p.duenio.cashMovement.findMany({ where: { proyectoOrdenPagoId: oid }, select: { type: true, amount: true } });
   assert.deepEqual(egresos.map((e) => [e.type, Number(e.amount)]), [["EGRESO", 1_100_000]]);
   const dif = await p.enSesion(() => p.mb.diferenciasDeCambio(p.a.id));

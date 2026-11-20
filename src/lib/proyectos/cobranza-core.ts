@@ -64,12 +64,23 @@ export interface ItemVendible {
 export interface PresupuestoAprobado {
   ivaPct: number;
   items: readonly ItemVendible[];
+  /** MIA T07 · O16: el total vendido congelado en la foto de la aprobación, en pesos sin IVA (`anotarCongelados`). */
+  congelado?: number | null;
 }
 
-/** Costo, neto, IVA y ganancia del presupuesto, todo en pesos de hoy: un costo en dólares no se suma como si fueran pesos. PURA. */
+/**
+ * Costo, neto, IVA y ganancia del presupuesto, todo en pesos de hoy: un costo en dólares no se suma como si fueran pesos.
+ * MIA-199 · P3-2/P5-2: con el total vendido congelado, el neto es ése (lo que se le vendió al cliente), no la suma de los
+ * renglones; la ganancia es ese neto menos el costo. PURA.
+ */
 export function totalesEnPesos(aprobado: PresupuestoAprobado, tc: Readonly<Record<string, number>>, recargoGeneral: number): Totales {
   const enPesos = aprobado.items.map((i) => ({ cantidad: 1, costo: costoTotalItem(i, tc), precio: ventaTotalItem(i, tc, recargoGeneral) }));
-  return totales(enPesos, aprobado.ivaPct);
+  const t = totales(enPesos, aprobado.ivaPct);
+  if (aprobado.congelado == null) return t;
+  const neto = redondear(aprobado.congelado);
+  const iva = redondear((neto * aprobado.ivaPct) / 100);
+  const ganancia = redondear(neto - t.costo);
+  return { costo: t.costo, neto, iva, total: redondear(neto + iva), ganancia, margenPct: neto > 0 ? redondear((ganancia / neto) * 100) : 0 };
 }
 
 /** El total con IVA, en pesos, del presupuesto aprobado; 0 si no hay. Mismo cálculo que la caja «Cobros». PURA. */

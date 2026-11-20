@@ -69,7 +69,9 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
               <p className="text-sm text-muted">{c.nombre}</p>
               <p className="text-xl font-bold tabular-nums text-strong">{importe(c.saldo, c.moneda)}</p>
               <p className={cn("mb-2 text-sm", c.sinConciliar > 0 ? "text-strong" : "text-muted")}>{c.sinConciliar === 1 ? "1 sin conciliar" : `${c.sinConciliar} sin conciliar`}</p>
-              {editaEmpresa && (
+              {c.conMovimientos ? (
+                <p className="text-xs text-muted">El saldo sale de sus cobros y pagos: no se escribe a mano.</p>
+              ) : editaEmpresa && (
                 <FormAccion accion={guardarSaldo} boton="Guardar saldo" limpiar={false}>
                   <input type="hidden" name="id" value={c.id} />
                   <label className={etiqueta}>Saldo<input name="saldo" inputMode="decimal" defaultValue={String(c.saldo).replace(".", ",")} className={campo} /></label>

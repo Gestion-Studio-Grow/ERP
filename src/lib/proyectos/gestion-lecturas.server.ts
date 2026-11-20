@@ -20,6 +20,7 @@ import { faltaDelPago } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import type { ModuloGestion, RolGestion } from "./gestion-core";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
+import { aPagarSinCuotas } from "./comprobantes.server";
 import { obligacionesEntre, previstasEntre } from "./etapas-m7b.server";
 import { valorDelNegocio } from "./parametros/leer.server";
 
@@ -306,7 +307,7 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
   });
   const verPlata = puede(a, "pagos", "ver");
   const ids = proveedores.map((p) => p.id);
-  const [eventos, cuotas, gastos, tc] = await Promise.all([
+  const [eventos, cuotas, gastos, tc, sinCuotas] = await Promise.all([
     eventosPorProveedor(a, ids),
     verPlata ? prisma.proyectoCuota.findMany({ where: { tenantId, tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false, supplierId: { in: ids }, ...filtroCuotasVisibles(a) }, select: { id: true, tipo: true, supplierId: true, monto: true, moneda: true }, take: 5000 }) : [],
     verPlata
@@ -318,6 +319,8 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
         })
       : [],
     verPlata ? tiposDeCambio(tenantId) : ({} as Record<string, number>),
+    // MIA-199 (P5-1): los comprobantes cargados sin cuotas también se deben al proveedor.
+    verPlata ? aPagarSinCuotas(tenantId) : { total: 0, porProveedor: new Map<string, number>() },
   ]);
   const deuda = new Map<string, number>();
   const sumar = (id: string | null, monto: number) => {
@@ -328,11 +331,13 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
   const falta = (c: (typeof cuotas)[number]) => aPesos(faltaDelPago(c.monto, pagados.get(c.id) ?? 0), c.moneda, tc);
   for (const c of cuotas) sumar(c.supplierId, falta(c));
   for (const g of gastos) sumar(g.supplierId, g.neto + g.iva);
+  for (const [id, monto] of sinCuotas.porProveedor) sumar(id, monto);
   return {
     verPlata,
     pendientes: gastos,
     porPagar: redondear(gastos.reduce((s, g) => s + g.neto + g.iva, 0)),
     porPagarCuotas: redondear(cuotas.reduce((s, c) => s + falta(c), 0)),
+    porPagarComprobantes: redondear(sinCuotas.total),
     proveedores: proveedores.map((p) => ({ ...p, eventos: eventos.get(p.id) ?? 0, debe: deuda.get(p.id) ?? 0 })),
   };
 }

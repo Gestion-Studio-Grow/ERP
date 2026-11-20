@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
+import { MEDIO_LABEL, type MedioPago } from "./core";
 
 export const SERIE_ORDEN_PAGO = "orden-pago";
 export type EstadoOrden = "PENDIENTE" | "PAGADA" | "ANULADA";
@@ -66,4 +67,33 @@ export function errorDeOrden(supplierId: string, lineas: readonly LineaDeOrden[]
 export function errorDeAprobacion(aprobadorId: string, cargadores: readonly string[]): string | null {
   if (cargadores.includes(aprobadorId)) return "Cargaste un comprobante de esta orden: la aprueba y la paga otra persona de Administración.";
   return null;
+}
+
+// ── MIA-199 (veedor P1 «Aurora», paso 6) ────────────────────────────────────────────────────────────────────────────
+
+/** P6-1: el aviso al crear la orden dice la regla que el sistema aplica (`errorDeAprobacion`), no otra. PURA. */
+export const avisoDeOrdenCreada = (numero: number): string =>
+  `${numeroDeOrden(numero)} creada: la aprueba y la paga alguien de Administración que no haya cargado sus comprobantes.`;
+
+/**
+ * P6: lo que pide el pago de una orden. Por transferencia, cheque o Mercado Pago sale de una cuenta: si el negocio tiene
+ * cuentas cargadas, hay que elegirla (si no, el libro baja y la cuenta no). En efectivo sale de la caja. La fecha del
+ * pago es opcional (vacía = hoy), con formato AAAA-MM-DD y no posterior a hoy (en Argentina). PURA.
+ */
+export function errorDelPago(p: { medio: string; cuentaId: string | null; hayCuentas: boolean; fecha: string | null; hoy: string }): string | null {
+  if (p.medio !== "EFECTIVO" && p.hayCuentas && !p.cuentaId) return "Elegí la cuenta de la que sale el pago.";
+  if (p.fecha) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(p.fecha) || Number.isNaN(Date.parse(`${p.fecha}T00:00:00Z`))) return "La fecha del pago no se entiende: elegila en el calendario.";
+    if (p.fecha > p.hoy) return "La fecha del pago no puede ser posterior a hoy.";
+  }
+  return null;
+}
+
+/** P6: «caja» sólo si el pago es en efectivo; si no, la cuenta (la elegida o «la que elijas»). PURA. */
+export function textosDelPago(medio: string, cuenta: string | null): { sale: string; anular: string } {
+  if (medio === "EFECTIVO") return { sale: "Sale de la caja, en efectivo.", anular: "Anular la orden (vuelve la plata a la caja)" };
+  const etiqueta = MEDIO_LABEL[medio as MedioPago] ?? medio;
+  return cuenta
+    ? { sale: `Sale de la cuenta «${cuenta}», con ${etiqueta}.`, anular: `Anular la orden (vuelve la plata a «${cuenta}»)` }
+    : { sale: `Sale de la cuenta que elijas, con ${etiqueta}.`, anular: "Anular la orden (se revierte el pago)" };
 }

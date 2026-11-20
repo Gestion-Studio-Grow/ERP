@@ -7,6 +7,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { totalesCongelados } from "./precio-foto.server";
 import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaOEstimado, ventaTotalItem } from "./gestion-core";
 import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, versionDeLaPlata, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
@@ -200,11 +201,15 @@ export async function datosFicha(a: Actor, cab: Cabecera, vista: Vista) {
 }
 
 export async function datosCotizacion(a: Actor, proyectoId: string) {
-  return prisma.proyectoPresupuesto.findMany({
+  const versiones = await prisma.proyectoPresupuesto.findMany({
     where: { tenantId: a.tenantId, proyectoId },
     orderBy: { version: "desc" },
     include: { items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }] } },
   });
+  // MIA-199 · P3-2: cada versión con su total vendido congelado (foto de la aprobación), si lo tiene: el panel muestra
+  // ése como «Total sin IVA», el mismo que la propuesta y los cobros, no la suma de renglones.
+  const congelados = await totalesCongelados(prisma, a.tenantId, versiones.map((v) => v.id));
+  return versiones.map((v) => ({ ...v, congelado: congelados.get(v.id) ?? null }));
 }
 
 export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
@@ -214,7 +219,7 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
     prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId }, include: { supplier: { select: { name: true } } }, orderBy: { venceEl: "asc" } }),
     prisma.proyectoPago.findMany({ where: { tenantId, proyectoId }, orderBy: { createdAt: "desc" }, select: COLUMNAS_PAGO }),
     vista.costos ? prisma.proyectoGasto.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } }) : [],
-    prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { ivaPct: true, items: true } }),
+    prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { id: true, ivaPct: true, items: true } }),
     vista.editaPagos ? prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [],
     cobranzasDelNegocio(tenantId, cab.tc, cab.config.margenPct, [proyectoId]),
     // Los gastos que salieron de una cuota (su pago o una parte): esos no pueden estar contados dos veces.
@@ -236,7 +241,9 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const flujo = cashflowDelEvento(visibles, cab.tc, montoEnCashflow, crudo.suelto);
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
-  const totalesAprobada = aprobada ? totalesEnPesos(aprobada, cab.tc, cab.config.margenPct) : null;
+  // MIA-199 · P3-2/P5-2: con foto, «Ganancia real» y los totales salen del precio vendido sin IVA, no de los renglones.
+  const congelado = aprobada ? ((await totalesCongelados(prisma, tenantId, [aprobada.id])).get(aprobada.id) ?? null) : null;
+  const totalesAprobada = aprobada ? totalesEnPesos({ ...aprobada, congelado }, cab.tc, cab.config.margenPct) : null;
   // D6: lo que falta pagar por cuotas a proveedor también es costo (y deuda): si no, la ganancia real queda inflada. Cuota
   // por cuota con el rubro de su ítem, así la tabla por rubro suma lo mismo que la Diferencia.
   // O13 (MIA-50 T05): una cuota enlazada a un comprobante ya no es prevista: la cuenta su comprobante (imputado).

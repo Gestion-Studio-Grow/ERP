@@ -359,8 +359,9 @@ test("P4-2 · dos pedidos directos iguales con la misma clave (todo, con cuenta)
   const pagos = await p.duenio.proyectoPago.findMany({ where: { proyectoId: id }, select: { claveEnvio: true } });
   assert.equal(pagos.length, 1);
   assert.ok(pagos[0].claveEnvio, "la clave del envío queda en el cobro: el índice único la frena aunque falle el candado");
-  // El mismo envío una vez más, ya terminado el primero: sigue siendo uno.
-  assert.equal((await pedido()).ok, true);
+  // El mismo envío una vez más, ya terminado el primero (la cuota ya está cobrada): no asienta nada.
+  const tarde = await pedido();
+  assert.ok(tarde.ok || /ya estaba/.test(String((tarde as { error?: string }).error)), JSON.stringify(tarde));
   assert.deepEqual(await p.caja(id), { cobros: 1, cobrado: 605, caja: 605 });
   assert.equal(await p.saldoCuenta(banco), 605);
 });

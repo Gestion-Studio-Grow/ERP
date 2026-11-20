@@ -93,6 +93,8 @@ export async function guardarLineaDetalle(formData: FormData): Promise<Resultado
       d ? [d.sector, d.categoria, d.puestos ? `${d.puestos} puestos × ${d.horas} h × ${d.dias} días` : null].filter(Boolean).join(" · ") : null;
     await registrarCambio(tx, { tenantId: tId, proyectoId, entidad: "ProyectoItem", entidadId: itemId, campo: `Línea «${item.descripcion}»`, antes: resumen(antes), despues: resumen({ sector, categoria, ...personal }), autor: a.nombre });
   });
+  // MIA-199 · P1-1: puestos × horas × días cambia la cantidad: las cuotas previstas se ponen al día (antes quedaban viejas).
+  if (cantidad != null && cantidad !== item.cantidad) await regenerar(tId, proyectoId);
   refrescar(proyectoId);
   return { ok: true, listo: "Listo: guardaste la línea." };
 }
