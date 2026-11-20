@@ -77,7 +77,7 @@ import {
 } from "@/lib/caja/frontera-cierre";
 import { cierreMarker, CIERRE_DIARIO_ACTOR_PREFIX } from "@/lib/caja/cierre-marca";
 import { colaDelAvisoDeCierre, resumenCierre } from "@/lib/caja/cierre-resumen";
-import { CASH_METHODS, CASH_METHOD_LABEL, clasificarOrigen, libroOrigin, type LibroMovement, type OrigenContable } from "@/lib/caja/libro-caja";
+import { CASH_METHODS, CASH_METHOD_LABEL, clasificarOrigen, libroOrigin, motivoParaNoBorrar, type LibroMovement, type OrigenContable } from "@/lib/caja/libro-caja";
 import { movementSign, type CashMethod, type CashMovementType } from "@/lib/caja/cash-register";
 import { round2 } from "@/lib/round";
 import { tarjetaHabilitada } from "@/lib/caja-actions";
@@ -141,6 +141,8 @@ export type CierreDiarioData = {
     origenContable?: OrigenContable;
     /** La referencia de la fila del sistema (`clasificarOrigen`): p. ej. `voucher-pago:<id>` del pago de la administración. */
     referencia?: string;
+    /** MIA-211 · H4: se borra desde el libro (`motivoParaNoBorrar`). Lo que asentó Proyectos no dice «cargado a mano». */
+    borrable?: boolean;
   }[];
   yaCerrado: boolean;
   enElFuturo: boolean;
@@ -214,6 +216,9 @@ const NADA_DECLARADO: DeclaredAmounts = { EFECTIVO: null, MP: null, TARJETA: nul
 const SELECT_DEL_PERIODO = {
   id: true, occurredAt: true, createdAt: true, type: true, method: true,
   amount: true, reason: true, orderId: true, collectionId: true, createdBy: true, proyectoPagoId: true,
+  // MIA-211 · H4: lo que dice si la fila se borra desde el libro (`motivoParaNoBorrar`), para que el rótulo de lo que
+  // asentó Proyectos o el Taller no salga «cargado a mano».
+  tallerPagoId: true, proyectoGastoId: true, proyectoLiquidacionId: true, proyectoAnticipoId: true,
   // El ORIGEN del cobro, no sólo su id: es lo que separa un cobro de fiado de un
   // cobro de turno en el resumen del cierre (ver CierreMovement).
   collection: { select: { originType: true, method: true, orderId: true } },
@@ -232,6 +237,10 @@ type FilaDelPeriodo = {
   collectionId: string | null;
   createdBy: string | null;
   proyectoPagoId: string | null;
+  tallerPagoId: string | null;
+  proyectoGastoId: string | null;
+  proyectoLiquidacionId: string | null;
+  proyectoAnticipoId: string | null;
   collection: { originType: string; method: string; orderId: string | null } | null;
   order: { paymentMethod: string | null; total: number } | null;
 };
@@ -540,6 +549,7 @@ async function leerCierreDiario(
       ...(({ origen, referencia }) => ({ origenContable: origen, referencia }))(
         clasificarOrigen({ type: r.type as CashMovementType, createdBy: r.createdBy, orderId: r.orderId, collectionId: r.collectionId }),
       ),
+      borrable: motivoParaNoBorrar({ ...r, type: r.type as CashMovementType }) === null,
     })),
     yaCerrado: false,
     enElFuturo: compareDayKeys(day, today) > 0,
