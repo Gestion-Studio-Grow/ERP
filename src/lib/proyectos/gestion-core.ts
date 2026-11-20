@@ -218,10 +218,15 @@ export function venceDeLaCuota(d: { clave: string; plan: Date; prevista: boolean
   return d.hoy;
 }
 
-/** Lo que el cashflow no ve: un ítem con costo y sin proveedor no genera pago, y el saldo queda mejor de lo real. En pesos. PURA. */
-export function costoSinProveedor(items: readonly { costo: number; cantidad: number; moneda: string; supplierId: string | null }[], tc: Record<string, number>): { cuantos: number; monto: number } {
+/**
+ * Lo que el cashflow no ve: un ítem con costo y sin proveedor no genera pago, y el saldo queda mejor de lo real. En pesos.
+ * MIA-211 · H3: `imputado` (en pesos) es el costo de los comprobantes imputados al proyecto de proveedores que ningún
+ * ítem tiene: ese ya está en el cashflow (H2) y se descuenta. Cubierto todo, no hay cartel (`cuantos` 0). PURA.
+ */
+export function costoSinProveedor(items: readonly { costo: number; cantidad: number; moneda: string; supplierId: string | null }[], tc: Record<string, number>, imputado = 0): { cuantos: number; monto: number } {
   const sueltos = items.filter((i) => !i.supplierId && i.costo > 0 && i.cantidad > 0);
-  return { cuantos: sueltos.length, monto: redondear(sueltos.reduce((s, i) => s + aPesos(i.cantidad * i.costo, i.moneda, tc), 0)) };
+  const monto = redondear(Math.max(0, sueltos.reduce((s, i) => s + aPesos(i.cantidad * i.costo, i.moneda, tc), 0) - imputado));
+  return { cuantos: monto > 0 ? sueltos.length : 0, monto };
 }
 
 

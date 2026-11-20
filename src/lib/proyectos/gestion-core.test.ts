@@ -361,6 +361,13 @@ test("el costo sin proveedor se cuenta en pesos, y lo que tiene proveedor no", (
   assert.deepEqual(costoSinProveedor(items, { USD: 1000 }), { cuantos: 2, monto: 10200 });
 });
 
+test("MIA-211 · H3: lo ya imputado se descuenta del costo sin proveedor; cubierto todo, no hay cartel", () => {
+  const items = [{ costo: 2_000_000, cantidad: 1, moneda: "ARS", supplierId: null }];
+  assert.deepEqual(costoSinProveedor(items, {}, 1_700_000), { cuantos: 1, monto: 300_000 });
+  assert.deepEqual(costoSinProveedor(items, {}, 2_000_000), { cuantos: 0, monto: 0 });
+  assert.deepEqual(costoSinProveedor(items, {}, 2_500_000), { cuantos: 0, monto: 0 });
+});
+
 test("el motivo de pérdida suma por lo de la lista, sin el detalle", () => {
   assert.equal(motivoBase("Precio — pidió 20% menos"), "Precio");
   assert.equal(motivoBase("Precio"), "Precio");

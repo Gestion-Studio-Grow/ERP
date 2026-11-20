@@ -15,7 +15,7 @@ import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDe
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { conPagosParciales, conPartesComoPagadas, porPagarComoGastos } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
-import { comprobantesEnElFlujo, costoRealDeProyectos, cuotasEnlazadas, lineasImputadasDe } from "./comprobantes.server";
+import { comprobantesEnElFlujo, costoRealDeProyectos, cuotasEnlazadas, imputadoSinItem, lineasImputadasDe } from "./comprobantes.server";
 import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
@@ -143,6 +143,9 @@ export async function cabeceraFicha(a: Actor, id: string) {
     totales.margen = redondear(neto - totales.costo);
     totales.margenPct = neto > 0 ? redondear((totales.margen / neto) * 100) : 0;
   }
+  // MIA-211 · H3: lo ya imputado por comprobantes de proveedores sin ítem está en el cashflow; el cartel no lo cuenta.
+  const sueltos = costoSinProveedor(itemsPlata, tc);
+  const sinProveedor = sueltos.cuantos > 0 ? costoSinProveedor(itemsPlata, tc, await imputadoSinItem(a.tenantId, id, new Set(itemsPlata.flatMap((i) => (i.supplierId ? [i.supplierId] : []))), tc)) : sueltos;
   return {
     proyecto,
     viva,
@@ -154,7 +157,7 @@ export async function cabeceraFicha(a: Actor, id: string) {
     codigo: codigoProyecto(proyecto.numero, proyecto.createdAt),
     totales,
     totalesViva: totalesFicha(items, tc, config.margenPct),
-    sinProveedor: costoSinProveedor(itemsPlata, tc),
+    sinProveedor,
     faltanCambio: monedasSinCambio(viva?.items ?? [], tc),
   };
 }

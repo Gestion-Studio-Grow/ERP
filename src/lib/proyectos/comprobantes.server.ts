@@ -11,7 +11,8 @@ import { parametrosDelNegocio } from "./parametros/leer.server";
 import { defDe } from "./parametros/catalogo";
 import { imputadoPorProyecto } from "./imputacion-core";
 import { saldoDe, type EstadoOrden } from "./orden-pago-core";
-import { resultadoReal, SIN_IMPUTADO, type GastoCalculable, type Imputado, type ResultadoReal, type Totales } from "./core";
+import { redondear, resultadoReal, SIN_IMPUTADO, type GastoCalculable, type Imputado, type ResultadoReal, type Totales } from "./core";
+import { aPesos } from "./gestion-core";
 import { porPagarDeCuotas } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import { cambiosDeComprobantes, enPesosDelComprobante } from "./moneda-bancos.server";
@@ -281,6 +282,20 @@ export async function comprobantesEnElFlujo(tenantId: string, proyectoId: string
     };
   });
   return { comprobantes, cuotas: new Set((filas ?? []).flatMap((c) => c.cuotas.map((q) => q.cuotaId))) };
+}
+
+/**
+ * MIA-211 · H3: el costo (en pesos) imputado al proyecto por comprobantes no anulados de proveedores que no están en
+ * `conItem` (los proveedores de los ítems, cuyas cuotas ya salen en el cashflow). Sin M1, 0.
+ */
+export async function imputadoSinItem(tenantId: string, proyectoId: string, conItem: ReadonlySet<string>, tc: Readonly<Record<string, number>>): Promise<number> {
+  const filas = await siHayM1(() =>
+    prisma.proyectoComprobanteLinea.findMany({
+      where: { tenantId, proyectoId, comprobante: { anuladoEl: null, supplierId: { notIn: [...conItem] } } },
+      select: { costoCentavos: true, comprobante: { select: { moneda: true } } },
+    }),
+  );
+  return redondear((filas ?? []).reduce((s, l) => s + aPesos(n(l.costoCentavos) / 100, l.comprobante.moneda, tc), 0));
 }
 
 export const imputadoDe = (m: Map<string, Imputado>, id: string): Imputado => m.get(id) ?? SIN_IMPUTADO;
