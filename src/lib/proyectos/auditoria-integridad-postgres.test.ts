@@ -285,3 +285,82 @@ test("MIA-209 · Aurora: saldos, reportes y fechas contra la base", async (t) =>
     assert.deepEqual(total, { PRODUCTOR: 135_000, COMERCIAL: 60_000, EMPRESA: 1_095_000 });
   });
 });
+
+// MIA-210 · S1 (Factory-GSG 00-ESTADO/informes/MIA-210-patrones-errores.md § Parte 2), pedido por ORQ-007: «Anular» una
+// cuota de EMPRESA que pagó una orden de pago. Esperado a mano: banco 500.000 → orden de 100.000 → 400.000. Anular la
+// cuota tiene que dejar todo coherente: o se rechaza (la corrige anular la orden), o la cuota pendiente viene con la orden
+// anulada, el egreso revertido y el banco en 500.000. Nunca «la plata volvió a la caja» con la plata afuera.
+test("MIA-210 S1 · anular una cuota de empresa pagada por una orden de pago", async (t) => {
+  const base = await laBase(t);
+  assert.ok(base, "sin Postgres este test no prueba nada: levantá ERP_TEST_PG_URL");
+  mock.timers.enable({ apis: ["Date"], now: ba("10:00", "2026-11-25") });
+  t.after(() => mock.timers.reset());
+  apuntarLaAppA(base);
+  Object.assign(process.env as Record<string, string | undefined>, { NODE_ENV: "development", DB_CONNECTION_LIMIT: "12", DB_CONNECT_TIMEOUT_MS: "5000" });
+  prepararAccionesDeServidor();
+  const duenio = await prismaComoDuenio(base);
+  const { b } = base;
+  const t0 = await duenio.tenant.findUniqueOrThrow({ where: { id: b.id }, select: { modules: true } });
+  await duenio.tenant.update({ where: { id: b.id }, data: { modules: [...new Set([...t0.modules, "proyectos"])] } });
+  await duenio.proyectoPersona.create({ data: { tenantId: b.id, userId: b.recepcion.id, nombre: "Administración B", rol: "ADMINISTRACION" } });
+  const empresa = await import("./acciones-empresa");
+  const comp = await import("./acciones-comprobantes");
+  const ordenes = await import("./acciones-orden-pago");
+  const { recuadrosDeCuotas } = await import("./empresa.server");
+  const form = (campos: Record<string, string>) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(campos)) fd.set(k, v);
+    return fd;
+  };
+  const json = (r: unknown) => JSON.stringify(r, (_k, v) => (typeof v === "bigint" ? Number(v) : v));
+  const como = async <R>(usuarioId: string, fn: () => Promise<R>): Promise<R> => {
+    const r = await ejecutarAccion({ negocio: b, usuario: { id: usuarioId } }, fn);
+    assert.equal(r.tipo, "respuesta", json(r));
+    return (r as { valor: R }).valor;
+  };
+  const direccion = <R>(fn: () => Promise<R>) => como(b.duenia.id, fn);
+  const admin = <R>(fn: () => Promise<R>) => como(b.recepcion.id, fn);
+  const ok = (r: unknown) => assert.equal((r as { ok: boolean }).ok, true, json(r));
+
+  ok(await direccion(() => empresa.crearCuenta(form({ nombre: "Banco B", moneda: "ARS", saldo: "500000" }))));
+  const banco = (await duenio.proyectoCuentaBanco.findFirstOrThrow({ where: { tenantId: b.id, nombre: "Banco B" }, select: { id: true } })).id;
+  const saldo = async () => (await duenio.proyectoCuentaBanco.findUniqueOrThrow({ where: { id: banco }, select: { saldo: true } })).saldo;
+  const s = (await duenio.supplier.create({ data: { tenantId: b.id, name: "Alquiler (de prueba)" }, select: { id: true } })).id;
+  const cuota = (await duenio.proyectoCuota.create({ data: { tenantId: b.id, proyectoId: null, tipo: "PAGO", concepto: "Alquiler de noviembre", monto: 100_000, moneda: "ARS", venceEl: new Date(ba("12:00", "2026-11-30")), auto: false, supplierId: s }, select: { id: true } })).id;
+  const r = await admin(() => comp.cargarComprobante(form({ supplierId: s, fecha: "2026-11-25", tipo: "C", numero: "0001-00000099", neto: "100000", iva: "", total: "100000", destino: "ADMINISTRACION", categoria: "Alquiler" })));
+  ok(r);
+  const c = (r as unknown as { id: string }).id;
+  ok(await admin(() => comp.enlazarCuota(form({ comprobanteId: c, cuotaId: cuota }))));
+  const o = await admin(() => ordenes.crearOrdenPago({ supplierId: s, medio: "TRANSFERENCIA", lineas: [{ comprobanteId: c, cuotaId: cuota, importeCentavos: 10_000_000 }] }));
+  ok(o);
+  const oid = (o as { id: string }).id;
+  ok(await direccion(() => ordenes.aprobarYPagarOrden(form({ id: oid, cuentaId: banco, fecha: "2026-11-25" }))));
+  assert.equal(await saldo(), 400_000, "500.000 − 100.000");
+  const aPagarPagada = (await direccion(() => recuadrosDeCuotas(b.id))).resumen.aPagar;
+
+  const anular = await direccion(() => empresa.anularCuotaEmpresa(form({ id: cuota, visto: "PAGADA" })));
+  const q = await duenio.proyectoCuota.findUniqueOrThrow({ where: { id: cuota }, select: { pagadoEl: true, anuladoEl: true } });
+  const orden = await duenio.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${b.id}, true)`;
+    return tx.proyectoOrdenPago.findUniqueOrThrow({ where: { id: oid }, select: { estado: true } });
+  });
+  const libroNeto = (await duenio.cashMovement.findMany({ where: { tenantId: b.id }, select: { type: true, amount: true } })).reduce((x, m) => x + (m.type === "EGRESO" ? -m.amount : m.amount), 0);
+  const aPagarDespues = (await direccion(() => recuadrosDeCuotas(b.id))).resumen.aPagar;
+  const foto = { anular, cuotaPendiente: q.pagadoEl === null && q.anuladoEl === null, orden: orden.estado, banco: await saldo(), libroNeto, aPagarPagada, aPagarDespues };
+
+  await t.test("S1a [plata] · la cuota no queda pendiente con su orden PAGADA y la plata afuera (acciones-empresa.ts:199-206)", () => {
+    if ((anular as { ok: boolean }).ok) {
+      // Si se acepta, todo vuelve: orden anulada, banco y libro como antes, «A pagar» con la deuda una sola vez.
+      assert.deepEqual([foto.orden, foto.banco, foto.libroNeto], ["ANULADA", 500_000, 0], json(foto));
+    } else {
+      assert.deepEqual([foto.cuotaPendiente, foto.orden, foto.banco], [false, "PAGADA", 400_000], json(foto));
+    }
+  });
+  await t.test("S1b [reporte] · «A pagar» no vuelve a sumar una deuda que la orden ya pagó", () => {
+    assert.equal(foto.aPagarDespues, foto.aPagarPagada, json(foto));
+  });
+  await t.test("S1c [texto] · el aviso no dice «la plata volvió a la caja» si no volvió", () => {
+    const listo = (anular as { listo?: string }).listo ?? "";
+    if (/volvió a la caja/.test(listo)) assert.equal(foto.banco, 500_000, `${listo} · banco ${foto.banco}`);
+  });
+});
