@@ -70,9 +70,19 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
       }
     });
   };
+  // MIA-208 · 2: el sí responde al formulario como estaba al avisar. Si después cambia el monto o el medio, el sí viejo
+  // (y su aviso) se borra: si no, «Sí, es otro cobro» mandaba el importe nuevo sin que el servidor volviera a preguntar.
+  // Tildar la casilla del sí no cuenta como cambio.
+  const alCambiar = (e: FormEvent<HTMLFormElement>) => {
+    if (!(confirmar || reenviar) || (e.target as HTMLInputElement).name === "confirmaRepetido") return;
+    envioDelAviso.current = null;
+    setConfirmar(null);
+    setReenviar(null);
+    setError(null);
+  };
   return (
     <EnvioEnCurso.Provider value={enCurso}>
-      <form ref={form} className={className} onSubmit={enviar} aria-busy={enCurso || undefined}>
+      <form ref={form} className={className} onSubmit={enviar} onChange={alCambiar} aria-busy={enCurso || undefined}>
         {children}
         {error && <p role="alert" className="col-span-full basis-full text-sm font-medium text-danger">{error}</p>}
         {confirmar && (
