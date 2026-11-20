@@ -105,6 +105,9 @@ test("MIA-219 · regenerar el plan mientras la cuota que sobra se enlaza y entra
       await c.query("BEGIN");
       await c.query(`SELECT id FROM "ProyectoCuota" WHERE id = $1 FOR UPDATE`, [anticipo.id]);
       const yo = (await c.query<{ pid: number }>("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+      /** Para el mensaje de falla: qué espera cada conexión de esta base y detrás de quién. */
+      const quienEspera = async () =>
+        (await c.query("SELECT pid, state, wait_event_type AS tipo, wait_event AS evento, pg_blocking_pids(pid) AS detras, left(query, 90) AS consulta FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND state <> 'idle'")).rows;
       const trabadosDetras = async (pid: number) => (await c.query<{ pid: number }>("SELECT pid FROM pg_stat_activity WHERE $1 = ANY(pg_blocking_pids(pid))", [pid])).rows.map((x) => x.pid);
 
       let termino = false;
@@ -133,7 +136,7 @@ test("MIA-219 · regenerar el plan mientras la cuota que sobra se enlaza y entra
       const hastaAdministracion = performance.now() + PLAZO_MS;
       const ventana = performance.now();
       while (!listo && (await trabadosDetras(ajustePid)).length === 0) {
-        if (performance.now() > hastaAdministracion) assert.fail(`Administración no terminó ni se trabó en ${PLAZO_MS} ms`);
+        if (performance.now() > hastaAdministracion) assert.fail(`Administración no terminó ni se trabó en ${PLAZO_MS} ms (ajuste ${ajustePid}, candado ${yo}): ${json(await quienEspera())}`);
         await new Promise((x) => setImmediate(x));
       }
       ventanaMs = Math.round(performance.now() - ventana);
