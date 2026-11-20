@@ -331,6 +331,8 @@ test("MIA-215 · matriz de plata: cada rol que no ve la plata rechaza cada acci�
   await t.test("MIA-243 · 2A: Producción guarda costo, cantidad e ítems; los cobros siguen a la ficha, los pagos quedan «por revisar» y Administración los rehace", () => probarRegla2A(m));
   await t.test("MIA-249 · Producción ve sólo los costos: ni venta ni margen en Pipeline, papel, IA, Cotización y adicionales; no escribe precio, recargo ni cambio de venta; Dirección, Administración y Comercial siguen viendo la venta", () => probarProduccionSoloCostos(m));
   await t.test("MIA-243 · 2A en carrera: Producción guarda y Administración rehace a la vez; los pagos los decide Administración y nada se duplica", () => probarCarrera2A(m));
+  await t.test("MIA-251 · productor comercial: la ficha de su proyecto no trae cuotas de PAGO (Previsión de pagos ni el filtro «Pagos» del cashflow); Dirección y Administración sí", () => probarComercialSinPrevision(m));
+  await t.test("MIA-251 · «Venta por aprobar» del Pipeline sólo con la venta: Campo y Producción no lo reciben, tampoco en $ 0; Dirección, Administración y Comercial sí", () => probarIndicadorVentaPorAprobar(m));
 });
 
 /** MIA-237 · lo que una persona lee de un proyecto: la vista, Finanzas, el Resumen y la Ficha. Corre como el usuario. */
@@ -943,5 +945,62 @@ async function probarCampoPipeline(m: Mundo) {
   for (const clave of ["DIRECCION/OWNER", "COMERCIAL/RECEPTION"]) {
     const v = await leer(clave);
     assert.deepEqual([v.venta, !!v.ventaTexto, v.papel], [1000, true, true], `${clave}: ${JSON.stringify(v)}`);
+  }
+}
+
+/**
+ * MIA-251 · «Comercial ve todo lo de su proyecto salvo pagos y deuda con proveedores» (dueño, 20/11). Certificación
+ * GSG-PR214-v9-C8, hallazgo 1: la Previsión de pagos de Finanzas le mostraba las cuotas de PAGO a proveedor. Lo decide el
+ * servidor (`vista.deudas`): ni la previsión ni el filtro «Pagos» del cashflow le llegan. Contraprueba con la misma lectura.
+ */
+async function probarComercialSinPrevision(m: Mundo) {
+  const gestion = await import("./gestion.server");
+  const ficha = await import("./ficha.server");
+  const prevision = await import("./prevision.server");
+  const p = await proyectoConPagos(m);
+  await m.duenio.proyectoPresupuesto.update({ where: { id: p.presupuestoId }, data: { estado: "APROBADO" } });
+  assert.ok((await activas(m, p.id, "PAGO")).length > 0, "el proyecto tiene cuotas de PAGO a proveedor");
+  const leer = async (clave: string) => {
+    const r = await m.como(clave, async () => {
+      const a = await gestion.actorDelProyecto(await gestion.actorActual(), p.id);
+      const cab = await ficha.cabeceraFicha(a, p.id);
+      assert.ok(cab, `${clave} ve el proyecto`);
+      const v = ficha.vistaDe(a);
+      const fin = await ficha.datosFinanzas(a, cab, v);
+      const prev = await prevision.datosPrevision(a, v, cab);
+      return { prevision: prev && prev.cuotas.length, tipos: [...new Set(fin.cuotas.map((c) => c.tipo))].sort(), filtros: fin.filtros.map((f) => f.id) };
+    });
+    assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
+    return (r as { valor: { prevision: number | null; tipos: string[]; filtros: string[] } }).valor;
+  };
+  const SIN_PAGOS = { prevision: null, tipos: ["COBRO"], filtros: ["todos", "cobros", "pendientes"] };
+  for (const clave of ["COMERCIAL/RECEPTION", "COMERCIAL/PROFESSIONAL"]) assert.deepEqual(await leer(clave), SIN_PAGOS, clave);
+  // Contraprueba: Dirección y Administración ven la previsión con sus cuotas, los pagos en el cashflow y el filtro «Pagos».
+  for (const clave of ["DIRECCION/OWNER", "ADMINISTRACION/RECEPTION"]) {
+    const v = await leer(clave);
+    assert.ok((v.prevision ?? 0) > 0, `${clave}: ${JSON.stringify(v)}`);
+    assert.deepEqual([v.tipos, v.filtros], [["COBRO", "PAGO"], ["todos", "cobros", "pagos", "pendientes"]], clave);
+  }
+}
+
+/**
+ * MIA-251 · certificación GSG-PR214-v9-C8, observación 2: Campo veía «Venta por aprobar $ 0» en el Pipeline. El indicador va
+ * sólo a quien ve la venta (`veLaVenta`): Campo y Producción no lo reciben, ni en $ 0. Un lead de $ 1.000 con todo el equipo.
+ */
+async function probarIndicadorVentaPorAprobar(m: Mundo) {
+  const gestion = await import("./gestion.server");
+  const ficha = await import("./ficha.server");
+  await m.proyecto("PRESUPUESTO");
+  const leer = async (clave: string) => {
+    const r = await m.como(clave, async () => (await ficha.tableroConIndicadores(await gestion.actorActual())).ventaPorAprobar);
+    assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
+    return (r as { valor: number | null }).valor;
+  };
+  for (const clave of ["PRODUCCION_CAMPO/PROFESSIONAL", "PRODUCCION_CAMPO/RECEPTION", "PRODUCCION/PROFESSIONAL", "PRODUCCION/RECEPTION", "PRODUCCION/OWNER"]) {
+    assert.equal(await leer(clave), null, clave);
+  }
+  for (const clave of ["DIRECCION/OWNER", "ADMINISTRACION/RECEPTION", "COMERCIAL/RECEPTION"]) {
+    const v = await leer(clave);
+    assert.ok(typeof v === "number" && v >= 1000, `${clave}: ${v}`);
   }
 }
