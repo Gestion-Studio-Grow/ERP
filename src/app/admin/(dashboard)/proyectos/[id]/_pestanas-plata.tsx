@@ -553,6 +553,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
  */
 function FilaComprobante({ c, importe, enPesos, saldo, negativo }: { c: ComprobanteEnFlujo; importe: string; enPesos: string; saldo: string; negativo: boolean }) {
   const fecha = fechaCorta(c.venceEl);
+  const enParte = !c.pagadoEl && c.pagadoParte > 0;
   return (
     <tr className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-t border-line py-2 align-top sm:table-row sm:py-0">
       <td className="hidden py-1.5 pr-2 whitespace-nowrap sm:table-cell">{fecha}</td>
@@ -561,10 +562,17 @@ function FilaComprobante({ c, importe, enPesos, saldo, negativo }: { c: Comproba
         <span className="block text-xs text-muted sm:hidden">{fecha} · {c.proveedor}</span>
       </td>
       <td className="hidden py-1.5 pr-2 sm:table-cell">{c.proveedor}</td>
-      <td className="py-1.5 pr-2 text-right tabular-nums">{importe}</td>
-      <td className="hidden py-1.5 pr-2 text-right tabular-nums text-danger sm:table-cell">{enPesos}</td>
+      <td className="py-1.5 pr-2 text-right tabular-nums">
+        {importe}
+        {/* MIA-216 · H2: pagado en parte por órdenes, lo que le falta a la parte de este proyecto (como la cuota). */}
+        {enParte && <span className="block text-xs text-muted">Falta {importeEn(c.falta, c.moneda)}</span>}
+      </td>
+      <td className="hidden py-1.5 pr-2 text-right tabular-nums text-danger sm:table-cell">
+        {enPesos}
+        {enParte && <span className="block text-xs text-muted">{importeEn(c.pagadoParte, c.moneda)} ya pagado con órdenes</span>}
+      </td>
       <td className={cn("hidden py-1.5 pr-2 text-right font-medium tabular-nums sm:table-cell", negativo && "text-danger")}>{saldo}</td>
-      <td className="col-span-2 py-1.5 pr-2"><Badge tone={c.pagadoEl ? "success" : "neutral"}>{c.pagadoEl ? "Pagado" : "Pendiente"}</Badge></td>
+      <td className="col-span-2 py-1.5 pr-2"><Badge tone={c.pagadoEl ? "success" : enParte ? "warning" : "neutral"}>{c.pagadoEl ? "Pagado" : enParte ? "Pagado en parte" : "Pendiente"}</Badge></td>
       <td className="col-span-2 py-1 sm:text-right">
         {!c.pagadoEl && <Link href="/admin/proyectos/proveedores/ordenes" className="text-xs text-muted underline underline-offset-2">Se paga con una orden de pago</Link>}
       </td>

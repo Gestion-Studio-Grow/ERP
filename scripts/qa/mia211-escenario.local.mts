@@ -2,7 +2,7 @@
 // corre contra Neon (guarda de base local). Deja, en el negocio «mia-producciones», lo que producen los arreglos:
 //   S1 · una cuota de empresa pagada por la orden «OP 00000099» (Cuentas no ofrece «Anular»).
 //   H1 · un cobro de las 11:00 y la orden pagada hoy a la hora real (11:30), en el libro de caja.
-//   H2 · un comprobante imputado al proyecto #2, sin pagar, que sale en el cashflow del evento.
+//   H2 · un comprobante imputado al proyecto #2, pagado en parte (MIA-216: «Pagado en parte», «Falta»), en el cashflow del evento.
 //   H4 · la anulación de un cobro del proyecto #2 (con `proyectoPagoId`) en Caja del día.
 //   DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54338/postgres npx tsx scripts/qa/mia211-escenario.local.mts
 import { PrismaClient } from "../../src/generated/prisma/client";
@@ -44,6 +44,9 @@ const comp = await prisma.proyectoComprobante.create({
   select: { id: true },
 });
 await prisma.proyectoComprobanteLinea.create({ data: { tenantId, comprobanteId: comp.id, destino: "PROYECTO", proyectoId: proyecto.id, categoria: "Sonido", netoCentavos: BigInt(100_000_000), ivaCentavos: BigInt(21_000_000), ivaTratamiento: "CREDITO", costoCentavos: BigInt(100_000_000) } });
+// MIA-216 · H2: una orden PAGADA por 484.000 de los 1.210.000 (40 %): la fila dice «Pagado en parte» y «Falta $ 726.000».
+const op = await prisma.proyectoOrdenPago.create({ data: { tenantId, numero: 98, supplierId: proveedor.id, estado: "PAGADA", totalCentavos: BigInt(48_400_000), creadaPorId: admin.id, creadaNombre: admin.name, aprobadaNombre: "Dirección (ficticio)", pagadaEl: hoyA("10:30") }, select: { id: true } });
+await prisma.proyectoOrdenPagoLinea.create({ data: { tenantId, ordenId: op.id, comprobanteId: comp.id, importeCentavos: BigInt(48_400_000) } });
 
 // H4
 const pago = await prisma.proyectoPago.create({ data: { tenantId, proyectoId: proyecto.id, medio: "TRANSFERENCIA", monto: 500_000 }, select: { id: true } });

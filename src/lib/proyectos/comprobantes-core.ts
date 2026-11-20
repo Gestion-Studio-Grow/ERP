@@ -108,3 +108,13 @@ export function mesDelParametro(texto: string | null | undefined, hoy: Date = ne
   if (texto && /^\d{4}-(0[1-9]|1[0-2])$/.test(texto)) return texto;
   return hoy.toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(0, 7);
 }
+
+/**
+ * MIA-216 · H2: de un comprobante pagado en parte, lo que le toca a la parte de un proyecto. Las órdenes pagan el
+ * comprobante entero (no por proyecto): a la parte le toca lo pagado en la misma proporción, al centavo y sin pasarse.
+ * `pagado + falta = parte`. PURA.
+ */
+export function pagadoDeLaParte(parteCentavos: number, totalCentavos: number, pagadoCentavos: number): { pagadoCentavos: number; faltaCentavos: number } {
+  const pagado = totalCentavos > 0 ? Math.min(parteCentavos, Math.max(0, Math.round((parteCentavos * Math.min(pagadoCentavos, totalCentavos)) / totalCentavos))) : 0;
+  return { pagadoCentavos: pagado, faltaCentavos: parteCentavos - pagado };
+}

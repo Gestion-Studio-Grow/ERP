@@ -150,7 +150,7 @@ test("MIA-209 · Aurora: saldos, reportes y fechas contra la base", async (t) =>
   await anotar();
   await pagarOrden(s2, c2, 35_000_000);
   await anotar();
-  const tras6 = { banco: await saldoBanco(), res: await resumen(), aPagar: await aPagarProv() };
+  const tras6 = { banco: await saldoBanco(), res: await resumen(), aPagar: await aPagarProv(), fin: await finanzas() };
 
   // ── Paso 8 · 11:00 cobro del saldo sin retención, por error ──
   reloj("11:00");
@@ -250,6 +250,14 @@ test("MIA-209 · Aurora: saldos, reportes y fechas contra la base", async (t) =>
   await t.test("H2 [reporte] · Cashflow del evento: con C1 y C2 imputados, el saldo final descuenta lo que se les paga", () => {
     // datosFinanzas (ficha.server.ts:241) arma el flujo sólo con cuotas: los comprobantes y sus órdenes no entran.
     assert.equal(tras5.fin.f.flujo.saldoFinal, 3_617_900 - 1_910_000, "3.617.900 − 1.910.000");
+  });
+  await t.test("MIA-216 · H2 pagado en parte: C2 (700.000, pagados 350.000) dice lo pagado y lo que falta, no «Pendiente» entero", () => {
+    const fila = (c: string) => tras6.fin.f.flujo.lineas.map((l) => l.cuota).find((q) => "comprobanteId" in q && q.comprobanteId === c);
+    const c2f = fila(c2) as { pagadoEl: Date | null; pagadoParte: number; falta: number; monto: number } | undefined;
+    assert.ok(c2f, "C2 en el cashflow");
+    assert.deepEqual({ pagado: !!c2f.pagadoEl, monto: c2f.monto, pagadoParte: c2f.pagadoParte, falta: c2f.falta }, { pagado: false, monto: 700_000, pagadoParte: 350_000, falta: 350_000 });
+    const c1f = fila(c1) as { pagadoEl: Date | null; falta: number } | undefined;
+    assert.deepEqual({ pagado: !!c1f?.pagadoEl, falta: c1f?.falta }, { pagado: true, falta: 0 }, "C1 pagado entero");
   });
   await t.test("H3 [texto] · «ítems con costo sin proveedor: no están en este cashflow» no cuenta lo ya imputado", () => {
     // costoSinProveedor (gestion-core.ts:222) mira sólo el supplierId del ítem: con 1.700.000 imputados sigue en 2.000.000.

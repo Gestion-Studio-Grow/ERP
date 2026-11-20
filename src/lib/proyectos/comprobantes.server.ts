@@ -11,6 +11,7 @@ import { parametrosDelNegocio } from "./parametros/leer.server";
 import { defDe } from "./parametros/catalogo";
 import { imputadoPorProyecto } from "./imputacion-core";
 import { saldoDe, type EstadoOrden } from "./orden-pago-core";
+import { pagadoDeLaParte } from "./comprobantes-core";
 import { redondear, resultadoReal, SIN_IMPUTADO, type GastoCalculable, type Imputado, type ResultadoReal, type Totales } from "./core";
 import { aPesos } from "./gestion-core";
 import { porPagarDeCuotas } from "./pago-parcial-core";
@@ -238,6 +239,9 @@ export interface ComprobanteEnFlujo {
   venceEl: Date;
   pagadoEl: Date | null;
   anuladoEl: null;
+  /** MIA-216 · H2: lo ya pagado por órdenes que le toca a la parte de este proyecto, y lo que le falta (en su moneda). */
+  pagadoParte: number;
+  falta: number;
 }
 
 /**
@@ -268,17 +272,21 @@ export async function comprobantesEnElFlujo(tenantId: string, proyectoId: string
     const pagado = c.pagos.reduce((x, p) => x + n(p.importeCentavos), 0);
     const ultima = c.pagos.reduce<Date | null>((x, p) => (p.orden.pagadaEl && (!x || p.orden.pagadaEl > x) ? p.orden.pagadaEl : x), null);
     const pagadoEl = pagado >= n(c.totalCentavos) ? (ultima ?? c.fecha) : null;
+    const parte = c.lineas.reduce((x, l) => x + n(l.netoCentavos) + n(l.ivaCentavos), 0);
+    const deLaParte = pagadoDeLaParte(parte, n(c.totalCentavos), pagado);
     return {
       id: `comprobante:${c.id}`,
       comprobanteId: c.id,
       tipo: "PAGO",
       concepto: `${c.tipo === "SIN_FACTURA" ? "Comprobante sin factura" : `Factura ${c.tipo}`} ${c.numero}`,
       proveedor: c.supplier.name,
-      monto: c.lineas.reduce((x, l) => x + n(l.netoCentavos) + n(l.ivaCentavos), 0) / 100,
+      monto: parte / 100,
       moneda: c.moneda,
       venceEl: pagadoEl ?? c.fecha,
       pagadoEl,
       anuladoEl: null,
+      pagadoParte: deLaParte.pagadoCentavos / 100,
+      falta: deLaParte.faltaCentavos / 100,
     };
   });
   return { comprobantes, cuotas: new Set((filas ?? []).flatMap((c) => c.cuotas.map((q) => q.cuotaId))) };
