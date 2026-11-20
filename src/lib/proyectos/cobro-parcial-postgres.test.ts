@@ -372,8 +372,7 @@ test("MIA-201 · H2 · todo cobro lleva clave: dos cobros iguales con claves dis
   const { id } = await p.proyecto();
   const q = await p.cuota(id, 605, 5);
   const banco = await p.cuenta();
-  // Sin clave (un pedido armado a mano): el servidor no lo graba. Antes entraba y un freno de 2 min por «parecido»
-  // bloqueaba el siguiente cobro legítimo del mismo importe (el de Bancos, que no mandaba clave).
+  // Sin clave (un pedido armado a mano): el servidor no lo graba. Antes entraba, y Bancos no mandaba clave.
   const sinClave = await p.cobrar(q, { monto: "100", cuenta: banco, envio: "" })();
   assert.equal(sinClave.ok, false, "sin clave no se graba");
   assert.match(String((sinClave as { error?: string }).error), /clave del envío/);
