@@ -149,3 +149,63 @@ test("A1 · lo guardado por Dirección mueve el recorrido: Administración con �
   // Ni con «equipo» en editar cambia la matriz.
   assert.ok(!dejaPasar("ADMINISTRACION", PUERTAS_DE_ACCIONES["acciones-gestion#guardarPermisos"], [{ rol: "ADMINISTRACION", modulo: "equipo", ver: true, editar: true }]));
 });
+
+// ── MIA-237 · puestos de la productora (dueño, 20/11 13:05Z y 13:25Z: «Es productor comercial y productor de campo. El de
+// campo no ve plata. El productor comercial es B ve costos tmb / 2. No se puede / 3. Administración no es dirección pero ve
+// toda la adm y los proyectos tmb»). Se lee del código por `import *`: en rojo, lo que falta da false, no rompe el archivo.
+test("MIA-237 · productor comercial: ve costos (sin cambiarlos) y cobros, nunca pagos ni deudas; ni Dirección se los da", async () => {
+  const core = (await import("./gestion-core")) as unknown as Record<string, unknown> & typeof import("./gestion-core");
+  const veLosCobros = (core.veLosCobros as ((r: string) => boolean) | undefined) ?? (() => false);
+  const guardado = (modulo: string) => [{ rol: "COMERCIAL", modulo, ver: true, editar: true }];
+  assert.deepEqual(core.permisoDe("COMERCIAL", "costos", []), { ver: true, editar: false }, "de fábrica ve los costos");
+  assert.deepEqual(core.permisoDe("COMERCIAL", "costos", guardado("costos")), { ver: true, editar: false }, "ve, no los cambia aunque Dirección se lo guarde");
+  assert.deepEqual(core.COLUMNAS_OCULTAS_BASE.COMERCIAL, [], "las cuatro columnas de costo a la vista");
+  for (const m of ["pagos", "empresa", "liquidaciones"] as const) assert.deepEqual(core.permisoDe("COMERCIAL", m, guardado(m)), { ver: false, editar: false }, m);
+  assert.deepEqual(
+    Object.fromEntries([...core.ROLES_GESTION, "SIN_FICHA"].map((r) => [r, veLosCobros(r)])),
+    { DIRECCION: true, ADMINISTRACION: true, COMERCIAL: true, DISENO: false, PRODUCCION: false, PRODUCCION_CAMPO: false, SIN_FICHA: false },
+  );
+});
+
+test("MIA-237 · productor de campo: ningún importe (costos, cotizaciones, proveedores, cobros, pagos, empresa, liquidaciones ni tablero), aunque Dirección se los guarde", async () => {
+  const core = (await import("./gestion-core")) as unknown as Record<string, unknown> & typeof import("./gestion-core");
+  const veImportes = (core.veImportes as ((r: string) => boolean) | undefined) ?? (() => true);
+  const todo = core.MODULOS.map((m) => ({ rol: "PRODUCCION_CAMPO", modulo: m.id, ver: true, editar: true }));
+  const conImportes = ["costos", "cotizaciones", "proveedores", "pagos", "empresa", "liquidaciones", "direccion"] as const;
+  assert.deepEqual(conImportes.filter((m) => core.permisoDe("PRODUCCION_CAMPO", m, todo).ver), [], "módulos con importes que se le abren");
+  assert.ok(conImportes.every((m) => core.permisoFijo("PRODUCCION_CAMPO", m)), "la pantalla de permisos no deja dárselos");
+  assert.equal(veImportes("PRODUCCION_CAMPO"), false, "ni la venta del proyecto");
+  assert.equal(veImportes("SIN_FICHA"), false);
+  for (const r of ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "PRODUCCION", "DISENO"]) assert.equal(veImportes(r), true, r);
+  // Sigue rindiendo lo suyo.
+  assert.deepEqual(core.permisoDe("PRODUCCION_CAMPO", "rendiciones", []), { ver: true, editar: false });
+});
+
+test("MIA-237 · Administración: toda la plata y los proyectos, sin administrar usuarios ni permisos (aunque su usuario del ERP sea OWNER)", async () => {
+  const core = await import("./gestion-core");
+  const { DECISIONES_DE_PUESTOS } = await import("./decisiones-puestos");
+  const { permisoEfectivo } = await import("@/lib/capabilities");
+  const negadas = (DECISIONES_DE_PUESTOS as unknown as { capacidadesNegadas?: Record<string, readonly string[]> }).capacidadesNegadas;
+  assert.deepEqual(negadas?.ADMINISTRACION, ["users:manage"], "el puesto le saca Usuarios al OWNER");
+  // El candado del resolvedor: una negación del puesto vale; un «permitido» de users:manage por la base, no.
+  const comoAdm = { role: "OWNER" as const, overrides: [{ capability: "users:manage", allowed: false }] };
+  assert.equal(permisoEfectivo(comoAdm, "users:manage"), false);
+  assert.equal(permisoEfectivo(comoAdm, "billing:manage"), true, "Facturación sigue");
+  assert.equal(permisoEfectivo({ role: "RECEPTION", overrides: [{ capability: "users:manage", allowed: true }] }, "users:manage"), false);
+  assert.ok(core.appEnLaBarra("proyectos", "ADMINISTRACION"), "Proyectos a la vista de Administración");
+  assert.ok(core.veTodosLosProyectos("ADMINISTRACION"));
+  for (const m of ["pagos", "empresa", "liquidaciones", "costos"] as const) assert.ok(core.permisoDe("ADMINISTRACION", m, []).ver, m);
+  assert.ok(!core.cambiaLosPermisos("ADMINISTRACION"));
+  assert.deepEqual(core.permisoDe("ADMINISTRACION", "equipo", [{ rol: "ADMINISTRACION", modulo: "equipo", ver: true, editar: true }]), { ver: false, editar: false }, "ni Equipo guardado");
+});
+
+test("MIA-237 · las puertas de MIA-236: % de anticipo de un proveedor sólo con la plata; costos al presupuesto sólo con «Costos · editar»", () => {
+  const leerFuente = (f: string) => readFileSync(path.join(RAIZ, f), "utf8");
+  assert.match(PUERTAS_DE_ACCIONES["acciones-gestion#guardarProveedor"], /veLaPlata/, "la matriz anota la traba del % de anticipo");
+  const gestion = leerFuente("src/lib/proyectos/acciones-gestion.ts");
+  const cuerpo = gestion.slice(gestion.indexOf("export async function guardarProveedor"), gestion.indexOf("export async function cambiarEstadoProveedor"));
+  assert.match(cuerpo, /veLaPlata\(a\.user\)/, "guardarProveedor pregunta por la plata");
+  const taller = leerFuente("src/lib/taller-stands/acciones.ts");
+  const pase = taller.slice(taller.indexOf("export async function despieceAlPresupuesto"));
+  assert.match(pase.slice(0, 600), /editaCostos: true/, "despieceAlPresupuesto pide editar costos");
+});

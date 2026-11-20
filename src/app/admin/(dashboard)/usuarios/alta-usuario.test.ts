@@ -93,3 +93,16 @@ test("MIA-229 · CH (servicios) y mostrador no cambian: sin productora no hay pu
   const r = validarAltaDeUsuario(formulario({ role: "RECEPTION" }), false);
   assert.ok(r.ok && !("puesto" in r), "sin puesto: createUser no crea ficha (`luego` queda undefined)");
 });
+
+test("MIA-237 · productora: el alta ofrece «Productor comercial» y «Productor de campo» (ordenados), y Administración se lee sin usuarios ni permisos", () => {
+  const opciones = rolesParaAlta(false, true);
+  // El orden del dueño: los de la plata, los dos productores y después el resto. Los valores no cambian (las fichas siguen).
+  assert.deepEqual(opciones.map((o) => o.valor), ["DUENIO", "DIRECCION", "ADMINISTRACION", "COMERCIAL", "PRODUCCION_CAMPO", "PRODUCCION", "DISENO"]);
+  const texto = Object.fromEntries(opciones.map((o) => [o.valor, o.etiqueta]));
+  assert.match(texto.COMERCIAL, /^Productor comercial \(.*cobros.*costos.*sin pagos/);
+  assert.match(texto.PRODUCCION_CAMPO, /^Productor de campo \(.*sin importes/);
+  assert.match(texto.ADMINISTRACION, /^Administración \(.*proyectos.*sin usuarios ni permisos\)/);
+  // El rol del ERP de Administración sigue OWNER por Facturación: lo que no hace lo frena el puesto (decisiones-puestos.ts).
+  const r = validarAltaDeUsuario(formulario({ role: "ADMINISTRACION" }), false, true);
+  assert.ok(r.ok && r.role === "OWNER" && r.puesto === "ADMINISTRACION");
+});

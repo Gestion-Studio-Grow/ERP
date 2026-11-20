@@ -318,7 +318,167 @@ test("MIA-215 · matriz de plata: cada rol que no ve la plata rechaza cada acci�
   // Al final: guarda «Empresa · editar» a PRODUCCION, y no tiene que contaminar las filas de arriba.
   await t.test("MIA-229 · lecturas de plata: Producción de fábrica (ERP RECEPTION o PROFESSIONAL) no ve deudas de proveedores ni Finanzas, y Dirección no le puede dar Empresa", () => probarLecturasDePlata(m));
   await t.test("MIA-229 · rendiciones propias: Producción y Producción de campo siguen rindiendo (y se registra)", () => probarRendicionesPropias(m));
+  // Al final: guarda permisos a PRODUCCION_CAMPO y COMERCIAL, que no tienen que contaminar las filas de arriba.
+  await t.test("MIA-237 · productor comercial: cobrado, por cobrar y costos de sus proyectos; sin pagos ni deudas a proveedores", () => probarProductorComercial(m));
+  await t.test("MIA-237 · productor de campo: ningún importe, ni con lo que Dirección le guarde; sigue rindiendo", () => probarProductorDeCampo(m));
+  await t.test("MIA-237 · Administración (usuario OWNER): ve la plata y los proyectos, no administra usuarios", () => probarAdministracion(m));
+  await t.test("MIA-237 · puertas de MIA-236: % de anticipo del proveedor y costos al presupuesto, sólo quien corresponde", () => probarPuertasMia236(m));
 });
+
+/** MIA-237 · lo que una persona lee de un proyecto: la vista, Finanzas, el Resumen y la Ficha. Corre como el usuario. */
+async function leerProyecto(m: Mundo, clave: string, proyectoId: string) {
+  const gestion = await import("./gestion.server");
+  const ficha = await import("./ficha.server");
+  const r = await m.como(clave, async () => {
+    const a = await gestion.actorActual();
+    const cab = await ficha.cabeceraFicha(a, proyectoId);
+    assert.ok(cab, `${clave} ve el proyecto`);
+    const v = ficha.vistaDe(a) as ReturnType<typeof ficha.vistaDe> & { cobros?: boolean; deudas?: boolean; importes?: boolean };
+    // Finanzas se lee si la pestaña se abre (pagos o, MIA-237, cobros).
+    const fin = v.pagos || v.cobros ? await ficha.datosFinanzas(a, cab, v) : null;
+    const res = await ficha.datosResumen(a, cab, v);
+    const fi = await ficha.datosFicha(a, cab, v);
+    return {
+      vista: { costos: v.costos, editaCostos: v.editaCostos, pagos: v.pagos, editaPagos: v.editaPagos, cobros: v.cobros ?? false, deudas: v.deudas ?? v.costos, importes: v.importes ?? true },
+      finanzas: fin && { tipos: [...new Set(fin.cuotas.map((c) => c.tipo))].sort(), totalAprobado: fin.totalAprobado, cobrado: fin.cobrado, saldo: fin.saldo, gastos: fin.gastos.length, aPagar: (fin.resumen as { aPagar?: number }).aPagar ?? 0 },
+      resumen: res.finanzas && { cobrado: res.finanzas.cobrado, aPagar: res.finanzas.aPagar, pagado: res.finanzas.pagado },
+      ficha: fi.filas.map((f) => ({ venta: (f as { venta?: number }).venta ?? null, costo: (f as { costo?: number }).costo ?? null })),
+    };
+  });
+  assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
+  return (r as { valor: LecturaDeProyecto }).valor;
+}
+interface LecturaDeProyecto {
+  vista: Record<string, boolean>;
+  finanzas: { tipos: string[]; totalAprobado: number; cobrado: number; saldo: number; gastos: number; aPagar: number } | null;
+  resumen: { cobrado: number; aPagar: number; pagado: number } | null;
+  ficha: { venta: number | null; costo: number | null }[];
+}
+
+/** Un proyecto del mundo (ítem de $ 1.000 + IVA = $ 1.210, cuotas de cobro de $ 605) con un costo de $ 400 en el ítem y
+ *  una deuda con un proveedor: cuota de PAGO pendiente de $ 1.234. Hecho a mano: cobrado 0, por cobrar 1.210, a pagar 1.234. */
+async function proyectoConDeuda(m: Mundo) {
+  const p = await m.proyecto();
+  await m.duenio.proyectoItem.updateMany({ where: { id: p.itemId }, data: { costo: 400 } });
+  const supplierId = (await m.duenio.supplier.create({ data: { tenantId: m.a.id, name: unico("Proveedor MIA-237") }, select: { id: true } })).id;
+  await m.duenio.proyectoCuota.create({ data: { tenantId: m.a.id, proyectoId: p.id, tipo: "PAGO", concepto: unico("Pago proveedor"), monto: 1234, moneda: "ARS", venceEl: EVENTO, supplierId, prevista: false, auto: false } });
+  return p;
+}
+
+async function probarProductorComercial(m: Mundo) {
+  const lecturas = await import("./gestion-lecturas.server");
+  const gestion = await import("./gestion.server");
+  const p = await proyectoConDeuda(m);
+  // Dirección le guarda «Costos · editar» y «Pagos · editar» a Comercial: no tiene que servir.
+  for (const modulo of ["costos", "pagos"]) await m.duenio.proyectoPermiso.create({ data: { tenantId: m.a.id, rol: "COMERCIAL", modulo, ver: true, editar: true } });
+  const obtenido: Record<string, unknown> = {};
+  for (const clave of ["COMERCIAL/RECEPTION", "COMERCIAL/PROFESSIONAL"]) obtenido[clave] = await leerProyecto(m, clave, p.id);
+  const ESPERADO = {
+    vista: { costos: true, editaCostos: false, pagos: false, editaPagos: false, cobros: true, deudas: false, importes: true },
+    finanzas: { tipos: ["COBRO"], totalAprobado: 1210, cobrado: 0, saldo: 1210, gastos: 0, aPagar: 0 },
+    resumen: { cobrado: 0, aPagar: 0, pagado: 0 },
+    ficha: [{ venta: 1000, costo: 400 }],
+  };
+  assert.deepEqual(obtenido, { "COMERCIAL/RECEPTION": ESPERADO, "COMERCIAL/PROFESSIONAL": ESPERADO });
+  // Las deudas con proveedores tampoco por Proveedores.
+  const r = await m.como("COMERCIAL/RECEPTION", async () => {
+    const a = await gestion.actorActual();
+    const lista = await lecturas.listaDeProveedores(a, {});
+    return { verPlata: lista.verPlata, porPagarCuotas: lista.porPagarCuotas };
+  });
+  assert.deepEqual(r.tipo === "respuesta" ? r.valor : r, { verPlata: false, porPagarCuotas: 0 });
+  // Control: Administración ve la deuda del mismo proyecto (la sonda no está ciega).
+  const adm = await leerProyecto(m, "ADMINISTRACION/RECEPTION", p.id);
+  assert.deepEqual(adm.finanzas?.tipos, ["COBRO", "PAGO"]);
+  assert.equal(adm.finanzas?.aPagar, 1234);
+}
+
+async function probarProductorDeCampo(m: Mundo) {
+  const p = await proyectoConDeuda(m);
+  // Dirección le guarda todo en «editar» al productor de campo: ningún importe igual.
+  for (const modulo of ["costos", "cotizaciones", "proveedores", "pagos", "direccion"]) await m.duenio.proyectoPermiso.create({ data: { tenantId: m.a.id, rol: "PRODUCCION_CAMPO", modulo, ver: true, editar: true } });
+  const SIN_IMPORTES = {
+    vista: { costos: false, editaCostos: false, pagos: false, editaPagos: false, cobros: false, deudas: false, importes: false },
+    finanzas: null,
+    resumen: null,
+    ficha: [{ venta: null, costo: null }],
+  };
+  const obtenido: Record<string, unknown> = {};
+  for (const clave of ["PRODUCCION_CAMPO/PROFESSIONAL", "PRODUCCION_CAMPO/RECEPTION"]) obtenido[clave] = await leerProyecto(m, clave, p.id);
+  assert.deepEqual(obtenido, { "PRODUCCION_CAMPO/PROFESSIONAL": SIN_IMPORTES, "PRODUCCION_CAMPO/RECEPTION": SIN_IMPORTES });
+}
+
+async function probarAdministracion(m: Mundo) {
+  const { passwordHash } = await m.duenio.user.findUniqueOrThrow({ where: { id: m.a.duenia.id }, select: { passwordHash: true } });
+  const u = await m.duenio.user.create({ data: { tenantId: m.a.id, name: "MIA-237 ADMINISTRACION/OWNER", email: "mia237-administracion-owner@negocio-a.erp.test", passwordHash, role: "OWNER" }, select: { id: true } });
+  await m.duenio.proyectoPersona.create({ data: { tenantId: m.a.id, userId: u.id, nombre: "MIA-237 ADMINISTRACION/OWNER", rol: "ADMINISTRACION" } });
+  m.registrar("ADMINISTRACION/OWNER", u.id);
+  const { canCurrentUser } = await import("@/lib/authz");
+  const { veLaPlata } = await import("./datos.server");
+  const { requireCapability } = await import("@/lib/authz");
+  const usuarios = await import("@/lib/user-actions");
+  const mira = async (clave: string) => {
+    const r = await m.como(clave, async () => ({ usuarios: await canCurrentUser("users:manage"), facturacion: await canCurrentUser("billing:manage"), plata: await veLaPlata(await requireCapability("agenda:read")) }));
+    assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
+    return (r as { valor: unknown }).valor;
+  };
+  assert.deepEqual({ adm: await mira("ADMINISTRACION/OWNER"), duenia: await mira("DIRECCION/OWNER") }, {
+    adm: { usuarios: false, facturacion: true, plata: true },
+    duenia: { usuarios: true, facturacion: true, plata: true },
+  });
+  // Y la acción: no da de alta a nadie (redirige sin escribir).
+  const antes = await m.duenio.user.count({ where: { tenantId: m.a.id } });
+  const r = await m.como("ADMINISTRACION/OWNER", () => usuarios.createUser(form({ name: "Colado", email: "colado-mia237@negocio-a.erp.test", role: "DUENIO", password: "Provisoria-123456" })));
+  assert.notEqual(r.tipo, "respuesta", `createUser como Administración: ${JSON.stringify(r)}`);
+  assert.equal(await m.duenio.user.count({ where: { tenantId: m.a.id } }), antes);
+}
+
+async function probarPuertasMia236(m: Mundo) {
+  const gestion = await import("./acciones-gestion");
+  const fichaAcc = await import("./acciones-ficha");
+  const taller = await import("@/lib/taller-stands/acciones");
+  // 1 · el % de anticipo del proveedor (regenera las cuotas de PAGO de los proyectos abiertos): sólo con la plata.
+  const prov = (await m.como("DIRECCION/OWNER", () => gestion.guardarProveedor(form({ name: unico("Proveedor anticipo"), anticipoPct: "50", evaluacion: "4", moneda: "ARS" })))) as { tipo: string; valor: { ok: boolean; id: string } };
+  assert.ok(prov.tipo === "respuesta" && prov.valor.ok, JSON.stringify(prov));
+  const id = prov.valor.id;
+  const pct = async () => (await m.duenio.proyectoProveedorFicha.findFirstOrThrow({ where: { supplierId: id }, select: { anticipoPct: true } })).anticipoPct;
+  const huecos: string[] = [];
+  for (const clave of ["PRODUCCION/PROFESSIONAL", "PRODUCCION/RECEPTION", "PRODUCCION/OWNER"]) {
+    const r = await intentar(m, clave, () => gestion.guardarProveedor(form({ id, name: "Proveedor anticipo cambiado", anticipoPct: "90", evaluacion: "4", moneda: "ARS" })));
+    if (r.paso || (await pct()) !== 50) huecos.push(`${clave}: ${r.salida}`);
+  }
+  // Producción sigue editando el proveedor si no toca el % (sin el campo, o con el mismo valor).
+  const sinPct = await intentar(m, "PRODUCCION/PROFESSIONAL", () => gestion.guardarProveedor(form({ id, name: "Proveedor anticipo (Producción)", evaluacion: "5", moneda: "ARS" })));
+  assert.ok(sinPct.paso, `Producción edita el proveedor sin tocar el %: ${sinPct.salida}`);
+  assert.equal(await pct(), 50, "sin el campo, el % queda como estaba");
+  // Control: Administración sí lo cambia.
+  const adm = await intentar(m, "ADMINISTRACION/RECEPTION", () => gestion.guardarProveedor(form({ id, name: "Proveedor anticipo", anticipoPct: "30", evaluacion: "4", moneda: "ARS" })));
+  assert.ok(adm.paso, adm.salida);
+  assert.equal(await pct(), 30);
+  // 2 · el costo de un ítem en borrador: no el productor comercial (ve, no cambia) ni el de campo (aunque Dirección le guarde
+  // «Costos · editar» y «Ficha · editar», que el puesto no deja).
+  await m.duenio.proyectoPermiso.create({ data: { tenantId: m.a.id, rol: "PRODUCCION_CAMPO", modulo: "ficha", ver: true, editar: true } }).catch(() => undefined);
+  const p = await m.proyecto();
+  const borrador = await m.duenio.proyectoPresupuesto.create({ data: { tenantId: m.a.id, proyectoId: p.id, version: 2, estado: "BORRADOR", token: unico("mia237"), ivaPct: 21 }, select: { id: true } });
+  const item = await m.duenio.proyectoItem.create({ data: { tenantId: m.a.id, presupuestoId: borrador.id, rubro: "General", descripcion: "Stand", cantidad: 1, costo: 100, precio: 0 }, select: { id: true } });
+  const costo = async () => (await m.duenio.proyectoItem.findUniqueOrThrow({ where: { id: item.id }, select: { costo: true } })).costo;
+  for (const clave of ["COMERCIAL/RECEPTION", "PRODUCCION_CAMPO/PROFESSIONAL", "PRODUCCION_CAMPO/RECEPTION"]) {
+    const r = await intentar(m, clave, () => fichaAcc.guardarCampoItem({ id: item.id, campo: "costo", valor: "999" }));
+    if (r.paso || (await costo()) !== 100) huecos.push(`guardarCampoItem «costo» como ${clave}: ${r.salida}`);
+  }
+  // Control: Producción (presupuesta, P3) sí.
+  const prod = await intentar(m, "PRODUCCION/PROFESSIONAL", () => fichaAcc.guardarCampoItem({ id: item.id, campo: "costo", valor: "150" }));
+  assert.ok(prod.paso && (await costo()) === 150, `Producción cambia el costo: ${prod.salida}`);
+  // 3 · el despiece al presupuesto escribe costos: pide «Costos · editar» antes que nada (ni el comercial ni el de campo).
+  for (const clave of ["COMERCIAL/RECEPTION", "PRODUCCION_CAMPO/PROFESSIONAL"]) {
+    const r = await m.como(clave, () => taller.despieceAlPresupuesto(form({ proyectoId: p.id })));
+    const aviso = r.tipo === "redireccion" ? decodeURIComponent(r.destino) : JSON.stringify(r);
+    if (!/escribe costos/.test(aviso)) huecos.push(`despieceAlPresupuesto como ${clave}: ${aviso}`);
+  }
+  const ctrl = await m.como("PRODUCCION/PROFESSIONAL", () => taller.despieceAlPresupuesto(form({ proyectoId: p.id })));
+  assert.ok(ctrl.tipo === "redireccion" && !/escribe costos/.test(decodeURIComponent(ctrl.destino)), `Producción no frena por costos: ${JSON.stringify(ctrl)}`);
+  assert.deepEqual(huecos, []);
+}
 
 /** MIA-229 · lo que no pasaba por `veLaPlata` (certificación GSG-PR214-v4, X3): lecturas de proveedores, la vista de la
  *  ficha (pestaña Finanzas) y «Empresa · editar» guardado por Dirección. Corre como el usuario, con `app_rls`. */
