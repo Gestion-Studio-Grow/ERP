@@ -1,8 +1,8 @@
 // ============================================================================
 // CANCELAR DESPUÉS DE APROBADO (MIA-50 T09 · O04). PURO.
 // «Cancelado» es una salida distinta de «Perdido»: sólo Dirección, con motivo, y sólo con una versión aprobada. El sistema
-// no mueve plata solo: anula las cuotas pendientes como hoy con «perdido» (el plan sin cuotas, `regenerarCuotasTx`), no
-// toca cobros ni pagos hechos, no genera liquidación y lista lo que queda por resolver a mano (parámetro
+// no mueve plata solo: anula todas las cuotas pendientes (el plan sin cuotas, `planQueSigue`; un perdido conserva las del
+// proveedor, MIA-224 · D2), no toca cobros ni pagos hechos, no genera liquidación y lista lo que queda por resolver a mano (parámetro
 // `cancelacion.despuesDeAprobado`, provisional: «la resuelve Dirección»).
 // ============================================================================
 

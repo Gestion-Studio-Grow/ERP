@@ -237,7 +237,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   const conPagos = d.cuotas.some((c) => c.tipo === "PAGO" && !c.anuladoEl);
   // Un perdido no debe nada (pregunta 2 = A): no se ofrece cobrar ni marcar sus cuotas de cobro ni cargar un cobro a mano;
   // el servidor también lo rechaza (`PERDIDO_NO_COBRA`). Lo que se le debe a un proveedor se paga sin reabrir
-  // (`perdidoAdmite`, decisión 2 = A, provisional a confirmar por el dueño). Anular un cobro hecho sigue andando (V2).
+  // (`perdidoAdmite`, decisión 2 = A, la decidió el dueño el 20/11 · MIA-224). Anular un cobro hecho sigue andando (V2).
   const perdido = !!p.perdidoEl;
   const admite = (tipo: string) => !perdido || perdidoAdmite(tipo);
   // Lo cobrado que ninguna cuota viva tomó: primera línea del cashflow (el saldo arranca con eso).

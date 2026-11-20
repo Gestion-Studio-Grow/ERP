@@ -27,6 +27,7 @@ import { adicionalesDelProyecto, detallesDeLineas, diasDelPlan } from "./presupu
 import { cuotasDeAdicionales } from "./presupuesto-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import { totalAMano, totalesCongelados } from "./precio-foto.server";
+import { planQueSigue } from "./ficha-core";
 
 export interface Actor {
   user: SessionUser;
@@ -290,7 +291,7 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
 export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string): Promise<boolean> {
       await trabarCobranza(tx, tenantId, proyectoId);
       const [p, viva, config, tc] = await Promise.all([
-        tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
+        tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true, motivoPerdida: true } }),
         versionDeLaPlata(tenantId, proyectoId, tx),
         configProyectos(tenantId, tx),
         tiposDeCambio(tenantId, tx),
@@ -310,25 +311,27 @@ export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: 
       const fichas = await tx.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
       const anticipoProveedor = Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct]));
       const anticipoLinea = Object.fromEntries([...detalles].filter(([, d]) => d.anticipoPct != null).map(([id, d]) => [id, d.anticipoPct!]));
-      const planDeLaFicha =
-        !p.perdidoEl
-          ? [...planDeCuotas(items, {
-              proyectoId,
-              nombre: p.nombre,
-              fechaEvento: p.fechaEvento,
-              creado: p.createdAt,
-              anticipoClientePct: p.anticipoClientePct,
-              ivaPct: viva.ivaPct,
-              recargoGeneral: config.margenPct,
-              tiposDeCambio: tc,
-              monedaVenta: p.moneda,
-              cambioVenta: cambioDeVenta(p.moneda, viva.tcVenta, tc),
-              anticipoProveedor,
-              anticipoLinea,
-              dias,
-              ventaCongelada: congelados.get(viva.id) ?? null,
-            }), ...cuotasDeAdicionales(adicionales, { proyectoId, nombre: p.nombre, fechaEvento: p.fechaEvento, creado: p.createdAt, anticipoClientePct: p.anticipoClientePct, dias, anticipoProveedor })]
-          : [];
+      // MIA-224 · D2: un perdido conserva sus cuotas al proveedor (siguen en «A pagar» y se pagan sin reabrir); las del
+      // cliente se anulan. Cancelado, ninguna (`planQueSigue`).
+      const planDeLaFicha = planQueSigue(
+        [...planDeCuotas(items, {
+          proyectoId,
+          nombre: p.nombre,
+          fechaEvento: p.fechaEvento,
+          creado: p.createdAt,
+          anticipoClientePct: p.anticipoClientePct,
+          ivaPct: viva.ivaPct,
+          recargoGeneral: config.margenPct,
+          tiposDeCambio: tc,
+          monedaVenta: p.moneda,
+          cambioVenta: cambioDeVenta(p.moneda, viva.tcVenta, tc),
+          anticipoProveedor,
+          anticipoLinea,
+          dias,
+          ventaCongelada: congelados.get(viva.id) ?? null,
+        }), ...cuotasDeAdicionales(adicionales, { proyectoId, nombre: p.nombre, fechaEvento: p.fechaEvento, creado: p.createdAt, anticipoClientePct: p.anticipoClientePct, dias, anticipoProveedor })],
+        p,
+      );
       const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
       // `aplicarPlan` toma además el candado de cada cuota que puede escribir (`tomarCuotas`). Si igual una se marcó en
       // el medio (un camino que no lo tome), no se le pisa nada y el plan se vuelve a ajustar con ella.

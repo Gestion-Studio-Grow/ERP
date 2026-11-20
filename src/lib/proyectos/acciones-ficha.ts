@@ -253,6 +253,7 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
       }
       await tx.proyecto.updateMany({ where: { id, tenantId }, data });
       await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Etapa", antes, despues: motivo && d.destino === PERDIDO ? `Perdido: ${motivo}` : despues, autor: a.nombre });
+      if (data.etapa === "PEDIDO" && p.etapa !== "PEDIDO") await quitarAprobacion(tx, tenantId, id, a.nombre);
       if (m7b && d.destino !== PERDIDO) {
         // O05: al entrar en otra etapa, la fecha real es la del registro del historial. Reabrir vuelve a la misma: no la pisa.
         const entra = p.perdidoEl ? null : etapaQueSeEntra(etapas, p.etapa, data.etapa as string);
@@ -276,6 +277,21 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
   await auditAdmin({ action: "proyecto.etapa", entity: "Proyecto", entityId: id, changes: { de: r.antes, a: r.despues } });
   refrescar(id);
   return r.aviso ? { ok: true, aviso: r.aviso } : { ok: true };
+}
+
+/**
+ * MIA-224 · D4 (decisión del dueño, 20/11): un proyecto con presupuesto aprobado que vuelve a Pedido pierde la aprobación.
+ * La versión vuelve a «enviada», esperando la respuesta del cliente (su link y «Registrar respuesta» la aprueban de nuevo), y
+ * queda una fila en el historial. La foto del precio de esa versión no se borra: la versión no se puede editar y, al volver
+ * a aprobarse, la foto sigue siendo la suya. Adentro de la transacción del cambio de etapa, con el candado de la cobranza.
+ */
+async function quitarAprobacion(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, autor: string) {
+  const aprobadas = await tx.proyectoPresupuesto.findMany({ where: { tenantId, proyectoId, estado: "APROBADO" }, select: { id: true, version: true, respondidoPor: true } });
+  for (const v of aprobadas) {
+    const r = await tx.proyectoPresupuesto.updateMany({ where: { id: v.id, tenantId, estado: "APROBADO" }, data: { estado: "ENVIADO", respondidoEl: null, respondidoPor: null } });
+    if (r.count === 0) continue;
+    await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPresupuesto", entidadId: v.id, campo: `Aprobación · versión ${v.version}`, antes: v.respondidoPor ? `Aprobada (${v.respondidoPor})` : "Aprobada", despues: "Volvió a Pedido: la tiene que aprobar el cliente de nuevo", autor });
+  }
 }
 
 /** Rendiciones de gastos de campo sin cerrar. Sin la tabla (migración sin aplicar), ninguna. */

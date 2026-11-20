@@ -32,3 +32,12 @@ test("decisión 2 · en un perdido se paga a un proveedor y no se cobra: la mism
   // Par revisor MIA-099: falla cerrada. Un tipo que no es PAGO (desconocido, minúsculas, con espacios) no se admite.
   for (const raro of ["cobro", "COBRO ", "OTRO", ""]) assert.equal(perdidoAdmite(raro), false, `«${raro}» no es PAGO`);
 });
+
+test("decisión 2 (MIA-224) · qué cuotas del plan siguen: vivo todas; perdido sólo las del proveedor; cancelado ninguna", async () => {
+  const { planQueSigue } = await import("./ficha-core");
+  const plan = [{ clave: "c", tipo: "COBRO" }, { clave: "p", tipo: "PAGO" }];
+  const perdidoEl = new Date("2026-11-20T12:00:00Z");
+  assert.deepEqual(planQueSigue(plan, { perdidoEl: null, motivoPerdida: null }).map((c) => c.clave), ["c", "p"]);
+  assert.deepEqual(planQueSigue(plan, { perdidoEl, motivoPerdida: "Eligió otro proveedor" }).map((c) => c.clave), ["p"]);
+  assert.deepEqual(planQueSigue(plan, { perdidoEl, motivoPerdida: "Cancelado: el cliente suspendió" }), []);
+});

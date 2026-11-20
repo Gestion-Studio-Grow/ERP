@@ -171,10 +171,10 @@ test("D2 · carrera perder contra pagar al proveedor, en los dos órdenes (3 vec
   for (const orden of ORDENES) {
     const { id } = await p.proyecto("PRODUCCION");
     const [cuota] = JSON.parse(await p.deudaProveedor(id)) as { id: string }[];
-    const perder = () => p.mover(id, "PERDIDO", "carrera");
-    const pagar = () => p.marcar(cuota.id);
-    const [r1, r2] = await enFila(p.base, p.claveCobranza(id), orden ? [pagar, perder] : [perder, pagar]);
-    assert.equal(r1.ok && r2.ok, true, `orden ${orden}: los dos ganan (${JSON.stringify([r1, r2])})`);
+    const perder = (): Promise<{ ok: boolean }> => p.mover(id, "PERDIDO", "carrera");
+    const pagar = (): Promise<{ ok: boolean }> => p.marcar(cuota.id);
+    const res: { ok: boolean }[] = await enFila(p.base, p.claveCobranza(id), orden ? [pagar, perder] : [perder, pagar]);
+    assert.equal(res.every((r) => r.ok), true, `orden ${orden}: los dos ganan (${JSON.stringify(res)})`);
     assert.notEqual((await p.etapa(id)).perdidoEl, null, `orden ${orden}: queda perdido`);
     const c = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: cuota.id }, select: { pagadoEl: true, anuladoEl: true } });
     assert.ok(c.pagadoEl && !c.anuladoEl, `orden ${orden}: la cuota quedó pagada y viva`);
@@ -182,7 +182,7 @@ test("D2 · carrera perder contra pagar al proveedor, en los dos órdenes (3 vec
   }
 });
 
-test("D3 · «Avance de cobro» de un perdido con la seña cobrada: lo cobrado contra la venta original (605 / 1.210 = 50 %)", async (t) => {
+test("D3 · «Avance de cobro» de un perdido con la seña cobrada: lo cobrado contra la venta original (931,70 / 1.863,40 = 50 %)", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { id } = await p.proyecto("PRODUCCION");
@@ -191,7 +191,10 @@ test("D3 · «Avance de cobro» de un perdido con la seña cobrada: lo cobrado c
   assert.equal((await p.mover(id, "PERDIDO", "Eligió otro proveedor")).ok, true);
   const c = await p.cobranza(id);
   assert.equal(c.porCobrar, 0, "un perdido no tiene nada por cobrar (V2)");
-  assert.equal(c.ventaOriginal, 1210, "la venta original, a mano: 1.000 + IVA 21 %");
+  // A mano: el stand 1.000 + la madera 400 con el recargo general de 35 % (540) = 1.540, + IVA 21 % = 1.863,40; la seña es
+  // el 50 %: 931,70.
+  assert.equal(c.cobrado, 931.7, "lo cobrado: la seña");
+  assert.equal(c.ventaOriginal, 1863.4, "la venta original, no lo cobrado");
   assert.equal(avanceDeCobro({ cobrado: c.cobrado, aCobrar: c.porCobrar, ventaOriginal: c.ventaOriginal }, true), 50);
 });
 
