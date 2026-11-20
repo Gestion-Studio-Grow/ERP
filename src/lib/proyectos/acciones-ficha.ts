@@ -1047,10 +1047,10 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
       ? { count: await tx.proyectoCuota.count({ where: { id, tenantId, pagadoEl: null, anuladoEl: null, prevista: false, monto: c.monto, moneda: c.moneda } }) }
       : await tx.proyectoCuota.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null, prevista: false, monto: c.monto, moneda: c.moneda }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio, cuentaId: cuenta?.id ?? null, cuentaMovido: cuenta?.movido ?? null } });
     if (r.count === 0) return false;
-    // MIA-203 (deuda de MIA-201): un cobro PARCIAL no marca la cuota, así que no deja `cuota.cuentaId`; con M8 su cuenta se
-    // mueve con un `ProyectoMovCuenta` (más abajo, ya con el id del cobro): la cuenta «tiene movimientos» y `guardarSaldo`
-    // no la pisa. Anularlo lo revierte con `revertirCuentaTx`. Sin M8, como antes.
-    const porMovimiento = Boolean(cuenta && esCobro && parcial !== null && (await hayM8(tx)));
+    // MIA-203 (deuda de MIA-201): una parte (cobro o pago a proveedor, MIA-205) no marca la cuota, así que no deja
+    // `cuota.cuentaId`; con M8 su cuenta se mueve con un `ProyectoMovCuenta` (más abajo, ya con el id del cobro o del gasto):
+    // la cuenta «tiene movimientos» y `guardarSaldo` no la pisa. Anularla lo revierte con `revertirCuentaTx`. Sin M8, como antes.
+    const porMovimiento = Boolean(cuenta && parcial !== null && (await hayM8(tx)));
     if (cuenta && !porMovimiento) await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId }, data: { saldo: { increment: cuenta.movido } } });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
     const method = metodoDeCaja(medio, await transferenciaEnElLibroTx(tx));
@@ -1075,6 +1075,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
         select: { id: true },
       });
       asiento = gasto.id;
+      if (porMovimiento && cuenta) await moverCuentaTx(tx, tenantId, { cuentaId: cuenta.id, origenTipo: "PAGO", origenId: gasto.id, importeEnPesos: cuenta.movido });
       await guardarFotoTx(tx, tenantId, { origenTipo: "PAGO", origenId: gasto.id, foto: { moneda: c.moneda, originalCentavos: aCentavos(cobra), cambioCentavos: cambioUsado, pesosCentavos: aCentavos(importe) }, cambioDia: null });
       await asentarEnCajaTx(tx, "pago", { ...base, type: "EGRESO", reason: `${etiqueta}${c.supplier ? ` · ${c.supplier.name}` : ""}${parcial !== null ? " · parte" : ""}${cheque}`, proyectoGastoId: gasto.id, createdBy: marcaDeGastoProyecto(gasto.id) });
       // Como el cobro: la cuenta que movió ESTE pago (una cuota puede tener varias partes); anularlo devuelve exactamente esto.
@@ -1260,8 +1261,9 @@ async function reabrirCuotaTx(tx: Prisma.TransactionClient, tenantId: string, pr
   const cuota = await tx.proyectoCuota.findFirst({ where: { id: enlace.entidadId, tenantId }, select: { cuentaId: true, cuentaMovido: true, pagadoEl: true } });
   // La cuenta que movió ESTE cobro o pago (los nuevos: uno por parte); los de antes la guardaban sólo en la cuota marcada.
   const movida = await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: { in: ["ProyectoPago", "ProyectoGasto"] }, entidadId: asiento, campo: "Cuenta movida" }, select: { antes: true, despues: true } });
-  // MIA-203: si lo movió un `ProyectoMovCuenta` (cobro parcial con M8), lo devuelve `revertirCuentaTx`, no esto (si no, dos veces).
-  const porMovimiento = Boolean(movida?.antes && movida.antes !== "ninguna" && (await hayM8(tx)) && (await tx.proyectoMovCuenta.count({ where: { tenantId, origenTipo: "COBRO", origenId: asiento, anuladoEl: null } })) > 0);
+  // MIA-203/205: si lo movió un `ProyectoMovCuenta` (una parte con M8, cobro o pago), lo devuelve `revertirCuentaTx`, no esto
+  // (si no, dos veces).
+  const porMovimiento = Boolean(movida?.antes && movida.antes !== "ninguna" && (await hayM8(tx)) && (await tx.proyectoMovCuenta.count({ where: { tenantId, origenTipo: { in: ["COBRO", "PAGO"] }, origenId: asiento, anuladoEl: null } })) > 0);
   if (!porMovimiento && movida?.antes && movida.antes !== "ninguna" && Number(movida.despues)) await tx.proyectoCuentaBanco.updateMany({ where: { id: movida.antes, tenantId }, data: { saldo: { decrement: Number(movida.despues) } } });
   else if (!movida && cuota?.pagadoEl && cuota.cuentaId && cuota.cuentaMovido) await tx.proyectoCuentaBanco.updateMany({ where: { id: cuota.cuentaId, tenantId }, data: { saldo: { decrement: cuota.cuentaMovido } } });
   // Una parte anulada de una cuota sin marcar: la cuota ya está pendiente, sólo recupera ese saldo (lo hace el reparto).

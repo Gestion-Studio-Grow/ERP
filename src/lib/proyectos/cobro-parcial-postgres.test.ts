@@ -449,3 +449,29 @@ test("MIA-203 · deuda de MIA-201: un cobro PARCIAL con cuenta deja su movimient
   assert.equal((await movDe())?.anuladoEl instanceof Date, true, "el movimiento queda anulado");
   assert.equal((await p.estado(id)).falta[q], 605);
 });
+
+test("MIA-205 · 1: un PAGO parcial a proveedor con cuenta deja su movimiento; el saldo no se escribe a mano y anularlo lo devuelve una vez", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { id } = await p.proyecto();
+  const q = (await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: id, tipo: "PAGO", concepto: "Proveedor", monto: 500, moneda: "ARS", venceEl: new Date(AHORA + 5 * DIA), auto: false }, select: { id: true } })).id;
+  const banco = await p.cuenta();
+  const r = await p.cobrar(q, { monto: "100", cuenta: banco, envio: "pago-parte-1" })();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(await p.saldoCuenta(banco), -100, "el pago baja el banco");
+  const gasto = await p.duenio.proyectoGasto.findFirstOrThrow({ where: { proyectoId: id, anuladoEl: null }, select: { id: true } });
+  const movDe = () => p.enSesion(async () => (await import("@/lib/prisma")).prisma.proyectoMovCuenta.findFirst({ where: { tenantId: p.a.id, origenTipo: "PAGO", origenId: gasto.id }, select: { cuentaId: true, importeCentavos: true, anuladoEl: true } }).then((m) => m && { ...m, importeCentavos: Number(m.importeCentavos) }));
+  assert.deepEqual(await movDe(), { cuentaId: banco, importeCentavos: -10_000, anuladoEl: null }, "el pago parcial deja su ProyectoMovCuenta");
+  const aMano = await p.enSesion(async () => (await import("./acciones-empresa")).guardarSaldo(p.form({ id: banco, saldo: "0" })));
+  assert.equal(aMano.ok, false, "con el movimiento del pago parcial, el saldo no se pisa a mano (no borra el egreso)");
+  assert.equal(await p.saldoCuenta(banco), -100);
+  // Anular el pago parcial devuelve el banco exacto, una sola vez (no también por «Cuenta movida»), y la cuota recupera su saldo.
+  assert.equal((await p.enSesion(() => p.ficha.anularGastoFicha(p.form({ id: gasto.id })))).ok, true);
+  assert.equal(await p.saldoCuenta(banco), 0);
+  assert.equal((await movDe())?.anuladoEl instanceof Date, true, "el movimiento queda anulado");
+  // Anular otra vez (otra pestaña): no mueve nada.
+  assert.equal((await p.enSesion(() => p.ficha.anularGastoFicha(p.form({ id: gasto.id })))).ok, true);
+  assert.equal(await p.saldoCuenta(banco), 0);
+  const cuota = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true, cuentaId: true } });
+  assert.deepEqual(cuota, { pagadoEl: null, cuentaId: null });
+});
