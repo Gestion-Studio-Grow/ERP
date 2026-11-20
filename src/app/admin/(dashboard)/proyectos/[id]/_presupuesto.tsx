@@ -10,9 +10,10 @@ import { parametrosDelNegocio } from "@/lib/proyectos/parametros/leer.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { importe } from "@/lib/proyectos/presupuesto-vista-core";
 import { anticipoDeLaLinea, cantidadDeLaLinea, ESTADO_ADICIONAL_LABEL, subtotalCentavos, totalesDelAdicional } from "@/lib/proyectos/presupuesto-core";
-import { adicionalesDelProyecto, detallesDeLineas, estadosDePrevision, hayM2 } from "@/lib/proyectos/presupuesto-m2.server";
+import { adicionalesDelProyecto, detallesDeLineas, type estadosDePrevision, hayM2 } from "@/lib/proyectos/presupuesto-m2.server";
 import type { Actor } from "@/lib/proyectos/gestion.server";
-import type { Vista } from "@/lib/proyectos/ficha.server";
+import type { Cabecera, Vista } from "@/lib/proyectos/ficha.server";
+import { datosPrevision } from "@/lib/proyectos/prevision.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
 import { Numero } from "./_pestanas-datos";
@@ -290,21 +291,11 @@ export async function Adicionales({ a, vista, proyectoId, baseAprobada }: { a: A
 
 // ── O12 · previsión de pagos por línea ───────────────────────────────────────
 
-export async function PrevisionDePagos({ a, vista, proyectoId, lineas }: { a: Actor; vista: Vista; proyectoId: string; lineas: readonly Linea[] }) {
-  if (!vista.costos || lineas.length === 0 || !(await hayM2())) return null;
-  const [detalles, cuotas, adicionales, par] = await Promise.all([
-    detallesDeLineas(prisma, a.tenantId, lineas.map((l) => l.id)),
-    prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId, tipo: "PAGO", anuladoEl: null, clave: { startsWith: `${proyectoId}:` } }, orderBy: { venceEl: "asc" }, select: { id: true, clave: true, concepto: true, monto: true, moneda: true, venceEl: true, pagadoEl: true } }),
-    adicionalesDelProyecto(prisma, a.tenantId, proyectoId),
-    parametrosDelNegocio(a.tenantId),
-  ]);
-  // Las líneas de los adicionales aprobados también tienen su anticipo y su saldo (claves `P:adic:<línea>:…`).
-  const deAdicionales = adicionales.filter((ad) => ad.estado === "APROBADO").flatMap((ad) => ad.lineas.map((l) => ({ ...l, adicional: `Adicional ${ad.numero} · ${ad.nombre}` })));
-  const proveedores = [...lineas.map((l) => l.supplierId), ...deAdicionales.map((l) => l.supplierId)].flatMap((s) => (s ? [s] : []));
-  const fichas = await prisma.proyectoProveedorFicha.findMany({ where: { tenantId: a.tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
-  const estados = await estadosDePrevision(prisma, a.tenantId, cuotas.map((c) => c.id));
-  const delProveedor = new Map(fichas.map((f) => [f.supplierId, f.anticipoPct]));
-  const palabras = par["prevision.palabras"];
+export async function PrevisionDePagos({ a, vista, cab }: { a: Actor; vista: Vista; cab: Cabecera }) {
+  // MIA-251: las cuotas de PAGO las decide el servidor (`vista.deudas`); sin eso, no hay datos ni sección.
+  const datos = await datosPrevision(a, vista, cab);
+  if (!datos) return null;
+  const { proyectoId, lineas, detalles, cuotas, deAdicionales, delProveedor, estados, palabras } = datos;
   // MIA-234 · «2a»: el % de anticipo es plata; quien edita cotizaciones sin verla no tiene el formulario (la acción lo rechaza igual).
   const puedeEditarPct = vista.editaCotizaciones || vista.editaPagos;
   const editaPct = puedeEditarPct && (await veLaPlata(a.user));

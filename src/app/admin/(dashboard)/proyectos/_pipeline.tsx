@@ -18,7 +18,7 @@ const nombreEstado = (c: string) => (c === PERDIDO ? "Perdido" : etapaLabel(c));
 
 interface Frenado { id: string; destino: string; faltan: string[]; puedeForzar: boolean }
 
-export function Pipeline({ tarjetas, etapas, vista, edita }: { tarjetas: TarjetaProyecto[]; etapas: EtapaParam[]; vista: "tablero" | "lista"; edita: boolean }) {
+export function Pipeline({ tarjetas, etapas, vista, edita, conVenta }: { tarjetas: TarjetaProyecto[]; etapas: EtapaParam[]; vista: "tablero" | "lista"; edita: boolean; conVenta: boolean }) {
   const [filtro, setFiltro] = useState("");
   const [movidas, setMovidas] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -135,7 +135,7 @@ export function Pipeline({ tarjetas, etapas, vista, edita }: { tarjetas: Tarjeta
         <input value={filtro} onChange={(e) => setFiltro(e.target.value)} aria-label="Filtrar por nombre o cliente" placeholder="Filtrar por nombre o cliente" className={cn(campo, "sm:max-w-xs")} />
         <dl className="flex gap-5 text-sm">
           <div><dt className="text-xs text-muted">Por aprobar</dt><dd className="font-semibold text-strong tabular-nums">{abiertos}</dd></div>
-          <div><dt className="text-xs text-muted">Venta por aprobar</dt><dd className="font-semibold text-strong tabular-nums">{pesos(valor)}</dd></div>
+          {conVenta && <div><dt className="text-xs text-muted">Venta por aprobar</dt><dd className="font-semibold text-strong tabular-nums">{pesos(valor)}</dd></div>}
         </dl>
       </div>
       {error && <p role="alert" className="mb-3 text-sm font-medium text-danger">{error}</p>}

@@ -10,7 +10,7 @@ import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, cr
 import { pagosPorRevisar } from "@/lib/proyectos/gestion.server";
 import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, redondear, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
 import { MEDIO_RETENCION } from "@/lib/proyectos/moneda-bancos-core";
-import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, perdidoAdmite, planillaDeVenta } from "@/lib/proyectos/ficha-core";
+import { esFoto, filtrarCashflow, fotoDeVersion, margenDeFoto, perdidoAdmite, planillaDeVenta } from "@/lib/proyectos/ficha-core";
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
 import { cambiosEntreVersiones, cambioDeVenta, conVentaCongelada, estadoCuota, margenParaMostrar, MONEDAS, totalesFicha } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
@@ -236,7 +236,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   const cuentas = vista.editaPagos ? await prisma.proyectoCuentaBanco.findMany({ where: { tenantId: a.tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true } }) : [];
   const { proyecto: p, totales: t, faltanCambio } = cab;
   const d = await datosFinanzas(a, cab, vista);
-  const activo = FILTROS_CASHFLOW.some((f) => f.id === filtro) ? (filtro as string) : "todos";
+  const activo = d.filtros.some((f) => f.id === filtro) ? (filtro as string) : "todos";
   const lineas = filtrarCashflow(d.flujo.lineas, activo);
   const hoy = fechaParaInput(new Date());
   // Con cuotas, se cobra y se paga marcándolas: cargar además por acá contaría dos veces. Sin cuotas, es el único camino.
@@ -299,7 +299,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-semibold text-strong">Cashflow del evento</h2>
           <nav aria-label="Filtrar cashflow" className="flex flex-wrap gap-1">
-            {FILTROS_CASHFLOW.map((f) => (
+            {d.filtros.map((f) => (
               <Link key={f.id} scroll={false} href={`?tab=finanzas&filtro=${f.id}`} aria-current={f.id === activo ? "true" : undefined} className={cn("flex min-h-11 items-center rounded-lg px-3 text-sm font-medium", f.id === activo ? "bg-accent text-on-accent" : "border border-line text-strong")}>{f.label}</Link>
             ))}
           </nav>
@@ -518,7 +518,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         </section>
       )}
 
-      <PrevisionDePagos a={a} vista={vista} proyectoId={p.id} lineas={cab.base?.estado === "APROBADO" ? cab.base.items : []} />
+      <PrevisionDePagos a={a} vista={vista} cab={cab} />
 
       <section className={tarjeta} aria-label="Cobros">
         <h2 className="mb-1 font-semibold text-strong">Cobros</h2>

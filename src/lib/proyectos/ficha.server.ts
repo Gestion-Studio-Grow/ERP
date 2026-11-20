@@ -18,7 +18,7 @@ import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import { comprobantesEnElFlujo, costoRealDeProyectos, cuotasEnlazadas, imputadoSinItem, lineasImputadasDe } from "./comprobantes.server";
 import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
-import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
+import { cambioVisible, columnaDe, FILTROS_CASHFLOW, filaDeFicha, iniciales, monedasSinCambio, PERDIDO, planillaDeVenta, resumenPipeline } from "./ficha-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
 import { modoDeLaPropuesta } from "./precio-proyecto.server";
 import { totalesDelNeto, type ModoPropuesta } from "./precio-proyecto-core";
@@ -42,6 +42,16 @@ export interface TarjetaProyecto {
 }
 
 export const TOPE_TABLERO = 300;
+
+/**
+ * MIA-251 · el tablero con su indicador «Venta por aprobar»: sólo para quien ve la venta (`veLaVenta`). Campo y Producción no
+ * lo reciben, tampoco en $ 0 (certificación GSG-PR214-v9-C8, observación 2). La pantalla lo recalcula al mover tarjetas.
+ */
+export async function tableroConIndicadores(a: Actor): Promise<{ tarjetas: TarjetaProyecto[]; ventaPorAprobar: number | null }> {
+  const tarjetas = await tableroPipeline(a);
+  const ventaPorAprobar = veLaVenta(a.rol) ? resumenPipeline(tarjetas.map((t) => ({ etapa: t.etapa, venta: t.venta, perdido: t.columna === PERDIDO }))).valor : null;
+  return { tarjetas, ventaPorAprobar };
+}
 
 export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
   const [proyectos, tc, config] = await Promise.all([
@@ -294,6 +304,8 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const enlazados = new Set(asientos.flatMap((x) => (x.despues ? [x.despues] : [])));
   return {
     cuotas: visibles,
+    // MIA-251: sin deudas (el productor comercial), el cashflow no ofrece el filtro «Pagos»: no hay pagos que filtrar.
+    filtros: vista.deudas ? FILTROS_CASHFLOW : FILTROS_CASHFLOW.filter((f) => f.id !== "pagos"),
     flujo,
     resumen: conciliarConCobros(conPartesComoPagadas(visibles, pagados), cab.tc, cob),
     pagos,
