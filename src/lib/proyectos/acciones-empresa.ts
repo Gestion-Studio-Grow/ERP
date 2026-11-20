@@ -27,7 +27,7 @@ import { aplicarAccion } from "@/lib/rendiciones/rendicion";
 import type { RolActor } from "@/lib/rendiciones/tipos";
 import { conReintegros, esLoPropio, etiquetaMes, extrasRecalculados, LIQUIDACION_PROPIA, leerExtras, lineasNuevas, periodoValido, reintegrosCuadran, totalLiquidacion, type ExtraGuardado } from "./empresa-core";
 import type { Resultado } from "./acciones";
-import { CUOTA_ENLAZADA, listoMarcada } from "./avisos-cuota";
+import { CUOTA_ENLAZADA, cuotaPagadaPorOrden, listoMarcada } from "./avisos-cuota";
 import { siHayM1, tomarCuotas } from "./comprobantes.server";
 import { randomUUID } from "node:crypto";
 import { aCentavos, esDiaValido, esOrigenConciliable, esTramo, huellasDelExtracto, MEDIO_RETENCION, signoDelOrigen, TRAMO_LABEL, type OrigenConciliable } from "./moneda-bancos-core";
@@ -179,10 +179,20 @@ export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado<
   // pendiente no la anula por error. La pantalla de Cuentas lo va a mandar con la parte visual de A-05, que va en la
   // tanda T05 (no en T03); sin él, como antes.
   const visto = txt(formData.get("visto"));
-  const hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<"pago" | "cuota" | "no-existe" | false> => {
-    const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null }, select: { concepto: true, tipo: true, monto: true, moneda: true, pagadoEl: true, cuentaId: true, cuentaMovido: true } });
+  // MIA-211 · S1: la cuota que pagó una orden de pago no se anula acá: la plata salió con la orden (su egreso, su cuenta y
+  // su estado PAGADA), y anular sólo la cuota dejaba la orden pagada, el banco sin volver y la deuda dos veces en «A
+  // pagar». Se anula la orden, que la reabre. Sin M1 (Gate 2) no hay órdenes: `null`, y adentro no se cuenta.
+  const enOrden = (cuotaId: string, db: Prisma.TransactionClient | typeof prisma) =>
+    db.proyectoOrdenPagoLinea.count({ where: { tenantId: a.tenantId, cuotaId, orden: { estado: "PAGADA" } } });
+  const porOrden = await siHayM1(() => enOrden(id, prisma));
+  const hecho = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<"pago" | "cuota" | "no-existe" | { orden: string | null } | false> => {
+    // El candado de la cuota (el de `aprobarYPagarOrden` y `anularOrdenPago`): una orden que la paga en el medio aborta
+    // esta transacción (Serializable) y el reintento la ve.
+    await tomarCuotas(tx, a.tenantId, [id]);
+    const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null }, select: { concepto: true, tipo: true, monto: true, moneda: true, pagadoEl: true, pagadoPor: true, cuentaId: true, cuentaMovido: true } });
     // ADM-143: un id de otro negocio no existe para este; a ése no se le afirma un estado. Lo propio sí lo dice.
     if (!c) return (await tx.proyectoCuota.findFirst({ where: { id, tenantId: a.tenantId, proyectoId: null }, select: { id: true } })) ? false : "no-existe";
+    if (c.tipo !== "COBRO" && porOrden !== null && (await enOrden(id, tx)) > 0) return { orden: c.pagadoPor };
     if (!c.pagadoEl && visto === "PAGADA") return false;
     if (!c.pagadoEl) {
       const r = await tx.proyectoCuota.updateMany({ where: { id, tenantId: a.tenantId, proyectoId: null, anuladoEl: null, pagadoEl: null }, data: { anuladoEl: new Date() } });
@@ -217,6 +227,7 @@ export async function anularCuotaEmpresa(formData: FormData): Promise<Resultado<
   }));
   if (hecho instanceof PeriodoCerradoError) return { ok: false, error: hecho.message };
   if (hecho === "no-existe") return { ok: false, error: "Esa cuota no existe." };
+  if (typeof hecho === "object") return { ok: false, error: cuotaPagadaPorOrden(hecho.orden) };
   if (!hecho) return { ok: false, error: "Ese pago ya estaba anulado." };
   await auditAdmin({ action: "proyecto.cuota-empresa.anular", entity: "ProyectoCuota", entityId: id, changes: { que: hecho } });
   refrescar();

@@ -228,7 +228,10 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
     const malPago = errorDelPago({ medio: o.medio, cuentaId: cuentaId || null, hayCuentas, fecha, hoy: hoyArgentina() });
     if (malPago) return { ok: false, error: malPago };
     const diaDelPago = fecha ?? hoyArgentina();
-    const pagadaEl = fecha ? new Date(`${fecha}T12:00:00-03:00`) : new Date();
+    // MIA-211 · H1: «Día del pago» = hoy es ahora, no las 12:00 (desordenaba el saldo corrido del libro). Un día atrasado
+    // sigue a las 12:00 de ese día.
+    const atrasada = fecha !== null && fecha !== hoyArgentina();
+    const pagadaEl = atrasada ? new Date(`${fecha}T12:00:00-03:00`) : new Date();
     let fotoOrden: { foto: FotoEnPesos; cambioDia: string | null; diferenciaCentavos: number } = { foto: fotoEnPesos("ARS", n(o.totalCentavos) / 100, 100), cambioDia: null, diferenciaCentavos: 0 };
     if (monedaOrden !== "ARS") {
       const cambio = await cambioDelMovimiento(prisma, tenantId, monedaOrden, diaDelPago);
@@ -275,7 +278,7 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
         reason: `${numeroDeOrden(o.numero)} · ${o.supplier.name}${medio === "CHEQUE" ? " · Cheque" : ""}`,
         proyectoOrdenPagoId: id,
         createdBy: marcaDeOrden(id),
-        ...(fecha && { occurredAt: pagadaEl }),
+        ...(atrasada && { occurredAt: pagadaEl }),
       });
       await guardarFotoTx(tx, tenantId, { origenTipo: "ORDEN_PAGO", origenId: id, foto: fotoOrden.foto, cambioDia: fotoOrden.cambioDia, diferenciaCentavos: fotoOrden.diferenciaCentavos });
       if (cuentaId) await moverCuentaTx(tx, tenantId, { cuentaId, origenTipo: "ORDEN_PAGO", origenId: id, importeEnPesos: -fotoOrden.foto.pesosCentavos / 100 });

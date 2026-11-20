@@ -13,6 +13,7 @@ import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto,
 import { aItemFicha } from "@/lib/proyectos/gestion.server";
 import { cambiosEntreVersiones, cambioDeVenta, conVentaCongelada, estadoCuota, margenParaMostrar, MONEDAS, totalesFicha } from "@/lib/proyectos/gestion-core";
 import { datosCotizacion, datosFinanzas, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
+import type { ComprobanteEnFlujo } from "@/lib/proyectos/comprobantes.server";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { textoPagado } from "@/lib/proyectos/cobranza-core";
 import { ofreceNuevaVersion } from "@/lib/proyectos/presupuesto-vista-core";
@@ -284,7 +285,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
           <p className="mb-3 text-sm text-muted">Sin movimientos. Los cobros y pagos se generan solos cuando el proyecto está confirmado y la ficha tiene fecha de evento.</p>
         ) : (
           <div className="mb-3 overflow-x-auto">
-            {lineas.some((l) => l.cuota.prevista && !l.cuota.pagadoEl) && <p className="mb-2 text-sm text-muted">Las cuotas previstas son una proyección: no suman en Administración, agenda ni proveedores, y se pueden marcar recién con el evento confirmado y con fecha.</p>}
+            {lineas.some((l) => !("comprobanteId" in l.cuota) && l.cuota.prevista && !l.cuota.pagadoEl) && <p className="mb-2 text-sm text-muted">Las cuotas previstas son una proyección: no suman en Administración, agenda ni proveedores, y se pueden marcar recién con el evento confirmado y con fecha.</p>}
             {/* En el teléfono cada cuota es un bloque (concepto y monto arriba, la acción abajo): la tabla de 920 px dejaba
                 el monto y el botón fuera de la vista. Desde sm, la tabla de siempre. */}
             <table className="block w-full text-sm sm:table sm:min-w-[920px]">
@@ -317,6 +318,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                   </tr>
                 )}
                 {lineas.map(({ cuota: c, importe, saldo }) => {
+                  if ("comprobanteId" in c) return <FilaComprobante key={c.id} c={c} importe={importeEn(c.monto, c.moneda)} enPesos={enCaja(importe)} saldo={enCaja(saldo)} negativo={saldo < 0} />;
                   const estado = estadoCuota(c);
                   const fecha = c.prevista && !p.fechaEvento ? "Sin fecha" : fechaCorta(c.venceEl);
                   const contraparte = c.tipo === "COBRO" ? p.client.name : c.supplier?.name ?? "—";
@@ -542,5 +544,30 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         <p className="mt-2 text-sm text-muted">Cada cobro entra al libro de caja. La factura se emite desde Facturación.</p>
       </section>
     </div>
+  );
+}
+
+/**
+ * MIA-211 · H2: un comprobante de proveedor imputado al proyecto, en el cashflow del evento. No se marca acá: se paga con
+ * una orden de pago (Proveedores › Órdenes de pago), así que la fila lleva el enlace en vez de los botones de la cuota.
+ */
+function FilaComprobante({ c, importe, enPesos, saldo, negativo }: { c: ComprobanteEnFlujo; importe: string; enPesos: string; saldo: string; negativo: boolean }) {
+  const fecha = fechaCorta(c.venceEl);
+  return (
+    <tr className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-t border-line py-2 align-top sm:table-row sm:py-0">
+      <td className="hidden py-1.5 pr-2 whitespace-nowrap sm:table-cell">{fecha}</td>
+      <td className="py-1.5 pr-2">
+        {c.concepto}
+        <span className="block text-xs text-muted sm:hidden">{fecha} · {c.proveedor}</span>
+      </td>
+      <td className="hidden py-1.5 pr-2 sm:table-cell">{c.proveedor}</td>
+      <td className="py-1.5 pr-2 text-right tabular-nums">{importe}</td>
+      <td className="hidden py-1.5 pr-2 text-right tabular-nums text-danger sm:table-cell">{enPesos}</td>
+      <td className={cn("hidden py-1.5 pr-2 text-right font-medium tabular-nums sm:table-cell", negativo && "text-danger")}>{saldo}</td>
+      <td className="col-span-2 py-1.5 pr-2"><Badge tone={c.pagadoEl ? "success" : "neutral"}>{c.pagadoEl ? "Pagado" : "Pendiente"}</Badge></td>
+      <td className="col-span-2 py-1 sm:text-right">
+        {!c.pagadoEl && <Link href="/admin/proyectos/proveedores/ordenes" className="text-xs text-muted underline underline-offset-2">Se paga con una orden de pago</Link>}
+      </td>
+    </tr>
   );
 }
