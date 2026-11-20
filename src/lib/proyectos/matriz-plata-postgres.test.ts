@@ -326,6 +326,7 @@ test("MIA-215 · matriz de plata: cada rol que no ve la plata rechaza cada acci�
   await t.test("MIA-238 · productor comercial: en un proyecto que no es suyo no ve cobrado, por cobrar ni costos (pantalla y llamada directa)", () => probarComercialAjeno(m));
   await t.test("MIA-238 · una OWNER sin ficha activa que no es la Dueña (su ficha de Administración, de baja) no hereda Dirección ni usuarios", () => probarOwnerDeBaja(m));
   await t.test("MIA-239 · productor comercial: en un proyecto ajeno no ve la venta (Pipeline, ficha, IA) ni edita cotizaciones, precio, equipo ni el estimado", () => probarComercialVentaAjena(m));
+  await t.test("MIA-244 · productor de campo en el equipo: el Pipeline (tablero y lista: ninguna tarjeta con venta) y el papel sin ningún importe; Dirección y Comercial en su proyecto siguen viendo la venta", () => probarCampoPipeline(m));
   await t.test("MIA-237 · puertas de MIA-236: % de anticipo del proveedor y costos al presupuesto, sólo quien corresponde", () => probarPuertasMia236(m));
   await t.test("MIA-243 · 2A: Producción guarda costo, cantidad e ítems; los cobros siguen a la ficha, los pagos quedan «por revisar» y Administración los rehace", () => probarRegla2A(m));
   await t.test("MIA-243 · 2A en carrera: Producción guarda y Administración rehace a la vez; los pagos los decide Administración y nada se duplica", () => probarCarrera2A(m));
@@ -814,4 +815,43 @@ async function probarComercialVentaAjena(m: Mundo) {
   // Control: en su propio proyecto, la misma llamada sí llega al negocio (no la frena el permiso).
   const nvPropio = await m.como("COMERCIAL/RECEPTION", () => accFicha.nuevaVersion(form({ proyectoId: propio.id })));
   assert.doesNotMatch(nvPropio.tipo === "respuesta" ? ((nvPropio.valor as { error?: string }).error ?? "") : "", /permiso/);
+}
+
+/**
+ * MIA-244 · «El de campo no ve plata» (dueño, 20/11): el productor de campo en el `ProyectoEquipo` de un proyecto pedía el
+ * Pipeline y veía la venta (tablero y lista, columna Venta: v8-C8, hallazgo 1). Lo decide `veLaPlataDelProyecto`, el mismo
+ * control que cerró a Comercial en lo ajeno (MIA-239): un puesto sin importes no ve la plata de ningún proyecto, aunque
+ * esté en su equipo. Hecho a mano: el ítem del mundo vende $ 1.000; Campo, ninguna tarjeta con venta (la suma sale de ahí).
+ */
+async function probarCampoPipeline(m: Mundo) {
+  const gestion = await import("./gestion.server");
+  const ficha = await import("./ficha.server");
+  const p = await m.proyecto();
+  const leer = async (clave: string) => {
+    if (clave !== "DIRECCION/OWNER") assert.ok(await m.duenio.proyectoEquipo.count({ where: { proyectoId: p.id, personaId: m.persona(clave) } }), `${clave} está en el equipo`);
+    const r = await m.como(clave, async () => {
+      const a = await gestion.actorActual();
+      const tarjetas = await ficha.tableroPipeline(a);
+      const t = tarjetas.find((x) => x.id === p.id);
+      assert.ok(t, `${clave} ve su proyecto en el Pipeline`);
+      return {
+        venta: t.venta ?? null,
+        ventaTexto: t.ventaTexto ?? null,
+        conImporte: tarjetas.filter((x) => x.venta !== null || x.ventaTexto !== null).length,
+        papel: !!(await ficha.planillaParaPapel(a, p.id)),
+      };
+    });
+    assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
+    return (r as { valor: { venta: number | null; ventaTexto: string | null; conImporte: number; papel: boolean } }).valor;
+  };
+  const SIN_IMPORTES = { venta: null, ventaTexto: null, conImporte: 0, papel: false };
+  assert.deepEqual(
+    { prof: await leer("PRODUCCION_CAMPO/PROFESSIONAL"), rec: await leer("PRODUCCION_CAMPO/RECEPTION") },
+    { prof: SIN_IMPORTES, rec: SIN_IMPORTES },
+  );
+  // Contraprueba: Dirección y Comercial, en el mismo proyecto (de su equipo), siguen viendo la venta de $ 1.000.
+  for (const clave of ["DIRECCION/OWNER", "COMERCIAL/RECEPTION"]) {
+    const v = await leer(clave);
+    assert.deepEqual([v.venta, !!v.ventaTexto, v.papel], [1000, true, true], `${clave}: ${JSON.stringify(v)}`);
+  }
 }

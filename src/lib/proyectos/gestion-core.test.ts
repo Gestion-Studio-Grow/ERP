@@ -497,3 +497,11 @@ test("MIA-239 · en un proyecto ajeno se cierran costos, cotizaciones, pagos y e
   );
   assert.deepEqual(cerrados, ["ficha:editar", "costos:ver", "costos:editar", "cotizaciones:ver", "cotizaciones:editar", "pagos:ver", "pagos:editar"]);
 });
+
+test("MIA-244 · un puesto sin importes (productor de campo, sin ficha) no ve la plata de un proyecto ni estando en su equipo", async () => {
+  const { veLaPlataDelProyecto } = await import("./gestion-core");
+  const ven = (["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "PRODUCCION_CAMPO", "SIN_FICHA"] as const).flatMap((rol) =>
+    [true, false].filter((enEquipo) => veLaPlataDelProyecto(rol, enEquipo)).map((enEquipo) => `${rol}:${enEquipo ? "equipo" : "fuera"}`),
+  );
+  assert.deepEqual(ven, ["DIRECCION:equipo", "DIRECCION:fuera", "ADMINISTRACION:equipo", "ADMINISTRACION:fuera", "COMERCIAL:equipo", "DISENO:equipo", "DISENO:fuera", "PRODUCCION:equipo", "PRODUCCION:fuera"]);
+});
