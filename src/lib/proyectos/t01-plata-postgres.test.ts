@@ -211,10 +211,11 @@ test("C-O42 · `pagarGasto` exige ver el proyecto, el permiso de pagos y ver la 
     assert.equal(g.pagadoEl, null, `${caso}: el gasto sigue sin pagar`);
     assert.equal(await duenio.cashMovement.count({ where: { proyectoGastoId: gasto.id } }), 0, `${caso}: ningún egreso`);
   };
-  // 1) Producción de OTRO proyecto (tiene pagos y ve la plata, pero no ve éste).
+  // 1) Producción de OTRO proyecto. Desde MIA-223 Producción no ve la plata (`veLaPlata` pide Dirección o Administración),
+  //    así que la frena eso antes que el proyecto; quien ve la plata ve todos los proyectos (`veTodosLosProyectos`).
   let r = await pagar();
   assert.equal(r?.ok, false, JSON.stringify(r));
-  assert.match(String((r as { error: string }).error), /proyecto que no ves/);
+  assert.match(String((r as { error: string }).error), /no ve la plata/);
   await sinCambios("Producción de otro proyecto");
   // 2) En el equipo, pero su rol tiene sólo «proveedores» (pagos apagado).
   await duenio.proyectoEquipo.create({ data: { tenantId: a.id, proyectoId: id, personaId: persona.id } });
