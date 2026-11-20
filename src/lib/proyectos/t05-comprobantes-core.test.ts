@@ -1,7 +1,7 @@
 // MIA-50 · T05: lo puro de comprobantes, imputación, orden de pago y el costo real. Esperados a mano (R7), en centavos
 // salvo `resultadoReal` (pesos).
 import { csvIvaCredito } from "./iva-credito-csv";
-import { mesDelParametro } from "./comprobantes-core";
+import { mesDelParametro, pagadoDeLaParte } from "./comprobantes-core";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { costoDeLinea, errorDeAdjunto, errorDeCarga, esVinculada, normalizarNumero, normalizarReferencia, tratamientoDelTipo } from "./comprobantes-core";
@@ -149,4 +149,22 @@ test("V3-b y V3-d · lo que se muestra pasa por pesos: «Falta imputar» y el pr
   assert.equal(pesos(1 / 100), `$${nb}0,01`);
   assert.equal(pesos(150, "USD"), `US$${nb}150`);
   assert.equal(pesos(1500.004), `$${nb}1.500`);
+});
+
+// MIA-216 · H2 (observación de MIA-214): un comprobante pagado en parte no se muestra «Pendiente» entero. Las órdenes
+// pagan el comprobante entero; a la parte de ESTE proyecto le toca lo pagado en la misma proporción. Esperado a mano.
+test("MIA-216 H2 · lo pagado y lo que falta de la parte de un proyecto", () => {
+  // Comprobante de 100.000, la parte del proyecto 100.000, pagados 40.000 → pagado 40.000, falta 60.000.
+  assert.deepEqual(pagadoDeLaParte(10_000_000, 10_000_000, 4_000_000), { pagadoCentavos: 4_000_000, faltaCentavos: 6_000_000 });
+  // Comprobante de 300.000 repartido en tres proyectos; esta parte es 100.000 y se pagaron 150.000 → 50.000 y faltan 50.000.
+  assert.deepEqual(pagadoDeLaParte(10_000_000, 30_000_000, 15_000_000), { pagadoCentavos: 5_000_000, faltaCentavos: 5_000_000 });
+  // Sin pagos, todo falta; pagado entero (o de más), nada falta.
+  assert.deepEqual(pagadoDeLaParte(10_000_000, 10_000_000, 0), { pagadoCentavos: 0, faltaCentavos: 10_000_000 });
+  assert.deepEqual(pagadoDeLaParte(10_000_000, 10_000_000, 12_000_000), { pagadoCentavos: 10_000_000, faltaCentavos: 0 });
+  // Al centavo: 100.000 de 300.000, pagados 100.000 → 33.333,33 y faltan 66.666,67 (suman la parte exacta).
+  const r = pagadoDeLaParte(10_000_000, 30_000_000, 10_000_000);
+  assert.equal(r.pagadoCentavos + r.faltaCentavos, 10_000_000);
+  assert.deepEqual(r, { pagadoCentavos: 3_333_333, faltaCentavos: 6_666_667 });
+  // Un total en cero no divide: todo falta.
+  assert.deepEqual(pagadoDeLaParte(0, 0, 0), { pagadoCentavos: 0, faltaCentavos: 0 });
 });
