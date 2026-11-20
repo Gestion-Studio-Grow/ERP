@@ -474,14 +474,26 @@ async function probarRegla2A(m: Mundo) {
   const cobros0 = await activas(m, p.id, "COBRO");
   assert.equal(suma(pagos0), 100, JSON.stringify(pagos0));
   assert.equal(await gestion.pagosPorRevisar(m.a.id, p.id), 0, "recién rehechos por Dirección: nada por revisar");
+  // K2 · MIA-263: el aviso que ve Producción al guardar es el del servidor (`aviso`); con los pagos sin rehacer, no dice «al día».
+  const PAGOS_SIN_REHACER = "Los pagos a proveedores no se movieron: quedaron por revisar y los rehace Administración.";
+  const aviso = async (llamar: () => Promise<unknown>) => {
+    const r = await m.como("PRODUCCION/PROFESSIONAL", llamar);
+    assert.equal(r.tipo, "respuesta", JSON.stringify(r));
+    const v = (r as { valor: { ok?: boolean; aviso?: string } }).valor;
+    assert.equal(v.ok, true, JSON.stringify(v));
+    return v.aviso;
+  };
   for (const [campo, valor] of [["costo", "150"], ["cantidad", "2"]] as const) {
     const r = await intentar(m, "PRODUCCION/PROFESSIONAL", () => fichaAcc.guardarCampoItem({ id: p.itemId, campo, valor }));
     assert.ok(r.paso, `Producción guarda «${campo}»: ${r.salida}`);
   }
+  assert.equal(await aviso(() => fichaAcc.guardarCampoItem({ id: p.itemId, campo: "costo", valor: "150" })), PAGOS_SIN_REHACER, "K2: con pagos por revisar, el aviso lo dice");
   const item = await m.duenio.proyectoItem.findUniqueOrThrow({ where: { id: p.itemId }, select: { costo: true, cantidad: true } });
   assert.deepEqual(item, { costo: 150, cantidad: 2 }, "la línea se guarda");
   const extra = await intentar(m, "PRODUCCION/PROFESSIONAL", () => fichaAcc.agregarItemFicha(form({ presupuestoId: p.presupuestoId, descripcion: "Extra MIA-243" })));
   assert.ok(extra.paso, `Producción agrega un ítem: ${extra.salida}`);
+  const extra2 = await m.duenio.proyectoItem.create({ data: { tenantId: m.a.id, presupuestoId: p.presupuestoId, rubro: RUBROS[0], descripcion: "Extra K2 MIA-263", posicion: 99 }, select: { id: true } });
+  assert.equal(await aviso(() => fichaAcc.borrarItemFicha({ id: extra2.id })), PAGOS_SIN_REHACER, "K2: al quitar un ítem, también");
   assert.deepEqual(await activas(m, p.id, "PAGO"), pagos0, "2A: los pagos al proveedor no los rehace quien no ve la plata");
   const cobros1 = await activas(m, p.id, "COBRO");
   assert.notDeepEqual(cobros1, cobros0, "los cobros siguen a la ficha (cantidad 2)");
@@ -491,6 +503,7 @@ async function probarRegla2A(m: Mundo) {
   assert.equal(suma(await activas(m, p.id, "PAGO")), 300, "150 × 2");
   assert.deepEqual(await activas(m, p.id, "COBRO"), cobros1, "los cobros ya estaban al día");
   assert.equal(await gestion.pagosPorRevisar(m.a.id, p.id), 0, "rehechos: el aviso se va");
+  assert.equal(await aviso(() => fichaAcc.guardarCampoItem({ id: p.itemId, campo: "cantidad", valor: "2" })), undefined, "K2: sin nada por revisar, «al día» es cierto");
 }
 
 /**

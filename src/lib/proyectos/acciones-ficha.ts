@@ -33,8 +33,8 @@ import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, 
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, columnasSinVenta, SOLO_LA_VENTA, veElPlus, veLaVenta, veTodosLosProyectos } from "./gestion-core";
-import { actorDelProyecto, avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, rehaceLosPagos, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
-import { FALTA_APROBACION, FALTA_REAPROBAR, frenaSinAprobacion, tipoDeArchivoSubido, VOLVIO_A_PEDIDO, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
+import { actorDelProyecto, avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, pagosPorRevisar, regenerarCuotas, regenerarCuotasTx, rehaceLosPagos, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
+import { FALTA_APROBACION, FALTA_REAPROBAR, frenaSinAprobacion, tipoDeArchivoSubido, VOLVIO_A_PEDIDO, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, PAGOS_SIN_REHACER, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { evaluarPase, textoDelPase, type Pase } from "./compuertas-core";
@@ -120,6 +120,15 @@ async function regenerar(tenantId: string, proyectoId: string) {
     if ((e as { code?: string }).code !== "P2002") throw e;
     await regenerarCuotas(tenantId, proyectoId);
   }
+}
+
+/**
+ * K2 · MIA-263: sin permiso de plata, `regenerarCuotas` rehace sólo los cobros (MIA-243 · 2A). Si con eso algún pago a
+ * proveedor quedó distinto de la ficha, el aviso lo dice en vez de «las cuotas quedaron al día». `undefined`: quedó todo al día.
+ */
+async function avisoDePagos(tenantId: string, proyectoId: string): Promise<string | undefined> {
+  if (await rehaceLosPagos()) return undefined;
+  return (await pagosPorRevisar(tenantId, proyectoId)) > 0 ? PAGOS_SIN_REHACER : undefined;
 }
 
 // ── Pipeline ────────────────────────────────────────────────────────────────
@@ -658,9 +667,13 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
   });
   if (grabado === "conPagos") return mal(`La moneda de «${it.descripcion}» no se puede cambiar: ya hay pagos al proveedor asentados en ${it.moneda}. Para corregirla, anulá esos pagos (en Gastos), cambiá la moneda y registralos de nuevo.`);
   if (!grabado) return mal("El tipo de cambio de esta versión cambió mientras escribías. Recargá la página y volvé a cargar el precio.");
-  if (!SIN_EFECTO_EN_CUOTAS.has(campo)) await regenerar(tenantId, proyectoId);
+  let aviso: string | undefined;
+  if (!SIN_EFECTO_EN_CUOTAS.has(campo)) {
+    await regenerar(tenantId, proyectoId);
+    aviso = await avisoDePagos(tenantId, proyectoId);
+  }
   refrescar(proyectoId);
-  return { ok: true };
+  return { ok: true, aviso };
 }
 
 /** Si al proveedor de un ítem ya se le pagó algo por sus cuotas: una marcada o una parte viva (también de una que el plan sacó). */
@@ -708,8 +721,9 @@ export async function borrarItemFicha(d: { id: string }): Promise<ResultadoFicha
     await tx.proyectoPresupuesto.updateMany({ where: { id: it.presupuesto.id, tenantId }, data: { aprobadoInternoEl: null, aprobadoInternoPor: null } });
   });
   await regenerar(tenantId, proyectoId);
+  const aviso = await avisoDePagos(tenantId, proyectoId);
   refrescar(proyectoId);
-  return { ok: true };
+  return { ok: true, aviso };
 }
 
 // ── Cotización ──────────────────────────────────────────────────────────────

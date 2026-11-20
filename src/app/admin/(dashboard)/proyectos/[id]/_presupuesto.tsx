@@ -258,15 +258,22 @@ export async function Adicionales({ a, vista, proyectoId, baseAprobada }: { a: A
                       <SubmitButton className={buttonClasses("solid", "md")}>Aprobar adicional</SubmitButton>
                     </FormAccion>
                   )}
-                  <FormAccion accion={enviarAdicional}>
-                    <input type="hidden" name="adicionalId" value={ad.id} />
-                    <SubmitButton className={buttonClasses(ad.aprobadoInternoEl ? "solid" : "outline", "md")}>Enviar al cliente</SubmitButton>
-                  </FormAccion>
-                  <p className="w-full text-sm text-muted">Lo aprueba alguien de Dirección que no esté en el equipo del proyecto. Sin esa aprobación no sale.</p>
+                  {/* K2 · MIA-263: enviarlo al cliente es la venta; `enviarAdicional` ya lo rechaza a Producción. */}
+                  {venta ? (
+                    <>
+                      <FormAccion accion={enviarAdicional}>
+                        <input type="hidden" name="adicionalId" value={ad.id} />
+                        <SubmitButton className={buttonClasses(ad.aprobadoInternoEl ? "solid" : "outline", "md")}>Enviar al cliente</SubmitButton>
+                      </FormAccion>
+                      <p className="w-full text-sm text-muted">Lo aprueba alguien de Dirección que no esté en el equipo del proyecto. Sin esa aprobación no sale.</p>
+                    </>
+                  ) : (
+                    <p className="w-full text-sm text-muted">Mandarle el adicional al cliente le toca a quien ve la venta (Dirección o Comercial).</p>
+                  )}
                 </div>
               )}
 
-              {ad.estado === "ENVIADO" && edita && (
+              {ad.estado === "ENVIADO" && edita && venta && (
                 <details className="mt-3 border-t border-line pt-2">
                   <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-strong">Registrar la respuesta del cliente</summary>
                   <FormAccion accion={responderAdicional} className="grid gap-2 pt-2 sm:grid-cols-2">

@@ -55,7 +55,8 @@ export function TablaFicha({
     iniciar(async () => {
       try {
         const r = await guardarCampoItem({ id, campo: nombre, valor });
-        setEstado(r.ok ? { tipo: "guardado", texto: nombre === "costoReal" ? "Guardado." : "Guardado. Las cuotas quedaron al día." } : { tipo: "error", texto: r.error, enlace: r.enlace });
+        // K2 · MIA-263: sin permiso de plata, los pagos pueden quedar por revisar (`r.aviso`): no se dice «al día».
+        setEstado(r.ok ? { tipo: "guardado", texto: nombre === "costoReal" ? "Guardado." : `Guardado. ${r.aviso ?? "Las cuotas quedaron al día."}` } : { tipo: "error", texto: r.error, enlace: r.enlace });
       } catch {
         setEstado({ tipo: "error", texto: "No se pudo guardar. Revisá la conexión y probá de nuevo." });
       }
@@ -67,7 +68,7 @@ export function TablaFicha({
     setEstado({ tipo: "guardando", texto: "Borrando…" });
     iniciar(async () => {
       const r = await borrarItemFicha({ id });
-      setEstado(r.ok ? { tipo: "guardado", texto: "Ítem quitado. Las cuotas quedaron al día." } : { tipo: "error", texto: r.error });
+      setEstado(r.ok ? { tipo: "guardado", texto: `Ítem quitado. ${r.aviso ?? "Las cuotas quedaron al día."}` } : { tipo: "error", texto: r.error });
     });
   };
 

@@ -142,20 +142,27 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
                       <input type="hidden" name="id" value={v.id} />
                       <label className={etiqueta}>Presentación para el cliente<textarea name="presentacion" rows={3} defaultValue={v.presentacion} className={areaTexto} /></label>
                       <label className={etiqueta}>Condiciones<textarea name="condiciones" rows={3} defaultValue={v.condiciones} className={areaTexto} /></label>
-                      <label className={cn(etiqueta, "max-w-40")}>IVA %<input name="ivaPct" defaultValue={String(v.ivaPct).replace(".", ",")} inputMode="decimal" className={campo} /></label>
+                      {/* K2 · MIA-263: el IVA es la venta (`guardarTextos` lo rechaza a Producción): se ve, no se edita. */}
+                      <label className={cn(etiqueta, "max-w-40")}>IVA %<input name="ivaPct" defaultValue={String(v.ivaPct).replace(".", ",")} inputMode="decimal" readOnly={!venta} aria-describedby={venta ? undefined : `iva-venta-${v.id}`} className={campo} /></label>
+                      {!venta && <p id={`iva-venta-${v.id}`} className="text-sm text-muted">El IVA lo cambia quien ve la venta.</p>}
                       {p.moneda !== "ARS" && venta && <label className={cn(etiqueta, "max-w-64")}>Cambio de venta: pesos por {p.moneda}<input name="tcVenta" defaultValue={cambio > 0 ? String(cambio).replace(".", ",") : ""} inputMode="decimal" className={campo} /></label>}
                       <SubmitButton className={buttonClasses("outline", "md")}>Guardar textos</SubmitButton>
                     </FormAccion>
-                    <FormAccion accion={enviarCotizacion}>
-                      <input type="hidden" name="id" value={v.id} />
-                      {/* V1: sin corte de línea el texto mide ~370 px y a 390 la tarjeta desbordaba (423); en el teléfono va en dos renglones. */}
-                      <SubmitButton className={cn(buttonClasses("solid", "lg"), "h-auto! min-h-14 w-full justify-center py-2 text-center whitespace-normal!")}>Enviar: cerrar versión y generar link</SubmitButton>
-                      <p className="mt-1 text-sm text-muted">Después de esto, la versión no se edita: para cambiarla se abre otra.</p>
-                    </FormAccion>
+                    {/* K2 · MIA-263: enviar al cliente es la venta; `enviarCotizacion` ya lo rechaza a Producción (acciones-ficha.ts). */}
+                    {venta ? (
+                      <FormAccion accion={enviarCotizacion}>
+                        <input type="hidden" name="id" value={v.id} />
+                        {/* V1: sin corte de línea el texto mide ~370 px y a 390 la tarjeta desbordaba (423); en el teléfono va en dos renglones. */}
+                        <SubmitButton className={cn(buttonClasses("solid", "lg"), "h-auto! min-h-14 w-full justify-center py-2 text-center whitespace-normal!")}>Enviar: cerrar versión y generar link</SubmitButton>
+                        <p className="mt-1 text-sm text-muted">Después de esto, la versión no se edita: para cambiarla se abre otra.</p>
+                      </FormAccion>
+                    ) : (
+                      <p className="text-sm text-muted">Mandarle la versión al cliente le toca a quien ve la venta (Dirección o Comercial).</p>
+                    )}
                   </div>
                 )}
 
-                {v.estado === "ENVIADO" && vista.editaCotizaciones && (
+                {v.estado === "ENVIADO" && vista.editaCotizaciones && venta && (
                   <details className="mt-3 border-t border-line pt-2">
                     <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-strong">El cliente respondió por otro lado</summary>
                     <FormAccion accion={registrarRespuesta} className="grid gap-2 pt-2 sm:grid-cols-2">
