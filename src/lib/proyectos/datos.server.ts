@@ -38,7 +38,11 @@ export async function veLaPlata(u: SessionUser): Promise<boolean> {
   if (!permisoFueraDeLaAgenda(u, "agenda:manage")) return false;
   const tenantId = await getCurrentTenantId();
   const persona = await prisma.proyectoPersona.findFirst({ where: { tenantId, userId: u.id, activa: true }, select: { rol: true } });
-  return rolVeLaPlata(rolDelActor(persona?.rol, u.role));
+  // MIA-241: la misma ficha de baja que `actorActual` (MIA-238): una OWNER sin ficha activa con una de otro puesto de baja no es la Dueña.
+  const deBaja = !persona && u.role === "OWNER"
+    ? await prisma.proyectoPersona.findFirst({ where: { tenantId, userId: u.id, activa: false, rol: { not: "DIRECCION" } }, select: { rol: true } })
+    : null;
+  return rolVeLaPlata(rolDelActor(persona?.rol, u.role, deBaja?.rol));
 }
 
 export async function configProyectos(tenantId: string, db: Prisma.TransactionClient = prisma) {
