@@ -33,6 +33,9 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
   const [confirmar, setConfirmar] = useState<string | null>(null);
   // MIA-203: el sí es un botón que reenvía este mismo formulario (la misma clave `envio`) con `confirmaRepetido=1`.
   const [reenviar, setReenviar] = useState<string | null>(null);
+  // MIA-205 · 2: la clave `envio` del pedido que pidió el sí. La ficha es de servidor y, al avisar, se refresca: el `envio`
+  // oculto vuelve con otra clave. El botón del sí reenvía con ésta, no con la nueva.
+  const envioDelAviso = useRef<string | null>(null);
   const [enCurso, iniciar] = useTransition();
   const form = useRef<HTMLFormElement>(null);
   const clave = useRef<string | null>(null);
@@ -42,6 +45,7 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
     if (enCurso) return;
     const fd = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
     if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
+    if (fd.get("confirmaRepetido") === "1" && envioDelAviso.current) fd.set("envio", envioDelAviso.current);
     iniciar(async () => {
       setError(null);
       try {
@@ -49,10 +53,12 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
         // El servidor contestó (bien o mal): el próximo envío es otro. Si la llamada se cortó, la clave queda.
         if (claveDeEnvio) clave.current = null;
         if (!r.ok) {
+          envioDelAviso.current = r.reenviar ? (fd.get("envio") as string | null) : null;
           setConfirmar(r.confirmar ?? null);
           setReenviar(r.reenviar ?? null);
           return setError(r.error);
         }
+        envioDelAviso.current = null;
         setConfirmar(null);
         setReenviar(null);
         // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
