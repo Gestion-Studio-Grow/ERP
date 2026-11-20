@@ -308,7 +308,71 @@ test("MIA-215 · matriz de plata: cada rol que no ve la plata rechaza cada acci�
   await t.test(`controles: Dirección o Administración sí mueven la plata con la misma llamada (sin probar, y dicho: ${Object.keys(SIN_CONTROL_CONOCIDO).join(", ")})`, () => {
     assert.deepEqual(sinControl, []);
   });
+  // Al final: guarda «Empresa · editar» a PRODUCCION, y no tiene que contaminar las filas de arriba.
+  await t.test("MIA-229 · lecturas de plata: Producción de fábrica (ERP RECEPTION o PROFESSIONAL) no ve deudas de proveedores ni Finanzas, y Dirección no le puede dar Empresa", () => probarLecturasDePlata(m));
+  await t.test("MIA-229 · rendiciones propias: Producción y Producción de campo siguen rindiendo (y se registra)", () => probarRendicionesPropias(m));
 });
+
+/** MIA-229 · lo que no pasaba por `veLaPlata` (certificación GSG-PR214-v4, X3): lecturas de proveedores, la vista de la
+ *  ficha (pestaña Finanzas) y «Empresa · editar» guardado por Dirección. Corre como el usuario, con `app_rls`. */
+async function probarLecturasDePlata(m: Mundo) {
+  const gestion = await import("./gestion.server");
+  const lecturas = await import("./gestion-lecturas.server");
+  const { vistaDe } = await import("./ficha.server");
+  const empresa = await import("./acciones-empresa");
+  // Una deuda con el proveedor en un proyecto donde está todo el equipo: cuota de pago pendiente de $ 1.234.
+  const p = await m.proyecto();
+  await m.duenio.proyectoCuota.create({ data: { tenantId: m.a.id, proyectoId: p.id, tipo: "PAGO", concepto: unico("Pago proveedor"), monto: 1234, moneda: "ARS", venceEl: EVENTO, supplierId: m.supplierId, prevista: false, auto: false } });
+  // Dirección le guarda «Empresa · editar» y «Liquidaciones · editar» a Producción: no tiene que servir.
+  for (const modulo of ["empresa", "liquidaciones"]) await m.duenio.proyectoPermiso.create({ data: { tenantId: m.a.id, rol: "PRODUCCION", modulo, ver: true, editar: true } });
+  const leer = async (clave: string) => {
+    const r = await m.como(clave, async () => {
+      const a = await gestion.actorActual();
+      const lista = await lecturas.listaDeProveedores(a, {});
+      const detalle = await lecturas.detalleDeProveedor(a, m.supplierId);
+      const v = vistaDe(a);
+      return {
+        lista: { verPlata: lista.verPlata, debe: lista.proveedores.find((x) => x.id === m.supplierId)?.debe ?? 0, porPagarCuotas: lista.porPagarCuotas },
+        detalle: { verPlata: detalle?.verPlata, debe: detalle?.debe },
+        finanzas: { pagos: v.pagos, editaPagos: v.editaPagos, costos: v.costos },
+        empresa: { ver: gestion.puede(a, "empresa", "ver"), editar: gestion.puede(a, "empresa", "editar"), liquidaciones: gestion.puede(a, "liquidaciones", "editar") },
+      };
+    });
+    assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
+    return (r as { valor: unknown }).valor;
+  };
+  const SIN = {
+    lista: { verPlata: false, debe: 0, porPagarCuotas: 0 },
+    detalle: { verPlata: false, debe: 0 },
+    // P3 (ORQ-007, 20/11): Producción arma presupuestos, ve costos; cobros, pagos y deudas, no.
+    finanzas: { pagos: false, editaPagos: false, costos: true },
+    empresa: { ver: false, editar: false, liquidaciones: false },
+  };
+  const obtenido: Record<string, unknown> = {};
+  for (const clave of ["PRODUCCION/RECEPTION", "PRODUCCION/PROFESSIONAL", "PRODUCCION/OWNER"]) obtenido[clave] = await leer(clave);
+  assert.deepEqual(obtenido, { "PRODUCCION/RECEPTION": SIN, "PRODUCCION/PROFESSIONAL": SIN, "PRODUCCION/OWNER": SIN });
+  // Y la acción: con «Empresa · editar» guardado, Producción no crea un pago de la empresa ni el libro cambia.
+  const r = await intentar(m, "PRODUCCION/RECEPTION", () => empresa.crearPagoEmpresa(form({ tipo: "PAGO", concepto: unico("Alquiler"), monto: "100", venceEl: "2027-01-10" })));
+  assert.ok(!r.paso && !r.escribio, `crearPagoEmpresa como PRODUCCION/RECEPTION con «Empresa · editar» guardado: ${r.salida}`);
+  // Control: Administración sí ve la deuda (la sonda no está ciega).
+  const adm = (await leer("ADMINISTRACION/RECEPTION")) as typeof SIN;
+  assert.equal(adm.lista.verPlata, true);
+  assert.equal(adm.lista.debe, 1234);
+  assert.equal(adm.finanzas.pagos, true);
+}
+
+/** Condición (a) de ORQ-007: la traba no rompe rendir lo propio. Rinde, y la rendición queda registrada. */
+async function probarRendicionesPropias(m: Mundo) {
+  const { rendirGasto } = await import("./acciones-rendiciones");
+  const FOTO = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAEBAQ==";
+  const p = await m.proyecto();
+  for (const [clave, uuid] of [["PRODUCCION/PROFESSIONAL", "229c1a9e-6b7d-4c1e-9a0b-000000000001"], ["PRODUCCION_CAMPO/PROFESSIONAL", "229c1a9e-6b7d-4c1e-9a0b-000000000002"]] as const) {
+    const antes = await m.duenio.proyectoRendicion.count({ where: { tenantId: m.a.id, proyectoId: p.id } });
+    const r = await m.como(clave, () => rendirGasto(form({ proyectoId: p.id, clave: uuid, descripcion: "Taxi al predio", monto: "12.500", medio: "PROPIO", fecha: HOY, foto: FOTO })));
+    assert.deepEqual(r.tipo === "respuesta" ? r.valor : r, { ok: true }, clave);
+    assert.equal(await m.duenio.proyectoRendicion.count({ where: { tenantId: m.a.id, proyectoId: p.id } }), antes + 1, clave);
+  }
+}
 
 /** MIA-223 · `veLaPlata` de Proyectos: sólo Dirección y Administración (y el techo del ERP sigue). Corre dentro del test
  *  de la matriz, sobre el mismo mundo (los usuarios tienen mail fijo). */
