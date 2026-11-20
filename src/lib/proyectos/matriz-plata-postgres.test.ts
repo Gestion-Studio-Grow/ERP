@@ -327,6 +327,8 @@ test("MIA-215 · matriz de plata: cada rol que no ve la plata rechaza cada acci�
   await t.test("MIA-238 · una OWNER sin ficha activa que no es la Dueña (su ficha de Administración, de baja) no hereda Dirección ni usuarios", () => probarOwnerDeBaja(m));
   await t.test("MIA-239 · productor comercial: en un proyecto ajeno no ve la venta (Pipeline, ficha, IA) ni edita cotizaciones, precio, equipo ni el estimado", () => probarComercialVentaAjena(m));
   await t.test("MIA-237 · puertas de MIA-236: % de anticipo del proveedor y costos al presupuesto, sólo quien corresponde", () => probarPuertasMia236(m));
+  await t.test("MIA-243 · 2A: Producción guarda costo, cantidad e ítems; los cobros siguen a la ficha, los pagos quedan «por revisar» y Administración los rehace", () => probarRegla2A(m));
+  await t.test("MIA-243 · 2A en carrera: Producción guarda y Administración rehace a la vez; los pagos los decide Administración y nada se duplica", () => probarCarrera2A(m));
 });
 
 /** MIA-237 · lo que una persona lee de un proyecto: la vista, Finanzas, el Resumen y la Ficha. Corre como el usuario. */
@@ -437,6 +439,85 @@ async function probarAdministracion(m: Mundo) {
   assert.equal(await m.duenio.user.count({ where: { tenantId: m.a.id } }), antes);
 }
 
+/** MIA-243: las cuotas automáticas vivas de un tipo, en orden (lo que se compara antes y después). */
+const activas = (m: Mundo, proyectoId: string, tipo: "PAGO" | "COBRO") =>
+  m.duenio.proyectoCuota.findMany({ where: { proyectoId, tipo, auto: true, anuladoEl: null }, orderBy: { clave: "asc" }, select: { clave: true, monto: true, moneda: true, venceEl: true, prevista: true } });
+const suma = (cs: readonly { monto: number }[]) => cs.reduce((s, c) => s + c.monto, 0);
+
+/** MIA-243: un proyecto cuya plata sale del borrador vivo (sin versión aprobada), con un ítem de $ 100 de costo de un proveedor. */
+async function proyectoConPagos(m: Mundo) {
+  const gestion = await import("./gestion.server");
+  const p = await m.proyecto();
+  const { presupuestoId } = await m.duenio.proyectoItem.findUniqueOrThrow({ where: { id: p.itemId }, select: { presupuestoId: true } });
+  await m.duenio.proyectoPresupuesto.update({ where: { id: presupuestoId }, data: { estado: "BORRADOR" } });
+  await m.duenio.proyectoItem.update({ where: { id: p.itemId }, data: { costo: 100, supplierId: m.supplierId } });
+  await m.direccion(() => gestion.regenerarCuotas(m.a.id, p.id));
+  return { ...p, presupuestoId };
+}
+
+/**
+ * MIA-243 · 2A del dueño (20/11): «las cuotas a proveedores sólo las rehace alguien con permiso de plata. Quien arma
+ * presupuestos sin ese permiso puede guardar la línea, pero no toca los pagos». Producción guarda costo y cantidad y agrega
+ * un ítem: los cobros siguen a la ficha, los pagos quedan como estaban y quien ve la plata los ve «por revisar».
+ * Administración los rehace y el aviso se va. Caso a mano: costo 100 → 150, cantidad 1 → 2: los pagos suman 100 hasta que
+ * Administración los rehace, y 300 después.
+ */
+async function probarRegla2A(m: Mundo) {
+  const fichaAcc = await import("./acciones-ficha");
+  const gestion = await import("./gestion.server");
+  const p = await proyectoConPagos(m);
+  const pagos0 = await activas(m, p.id, "PAGO");
+  const cobros0 = await activas(m, p.id, "COBRO");
+  assert.equal(suma(pagos0), 100, JSON.stringify(pagos0));
+  assert.equal(await gestion.pagosPorRevisar(m.a.id, p.id), 0, "recién rehechos por Dirección: nada por revisar");
+  for (const [campo, valor] of [["costo", "150"], ["cantidad", "2"]] as const) {
+    const r = await intentar(m, "PRODUCCION/PROFESSIONAL", () => fichaAcc.guardarCampoItem({ id: p.itemId, campo, valor }));
+    assert.ok(r.paso, `Producción guarda «${campo}»: ${r.salida}`);
+  }
+  const item = await m.duenio.proyectoItem.findUniqueOrThrow({ where: { id: p.itemId }, select: { costo: true, cantidad: true } });
+  assert.deepEqual(item, { costo: 150, cantidad: 2 }, "la línea se guarda");
+  const extra = await intentar(m, "PRODUCCION/PROFESSIONAL", () => fichaAcc.agregarItemFicha(form({ presupuestoId: p.presupuestoId, descripcion: "Extra MIA-243" })));
+  assert.ok(extra.paso, `Producción agrega un ítem: ${extra.salida}`);
+  assert.deepEqual(await activas(m, p.id, "PAGO"), pagos0, "2A: los pagos al proveedor no los rehace quien no ve la plata");
+  const cobros1 = await activas(m, p.id, "COBRO");
+  assert.notDeepEqual(cobros1, cobros0, "los cobros siguen a la ficha (cantidad 2)");
+  assert.ok((await gestion.pagosPorRevisar(m.a.id, p.id)) > 0, "quien ve la plata ve «pagos por revisar»");
+  const adm = await intentar(m, "ADMINISTRACION/RECEPTION", () => fichaAcc.recalcularCuotas(form({ proyectoId: p.id })));
+  assert.ok(adm.paso, `Administración rehace los pagos: ${adm.salida}`);
+  assert.equal(suma(await activas(m, p.id, "PAGO")), 300, "150 × 2");
+  assert.deepEqual(await activas(m, p.id, "COBRO"), cobros1, "los cobros ya estaban al día");
+  assert.equal(await gestion.pagosPorRevisar(m.a.id, p.id), 0, "rehechos: el aviso se va");
+}
+
+/**
+ * MIA-243 · carrera: Producción guarda la cantidad mientras Administración rehace las cuotas, a la vez, seis veces. Los pagos
+ * los decide siempre la pasada de Administración (costo 200 con cantidad 1 o 3: 200 o 600, nunca los 100 de antes), los
+ * cobros quedan al día, ninguna clave se duplica y, rehechos al final, no queda nada por revisar.
+ */
+async function probarCarrera2A(m: Mundo) {
+  const fichaAcc = await import("./acciones-ficha");
+  const gestion = await import("./gestion.server");
+  for (let vuelta = 0; vuelta < 6; vuelta++) {
+    const p = await proyectoConPagos(m);
+    const prod = await intentar(m, "PRODUCCION/PROFESSIONAL", () => fichaAcc.guardarCampoItem({ id: p.itemId, campo: "costo", valor: "200" }));
+    assert.ok(prod.paso, prod.salida);
+    assert.equal(suma(await activas(m, p.id, "PAGO")), 100, `vuelta ${vuelta}: el costo de Producción no llega a los pagos`);
+    const corridas = await Promise.all([
+      m.como("PRODUCCION/PROFESSIONAL", () => fichaAcc.guardarCampoItem({ id: p.itemId, campo: "cantidad", valor: "3" })),
+      m.como("ADMINISTRACION/RECEPTION", () => fichaAcc.recalcularCuotas(form({ proyectoId: p.id }))),
+    ]);
+    for (const r of corridas) assert.ok(r.tipo === "respuesta" && (r as { valor: { ok?: boolean } }).valor?.ok !== false, JSON.stringify(r));
+    const pagos = await activas(m, p.id, "PAGO");
+    assert.equal(new Set(pagos.map((c) => c.clave)).size, pagos.length, "una cuota viva por clave");
+    assert.ok([200, 600].includes(suma(pagos)), `vuelta ${vuelta}: los pagos suman ${suma(pagos)}`);
+    const cobros = await activas(m, p.id, "COBRO");
+    await m.direccion(() => fichaAcc.recalcularCuotas(form({ proyectoId: p.id })));
+    assert.deepEqual(await activas(m, p.id, "COBRO"), cobros, `vuelta ${vuelta}: los cobros quedaron al día`);
+    assert.equal(suma(await activas(m, p.id, "PAGO")), 600, "200 × 3");
+    assert.equal(await gestion.pagosPorRevisar(m.a.id, p.id), 0);
+  }
+}
+
 async function probarPuertasMia236(m: Mundo) {
   const gestion = await import("./acciones-gestion");
   const fichaAcc = await import("./acciones-ficha");
@@ -470,9 +551,13 @@ async function probarPuertasMia236(m: Mundo) {
     const r = await intentar(m, clave, () => fichaAcc.guardarCampoItem({ id: item.id, campo: "costo", valor: "999" }));
     if (r.paso || (await costo()) !== 100) huecos.push(`guardarCampoItem «costo» como ${clave}: ${r.salida}`);
   }
-  // Control: Producción (presupuesta, P3) sí.
+  // Control: Producción (presupuesta, P3) guarda la línea. MIA-243 · 2A: guardarla no le da los pagos. Acá la línea es de un
+  // borrador sobre la aprobada (no mueve plata); con la línea en la versión de la plata, `probarRegla2A`.
+  const pagosDeP = () => activas(m, p.id, "PAGO");
+  const pagosAntes = await pagosDeP();
   const prod = await intentar(m, "PRODUCCION/PROFESSIONAL", () => fichaAcc.guardarCampoItem({ id: item.id, campo: "costo", valor: "150" }));
   assert.ok(prod.paso && (await costo()) === 150, `Producción cambia el costo: ${prod.salida}`);
+  assert.deepEqual(await pagosDeP(), pagosAntes, "2A: el costo que guarda Producción no toca los pagos");
   // 3 · el despiece al presupuesto escribe costos: pide «Costos · editar» antes que nada (ni el comercial ni el de campo).
   for (const clave of ["COMERCIAL/RECEPTION", "PRODUCCION_CAMPO/PROFESSIONAL"]) {
     const r = await m.como(clave, () => taller.despieceAlPresupuesto(form({ proyectoId: p.id })));
