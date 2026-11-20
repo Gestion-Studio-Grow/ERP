@@ -190,8 +190,10 @@ test("MIA-237 · Administración: toda la plata y los proyectos, sin administrar
   const { permisoEfectivo } = await import("@/lib/capabilities");
   const negadas = (DECISIONES_DE_PUESTOS as unknown as { capacidadesNegadas?: Record<string, readonly string[]> }).capacidadesNegadas;
   assert.deepEqual(negadas?.ADMINISTRACION, ["users:manage"], "el puesto le saca Usuarios al OWNER");
-  // El candado del resolvedor: una negación del puesto vale; un «permitido» de users:manage por la base, no.
-  const comoAdm = { role: "OWNER" as const, overrides: [{ capability: "users:manage", allowed: false }] };
+  // El candado del resolvedor: una negación del puesto vale; un «permitido» de users:manage por la base, no. MIA-267: la
+  // negación del puesto la marca la sesión (`porPuesto`); una negación guardada en la base no apaga nada.
+  const comoAdm = { role: "OWNER" as const, overrides: [{ capability: "users:manage", allowed: false, porPuesto: true as const }] };
+  assert.equal(permisoEfectivo({ role: "OWNER", overrides: [{ capability: "users:manage", allowed: false }] }, "users:manage"), true, "una fila de la base no le saca Usuarios al socio");
   assert.equal(permisoEfectivo(comoAdm, "users:manage"), false);
   assert.equal(permisoEfectivo(comoAdm, "billing:manage"), true, "Facturación sigue");
   assert.equal(permisoEfectivo({ role: "RECEPTION", overrides: [{ capability: "users:manage", allowed: true }] }, "users:manage"), false);

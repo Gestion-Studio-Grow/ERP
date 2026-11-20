@@ -89,11 +89,11 @@ const leerSesionDeLaCookie = cache(async (): Promise<SesionDelPanel | null> => {
 async function capacidadesNegadasDelPuesto(userId: string, tenantId: string): Promise<PermisoOverride[]> {
   try {
     const persona = await prisma.proyectoPersona.findFirst({ where: { tenantId, userId, activa: true }, select: { rol: true } });
-    if (persona) return (DECISIONES_DE_PUESTOS.capacidadesNegadas[persona.rol] ?? []).map((capability) => ({ capability, allowed: false }));
+    if (persona) return (DECISIONES_DE_PUESTOS.capacidadesNegadas[persona.rol] ?? []).map((capability) => ({ capability, allowed: false, porPuesto: true as const }));
     // MIA-238: sin ficha activa, la OWNER es la Dueña salvo que tenga una ficha de otro puesto de baja (`rolDelActor`):
     // ésa no hereda usuarios ni permisos.
     const deBaja = await prisma.proyectoPersona.findFirst({ where: { tenantId, userId, activa: false, rol: { not: "DIRECCION" } }, select: { id: true } });
-    return deBaja ? CAPACIDADES_NEGABLES_POR_PUESTO.map((capability) => ({ capability, allowed: false })) : [];
+    return deBaja ? CAPACIDADES_NEGABLES_POR_PUESTO.map((capability) => ({ capability, allowed: false, porPuesto: true as const })) : [];
   } catch (e) {
     if (esTablaAusente(e)) return [];
     throw e;
