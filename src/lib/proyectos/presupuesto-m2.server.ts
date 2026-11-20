@@ -19,12 +19,27 @@ export async function hayM2(db: Db = prisma): Promise<boolean> {
   return !!r[0]?.ok;
 }
 
-/** Los días del plan (`plan.*`, R8). Se leen por fuera de la transacción: sin la tabla de parámetros (M7a) rige el rubro. */
-export async function diasDelPlan(tenantId: string): Promise<DiasDelPlan> {
+/**
+ * Los días del plan (`plan.*`, R8). Sin la tabla de parámetros (M7a) rige el rubro.
+ *
+ * MIA-253: adentro de una transacción se leen con ELLA (`db` = tx). Con el cliente global la consulta pedía otra conexión:
+ * con el pool en una (`DB_CONNECTION_LIMIT=1`) esperaba a la que tenía tomada la transacción y la transacción vencía a los
+ * 5 s (la pestaña Finanzas, `pagosPorRevisar`); con más conexiones salía por una sin el negocio puesto y, con RLS, no veía
+ * los parámetros (el plan quedaba con los días del rubro). Sin M7a se pregunta antes con `to_regclass`, que no aborta la
+ * transacción.
+ */
+export async function diasDelPlan(tenantId: string, db: Db = prisma): Promise<DiasDelPlan> {
+  const enTx = db !== prisma;
   try {
-    const v = await valoresDelNegocio(tenantId);
+    if (enTx) {
+      const hay = await db.$queryRaw<{ ok: boolean }[]>`SELECT to_regclass('"ProyectoParametro"') IS NOT NULL AS ok`;
+      if (!hay[0]?.ok) return DIAS_POR_DEFECTO;
+    }
+    const v = await valoresDelNegocio(tenantId, db);
     return { anticipoProveedorAntes: v["plan.anticipoProveedorDiasAntes"], saldoProveedorDespues: v["plan.saldoProveedorDiasDespues"], saldoClienteAntes: v["plan.saldoClienteDiasAntes"] };
-  } catch {
+  } catch (e) {
+    // En una transacción, un error de la base ya la abortó: que suba con su causa, no como «current transaction is aborted».
+    if (enTx) throw e;
     return DIAS_POR_DEFECTO;
   }
 }

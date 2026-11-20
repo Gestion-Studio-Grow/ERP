@@ -371,7 +371,7 @@ async function planVigente(tx: Prisma.TransactionClient, tenantId: string, proye
       const [detalles, adicionales, dias, congelados] = await Promise.all([
         detallesDeLineas(tx, tenantId, items.map((i) => i.id)),
         adicionalesDelProyecto(tx, tenantId, proyectoId),
-        diasDelPlan(tenantId),
+        diasDelPlan(tenantId, tx),
         // MIA T07 · O16: aprobada con foto, el cobro del cliente sale del total congelado. MIA-199: antes de aprobar, del
         // total escrito a mano (precio por total), si lo hay; si no, de la suma de renglones.
         viva.estado === "APROBADO" ? totalesCongelados(tx, tenantId, [viva.id]) : p?.moneda === "ARS" ? totalAMano(tx, tenantId, proyectoId, viva.id) : new Map<string, number>(),
