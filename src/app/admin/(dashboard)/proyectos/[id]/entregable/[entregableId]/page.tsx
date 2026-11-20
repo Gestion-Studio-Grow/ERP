@@ -95,7 +95,7 @@ export default async function FichaEntregable({ params, searchParams }: { params
 
       <section className={cn(tarjeta, "mb-4")} aria-label="Subir versión">
         <h2 className="mb-3 font-semibold text-strong">{borrador ? "Cambiar el borrador" : "Subir una versión"}</h2>
-        <SubirVersion entregableId={e.id} hayBorrador={!!borrador} />
+        <SubirVersion entregableId={e.id} hayBorrador={!!borrador} escribeLaNota={alCliente} />
       </section>
 
       <section className={cn(tarjeta, "mb-4")} aria-label="Datos de la pieza">

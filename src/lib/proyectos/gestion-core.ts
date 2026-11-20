@@ -777,6 +777,7 @@ export const SOLO_LA_VENTA = "Enviar al cliente, registrar su respuesta y el IVA
  */
 export const hablaConElCliente = (rol: RolGestion): boolean => veImportes(rol) && rol !== "PRODUCCION";
 export const SOLO_DISENO_AL_CLIENTE = "Mandarle la pieza al cliente le toca a Diseño, Comercial o Dirección: tu puesto la deja en borrador.";
+export const NOTA_DEL_CLIENTE = "La nota la lee el cliente: la escriben Diseño, Comercial o Dirección. Subí la versión sin nota.";
 export const TEXTOS_DEL_CLIENTE = "La presentación y las condiciones las lee el cliente: las escribe quien ve la venta.";
 /** MIA-256 · el plus de cada integrante es sueldo: lo ven Dirección y Administración, no Comercial (que ve costos). PURA. */
 export const veElPlus = (rol: RolGestion): boolean => rol === "DIRECCION" || rol === "ADMINISTRACION";

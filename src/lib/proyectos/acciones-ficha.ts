@@ -940,8 +940,9 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
   const iva = numeroDe(txt(formData.get("ivaPct")));
   if (iva === null) return mal("El IVA no se entiende: escribilo como un número.");
   if (iva !== pr.ivaPct && !veLaVenta(a.rol)) return mal(SOLO_LA_VENTA);
-  const presentacion = txt(formData.get("presentacion"));
-  const condiciones = txt(formData.get("condiciones"));
+  // MIA-267: un guardado que no trae los textos (el de Producción, que los ve de sólo lectura) conserva los que había.
+  const presentacion = formData.has("presentacion") ? txt(formData.get("presentacion")) : pr.presentacion;
+  const condiciones = formData.has("condiciones") ? txt(formData.get("condiciones")) : pr.condiciones;
   // MIA-266 (PROD-DISENO A): la presentación y las condiciones las lee el cliente. Sin cambios, el guardado pasa igual.
   if ((presentacion !== pr.presentacion || condiciones !== pr.condiciones) && !veLaVenta(a.rol)) return mal(TEXTOS_DEL_CLIENTE);
   const textoCambio = txt(formData.get("tcVenta"));

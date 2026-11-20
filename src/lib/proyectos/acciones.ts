@@ -23,7 +23,7 @@ import { cobranzasDelNegocio, tiposDeCambio, estaPerdido, trabarCobranza } from 
 import { pasaElTope, type Cobranza } from "./cobranza-core";
 import { avisoTopeCobro } from "./avisos-cuota";
 import { actorActual, avisar, exigirPlataDeDireccion, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
-import { hablaConElCliente, SOLO_DISENO_AL_CLIENTE, type ModuloGestion } from "./gestion-core";
+import { hablaConElCliente, NOTA_DEL_CLIENTE, SOLO_DISENO_AL_CLIENTE, type ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { BASE_YA_APROBADA, BaseYaAprobada, conGuardiaDeBase, hayBaseAprobada } from "./presupuesto-base.server";
 import { claveDeEnvio } from "./pago-columnas";
@@ -564,16 +564,21 @@ export async function subirVersion(d: { entregableId: string; datos?: string | n
   if (d.datos ? !imagenValida(d.datos) : !urlValida(url)) {
     return { ok: false, error: d.datos ? "La imagen es demasiado pesada o no es válida." : "Elegí una imagen o pegá un link que empiece con https://." };
   }
-  const contenido = { datos: d.datos || null, url: d.datos ? null : url, nota: (d.nota ?? "").trim().slice(0, 500), subidoPor: user.name };
+  const nota = (d.nota ?? "").trim().slice(0, 500);
+  // MIA-267 (PROD-DISENO A): la nota la lee el cliente. Producción sube el borrador sin nota y, si reemplaza uno, la de
+  // Diseño queda como estaba.
+  const escribeLaNota = hablaConElCliente(a.rol);
+  if (nota && !escribeLaNota) return { ok: false, error: NOTA_DEL_CLIENTE };
+  const contenido = { datos: d.datos || null, url: d.datos ? null : url, subidoPor: user.name };
   const borrador = e.versiones.find((v) => v.estado === "BORRADOR");
   if (borrador) {
-    const r = await prisma.proyectoEntregableVersion.updateMany({ where: { id: borrador.id, tenantId, estado: "BORRADOR" }, data: contenido });
+    const r = await prisma.proyectoEntregableVersion.updateMany({ where: { id: borrador.id, tenantId, estado: "BORRADOR" }, data: { ...contenido, ...(escribeLaNota && { nota }) } });
     if (r.count === 0) return { ok: false, error: "Esa versión ya se envió. Recargá la página." };
   } else {
     if (e.versiones.length >= MAX_VERSIONES) return { ok: false, error: `Una pieza guarda hasta ${MAX_VERSIONES} versiones. Abrí una pieza nueva para seguir.` };
     try {
       const numero = e.versiones.reduce((m, v) => Math.max(m, v.numero), 0) + 1;
-      await prisma.proyectoEntregableVersion.create({ data: { tenantId, entregableId: e.id, numero, ...contenido } });
+      await prisma.proyectoEntregableVersion.create({ data: { tenantId, entregableId: e.id, numero, ...contenido, nota } });
     } catch (err) {
       if ((err as { code?: string }).code === "P2002") return { ok: false, error: "Otra persona acaba de subir una versión. Recargá la página." };
       throw err;

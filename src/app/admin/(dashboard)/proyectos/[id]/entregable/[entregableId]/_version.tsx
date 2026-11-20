@@ -9,7 +9,8 @@ import { subirVersion } from "@/lib/proyectos/acciones";
 import { achicar } from "../../_piezas";
 import { campo, etiqueta } from "../../../_vista";
 
-export function SubirVersion({ entregableId, hayBorrador }: { entregableId: string; hayBorrador: boolean }) {
+// MIA-267: la nota la lee el cliente; Producción sube sin nota (`subirVersion` se la rechaza) y la de Diseño queda.
+export function SubirVersion({ entregableId, hayBorrador, escribeLaNota }: { entregableId: string; hayBorrador: boolean; escribeLaNota: boolean }) {
   const [nota, setNota] = useState("");
   const [link, setLink] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -31,10 +32,14 @@ export function SubirVersion({ entregableId, hayBorrador }: { entregableId: stri
 
   return (
     <div className="grid gap-3">
-      <label className={etiqueta}>
-        Nota para el cliente (opcional)
-        <input value={nota} onChange={(e) => setNota(e.target.value)} maxLength={500} placeholder="Qué cambió en esta versión" className={campo} />
-      </label>
+      {escribeLaNota ? (
+        <label className={etiqueta}>
+          Nota para el cliente (opcional)
+          <input value={nota} onChange={(e) => setNota(e.target.value)} maxLength={500} placeholder="Qué cambió en esta versión" className={campo} />
+        </label>
+      ) : (
+        <p className="text-sm text-muted">La nota para el cliente la escriben Diseño, Comercial o Dirección: subí la versión y queda en borrador.</p>
+      )}
       <div className="grid min-w-0 gap-1 text-sm font-medium text-strong">
         Imagen
         <input
