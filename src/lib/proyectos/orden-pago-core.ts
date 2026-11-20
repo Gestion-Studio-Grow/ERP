@@ -25,8 +25,8 @@ export interface ComprobanteParaOrden {
   /** Lo que ya toman las órdenes vivas (pendientes o pagadas). */
   enOrdenesCentavos: number;
   /** Las cuotas enlazadas, con lo que ya toman las órdenes vivas por cada una. `pagada`: ya figura pagada (a mano o por
-   *  otra orden), leída con el candado de la cuota. */
-  cuotas: readonly { id: string; montoCentavos: number; enOrdenesCentavos: number; pagada?: boolean }[];
+   *  otra orden), leída con el candado de la cuota. `anulada` (MIA-216 · C2): anulada, también con el candado. */
+  cuotas: readonly { id: string; montoCentavos: number; enOrdenesCentavos: number; pagada?: boolean; anulada?: boolean }[];
 }
 
 export interface LineaDeOrden {
@@ -56,6 +56,7 @@ export function errorDeOrden(supplierId: string, lineas: readonly LineaDeOrden[]
     if (l.cuotaId) {
       const q = c.cuotas.find((x) => x.id === l.cuotaId);
       if (!q) return "Esa cuota no está enlazada a ese comprobante.";
+      if (q.anulada) return "Esa cuota está anulada: no se paga con una orden.";
       if (q.pagada) return "Esa cuota ya está pagada: no se paga otra vez con una orden.";
       const nuevaQ = (tomadoCuota.get(q.id) ?? 0) + l.importeCentavos;
       if (nuevaQ > Math.max(0, q.montoCentavos - q.enOrdenesCentavos)) return "El importe pasa lo que falta pagar de esa cuota.";

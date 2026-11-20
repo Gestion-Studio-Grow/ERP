@@ -29,7 +29,7 @@ import { configProyectos, veLaPlata } from "./datos.server";
 import { cobranzaConCuotas, envioYaGrabado, estaPerdido, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
 import { claveDeEnvio } from "./pago-columnas";
 import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
-import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, CUOTA_ENLAZADA, listoAnulado, listoMarcada, listoParcial } from "./avisos-cuota";
+import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, CUOTA_ENLAZADA, cuotaEnOrdenPendiente, cuotaPagadaPorOrden, listoAnulado, listoMarcada, listoParcial } from "./avisos-cuota";
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
@@ -46,6 +46,7 @@ import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, ur
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
 import type { EnlaceDeArreglo, ModuloGestion } from "./gestion-core";
 import { siHayM1, tomarCuotas } from "./comprobantes.server";
+import { numeroDeOrden } from "./orden-pago-core";
 import { contextoDelPrecio, frenoDelPrecioTx, grabarFotoTx } from "./precio-proyecto.server";
 import { esCancelado } from "./cancelacion-core";
 import { etapaQueSeEntra } from "./etapas-core";
@@ -1242,15 +1243,25 @@ export async function quitarMovimiento(formData: FormData): Promise<ResultadoFic
   if (!veLaPlata(a.user)) return mal(SIN_PLATA);
   const { tenantId } = a;
   const id = txt(formData.get("id"));
+  // MIA-216 · C2: sin M1 (Gate 2) no hay órdenes de pago; adentro de la transacción no se consulta una tabla que falta.
+  const hayM1 = (await siHayM1(() => prisma.proyectoOrdenPagoLinea.count({ where: { tenantId, cuotaId: id } }))) !== null;
   // En fila con «Marcar pagado»: con partes pagadas (pago parcial), quitarlo dejaría esos pagos sin su cuota.
-  const r = await tenantTransaction(async (tx) => {
+  const r = await tenantTransaction(async (tx): Promise<"no" | "partes" | "ok" | { orden: string; pendiente: boolean }> => {
     await trabarCobranza(tx, tenantId, proyectoId);
     const c = await tx.proyectoCuota.findFirst({ where: { id, tenantId, proyectoId, auto: false, pagadoEl: null, anuladoEl: null }, select: { id: true, tipo: true, moneda: true, monto: true } });
     if (!c) return "no";
+    // MIA-216 · C2: una cuota de pago con una orden viva no se quita (la orden la pagaría anulada). Con el candado de la
+    // cuota, el de `aprobarYPagarOrden`: si la orden se paga en el medio, acá se ve; si se quita antes, la orden no se paga.
+    if (c.tipo !== "COBRO") {
+      await tomarCuotas(tx, tenantId, [id]);
+      const viva = hayM1 ? await tx.proyectoOrdenPagoLinea.findFirst({ where: { tenantId, cuotaId: id, orden: { estado: { not: "ANULADA" } } }, select: { orden: { select: { numero: true, estado: true } } } }) : null;
+      if (viva) return { orden: numeroDeOrden(viva.orden.numero), pendiente: viva.orden.estado !== "PAGADA" };
+    }
     if (c.tipo !== "COBRO" && (await pendienteDelPago(tenantId, c, await tiposDeCambio(tenantId, tx), tx)) < c.monto) return "partes";
     await tx.proyectoCuota.updateMany({ where: { id, tenantId }, data: { anuladoEl: new Date() } });
     return "ok";
   });
+  if (typeof r === "object") return mal(r.pendiente ? cuotaEnOrdenPendiente(r.orden) : cuotaPagadaPorOrden(r.orden));
   if (r === "partes") return mal("Ese movimiento tiene pagos en parte: anulalos primero (en Gastos) y después quitalo.");
   if (r === "no") return mal("Ese movimiento ya no se puede quitar.");
   await registrarCambio(prisma, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: id, campo: "Movimiento quitado", despues: id, autor: a.nombre });

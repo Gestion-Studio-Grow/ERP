@@ -337,13 +337,16 @@ export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: 
       return false;
 }
 
-/** Las cuotas (de estas) atadas a un comprobante. Sin M1, ninguna: `to_regclass` no aborta la transacción (Gate 2). */
+/** Las cuotas (de estas) atadas a un comprobante o a una orden de pago viva. Sin M1, ninguna: `to_regclass` no aborta la transacción (Gate 2). */
 async function cuotasEnlazadas(tx: Prisma.TransactionClient, tenantId: string, ids: readonly string[]): Promise<Set<string>> {
   if (ids.length === 0) return new Set();
   const hay = await tx.$queryRaw<{ ok: boolean }[]>`SELECT to_regclass('"ProyectoCuotaComprobante"') IS NOT NULL AS ok`;
   if (!hay[0]?.ok) return new Set();
   const filas = await tx.proyectoCuotaComprobante.findMany({ where: { tenantId, cuotaId: { in: [...ids] } }, select: { cuotaId: true } });
-  return new Set(filas.map((f) => f.cuotaId));
+  // MIA-216 · C2: también las que tiene una orden de pago viva (aunque se hayan desenlazado en una carrera): anularla
+  // dejaba que la orden la pagara anulada.
+  const enOrden = await tx.proyectoOrdenPagoLinea.findMany({ where: { tenantId, cuotaId: { in: [...ids] }, orden: { estado: { not: "ANULADA" } } }, select: { cuotaId: true } });
+  return new Set([...filas.map((f) => f.cuotaId), ...enOrden.flatMap((f) => (f.cuotaId ? [f.cuotaId] : []))]);
 }
 
 /**

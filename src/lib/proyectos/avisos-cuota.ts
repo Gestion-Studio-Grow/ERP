@@ -22,6 +22,14 @@ export function cuotaPagadaPorOrden(orden: string | null | undefined): string {
   return `Esta cuota la pagó ${orden ? `la orden de pago ${orden}` : "una orden de pago"}: para devolver la plata, anulá la orden en Proveedores › Órdenes de pago.`;
 }
 
+/** MIA-216 · C2: una cuota con una orden de pago viva (pendiente) no se anula ni se quita: la orden la pagaría igual. */
+export function cuotaEnOrdenPendiente(orden: string | null | undefined): string {
+  return `Esta cuota está en ${orden ? `la orden de pago ${orden}` : "una orden de pago"}, todavía sin pagar: anulá primero la orden en Proveedores › Órdenes de pago.`;
+}
+
+/** MIA-216 · C2: una orden con una cuota anulada no se aprueba ni se paga (dejaba la cuota anulada y pagada). */
+export const ORDEN_CON_CUOTA_ANULADA = "Una cuota de esta orden está anulada: no se paga. Anulá la orden y, si corresponde, hacé una nueva.";
+
 export function listoMarcada(esCobro: boolean, importeEnPesos: number, cuota?: { monto: number; cobra: number; moneda: string }): string {
   const listo = `Listo: cuota marcada como ${esCobro ? "cobrada" : "pagada"} (${pesos(importeEnPesos)}).`;
   // P-06: una cuota de cobro que se marca por menos que su importe lo dice, con la diferencia y por qué no se cobra.

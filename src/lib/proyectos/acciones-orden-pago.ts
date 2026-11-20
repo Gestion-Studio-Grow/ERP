@@ -25,6 +25,7 @@ import { esClaveRepetida } from "./rendiciones-core";
 import { claveDeEnvio } from "./pago-columnas";
 import { avisoDeOrdenCreada, errorDeAprobacion, errorDelPago, errorDeOrden, numeroDeOrden, SERIE_ORDEN_PAGO, type ComprobanteParaOrden, type LineaDeOrden } from "./orden-pago-core";
 import { SIN_M1, tomarCuotas } from "./comprobantes.server";
+import { ORDEN_CON_CUOTA_ANULADA } from "./avisos-cuota";
 import { centavosDelTexto } from "./comprobantes-core";
 import { fotoEnPesos, type FotoEnPesos } from "./moneda-bancos-core";
 import { cambioDelMovimiento, cambiosDeComprobantes, cuentaDelNegocio, enPesosDelComprobante, fotoDe, guardarFotoTx, hayM8, hoyArgentina, moverCuentaTx, revertirCuentaTx } from "./moneda-bancos.server";
@@ -132,6 +133,7 @@ export async function crearOrdenPago(d: { supplierId: string; medio: string; cla
                 montoCentavos: centavosDe(cuota.monto),
                 enOrdenesCentavos: c.pagos.filter((p) => p.cuotaId === cuota.id).reduce((s, p) => s + n(p.importeCentavos), 0),
                 pagada: cuotasTomadas.get(cuota.id)?.pagado ?? false,
+                anulada: cuotasTomadas.get(cuota.id)?.anulado ?? false,
               })),
             },
           ]),
@@ -261,7 +263,10 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
       }
       // CERT-4b: las cuotas de la orden, con su candado y después de los comprobantes. Una que ya figura pagada (a mano,
       // antes de este arreglo o por una carrera) no se paga otra vez: la orden queda pendiente para anularla.
+      // MIA-216 · C2: una cuota anulada (con su orden pendiente) tampoco: quedaba anulada Y pagada, y la plata afuera. Las
+      // vías que anulan una cuota toman este mismo candado y rechazan si tiene una orden viva; esto cubre la que llegó antes.
       const tomadas = await tomarCuotas(tx, tenantId, cuotaIds);
+      if ([...tomadas.values()].some((q) => q.anulado)) return { pagada: false, anulado: false, cuotaPagada: false, cuotaAnulada: true, proyectos: [] as (string | null)[] };
       if ([...tomadas.values()].some((q) => q.pagado)) return { pagada: false, anulado: false, cuotaPagada: true, proyectos: [] as (string | null)[] };
       const u = await tx.proyectoOrdenPago.updateMany({
         where: { tenantId, id, estado: "PENDIENTE" },
@@ -286,13 +291,13 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
       const proyectos: (string | null)[] = [];
       if (cuotaIds.length > 0) {
         const cuotas = await tx.proyectoCuota.findMany({
-          where: { tenantId, id: { in: cuotaIds }, pagadoEl: null },
+          where: { tenantId, id: { in: cuotaIds }, pagadoEl: null, anuladoEl: null },
           select: { id: true, monto: true, proyectoId: true, pagosEnOrden: { where: { orden: { estado: "PAGADA" } }, select: { importeCentavos: true } } },
         });
         for (const q of cuotas) {
           const pagado = q.pagosEnOrden.reduce((s, p) => s + n(p.importeCentavos), 0);
           if (pagado < centavosDe(q.monto)) continue;
-          await tx.proyectoCuota.updateMany({ where: { tenantId, id: q.id, pagadoEl: null }, data: { pagadoEl: new Date(), pagadoPor: numeroDeOrden(o.numero), medio } });
+          await tx.proyectoCuota.updateMany({ where: { tenantId, id: q.id, pagadoEl: null, anuladoEl: null }, data: { pagadoEl: new Date(), pagadoPor: numeroDeOrden(o.numero), medio } });
           await registrarCambio(tx, { tenantId, proyectoId: q.proyectoId, entidad: "ProyectoCuota", entidadId: q.id, campo: "Pagada", despues: `${numeroDeOrden(o.numero)} · ${MEDIO_LABEL[medio]}`, autor: user.name });
           proyectos.push(q.proyectoId);
         }
@@ -301,6 +306,7 @@ export async function aprobarYPagarOrden(formData: FormData): Promise<Resultado>
       return { pagada: true, anulado: false, cuotaPagada: false, proyectos };
     });
     if (r.anulado) return { ok: false, error: "Uno de los comprobantes de esta orden está anulado: no se paga. Anulá la orden." };
+    if ("cuotaAnulada" in r) return { ok: false, error: ORDEN_CON_CUOTA_ANULADA };
     if (r.cuotaPagada) return { ok: false, error: "Una cuota de esta orden ya está pagada: no se paga dos veces. Anulá la orden." };
     if (!r.pagada) return { ok: false, error: "Esa orden ya estaba pagada o anulada." };
     await auditAdmin({ action: "proyecto.orden-pago.pagar", entity: "ProyectoOrdenPago", entityId: id, changes: { medio } });
