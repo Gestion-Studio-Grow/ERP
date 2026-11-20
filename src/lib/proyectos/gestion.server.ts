@@ -21,6 +21,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
 import { venceDeLaCuota, previstaDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
+import { tomarCuotas } from "./comprobantes.server";
 import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { adicionalesDelProyecto, detallesDeLineas, diasDelPlan } from "./presupuesto-m2.server";
 import { cuotasDeAdicionales } from "./presupuesto-core";
@@ -329,8 +330,8 @@ export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: 
             }), ...cuotasDeAdicionales(adicionales, { proyectoId, nombre: p.nombre, fechaEvento: p.fechaEvento, creado: p.createdAt, anticipoClientePct: p.anticipoClientePct, dias, anticipoProveedor })]
           : [];
       const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
-      // Una cuota de pago se puede marcar sin este candado: si se marca mientras se ajusta el plan, no se le pisa nada y
-      // el plan se vuelve a ajustar con ella.
+      // `aplicarPlan` toma además el candado de cada cuota que puede escribir (`tomarCuotas`). Si igual una se marcó en
+      // el medio (un camino que no lo tome), no se le pisa nada y el plan se vuelve a ajustar con ella.
       for (let vuelta = 0; vuelta < 3; vuelta++) {
         if (!(await aplicarPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista, tc))) return true;
       }
@@ -354,6 +355,14 @@ async function cuotasEnlazadas(tx: Prisma.TransactionClient, tenantId: string, i
  * Devuelve `true` si una cuota se marcó mientras tanto (el plan quedó calculado con lo viejo).
  */
 async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean, tc: Readonly<Record<string, number>>): Promise<boolean> {
+  // MIA-219 (P1): el candado de la cuota (`tomarCuotas`: el de enlazar, pagar y armar la orden) ANTES de leer las cuotas y sus
+  // enlaces. Sin él, una cuota que sobra se enlazaba y entraba en una orden entre la lectura y la anulación, y quedaba anulada
+  // dentro de una orden viva (la orden ya no se podía pagar); y a una que se enlazaba en el medio se le pisaba el monto. Se
+  // traban las que el ajuste puede escribir (las automáticas sin pagar), por id, después del candado de la cobranza: el
+  // mismo orden que todos los caminos (cobranza → comprobante → cuota). Las automáticas sólo las crea este ajuste, que va
+  // en fila por el candado de la cobranza: ninguna aparece entre esta lectura y el candado.
+  const sinPagar = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true, pagadoEl: null }, select: { id: true } });
+  await tomarCuotas(tx, tenantId, sinPagar.map((c) => c.id));
   const actuales = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, tipo: true, moneda: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
   const marcadas = actuales.filter((c) => c.pagadoEl && !c.anuladoEl);
   // MIA T07 (obs. de T05 sobre esta función): una cuota impaga ENLAZADA a un comprobante (M1) queda fija como lo pagado. Si el

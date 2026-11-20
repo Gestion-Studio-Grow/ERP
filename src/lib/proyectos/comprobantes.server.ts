@@ -33,7 +33,8 @@ export async function siHayM1<T>(leer: () => Promise<T>): Promise<T | null> {
 /**
  * MIA-50 T05 · vuelta 2 (CERT-4): el candado de la cuota de pago. Lo toman, en la transacción, todos los caminos que la
  * pagan o la atan a un comprobante: `enlazarCuota`, `marcarCuota` (pago), `marcarCuotaEmpresa` (M4c), `crearOrdenPago` y
- * `aprobarYPagarOrden`.
+ * `aprobarYPagarOrden`; y los que la anulan: `anularCuotaEmpresa`, `quitarMovimiento` y `regenerarCuotas` (`aplicarPlan`,
+ * las automáticas que sobran, desde MIA-219).
  * Orden fijo: primero el comprobante (si hay), después la cuota, por id. Devuelve lo que se mira con el candado tomado.
  */
 export async function tomarCuotas(tx: Prisma.TransactionClient, tenantId: string, ids: readonly string[]): Promise<Map<string, { pagado: boolean; anulado: boolean }>> {
