@@ -39,11 +39,11 @@ await prisma.cashMovement.create({ data: { tenantId, type: "EGRESO", method: "TR
 const comp = await prisma.proyectoComprobante.create({
   data: {
     tenantId, supplierId: proveedor.id, tipo: "A", numero: "0003-00000777", fecha: hoyA("12:00"), moneda: "ARS",
-    netoCentavos: 100_000_000n, ivaCentavos: 21_000_000n, totalCentavos: 121_000_000n, cargadoPorId: admin.id, cargadoNombre: admin.name,
+    netoCentavos: BigInt(100_000_000), ivaCentavos: BigInt(21_000_000), totalCentavos: BigInt(121_000_000), cargadoPorId: admin.id, cargadoNombre: admin.name,
   },
   select: { id: true },
 });
-await prisma.proyectoComprobanteLinea.create({ data: { tenantId, comprobanteId: comp.id, destino: "PROYECTO", proyectoId: proyecto.id, categoria: "Sonido", netoCentavos: 100_000_000n, ivaCentavos: 21_000_000n, ivaTratamiento: "CREDITO", costoCentavos: 100_000_000n } });
+await prisma.proyectoComprobanteLinea.create({ data: { tenantId, comprobanteId: comp.id, destino: "PROYECTO", proyectoId: proyecto.id, categoria: "Sonido", netoCentavos: BigInt(100_000_000), ivaCentavos: BigInt(21_000_000), ivaTratamiento: "CREDITO", costoCentavos: BigInt(100_000_000) } });
 
 // H4
 const pago = await prisma.proyectoPago.create({ data: { tenantId, proyectoId: proyecto.id, medio: "TRANSFERENCIA", monto: 500_000 }, select: { id: true } });
