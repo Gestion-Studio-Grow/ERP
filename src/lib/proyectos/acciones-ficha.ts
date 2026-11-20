@@ -673,7 +673,7 @@ export async function guardarCampoItem(d: { id: string; campo: string; valor: st
     aviso = await avisoDePagos(tenantId, proyectoId);
   }
   refrescar(proyectoId);
-  return { ok: true, aviso };
+  return aviso ? { ok: true, aviso } : { ok: true };
 }
 
 /** Si al proveedor de un ítem ya se le pagó algo por sus cuotas: una marcada o una parte viva (también de una que el plan sacó). */
@@ -723,7 +723,7 @@ export async function borrarItemFicha(d: { id: string }): Promise<ResultadoFicha
   await regenerar(tenantId, proyectoId);
   const aviso = await avisoDePagos(tenantId, proyectoId);
   refrescar(proyectoId);
-  return { ok: true, aviso };
+  return aviso ? { ok: true, aviso } : { ok: true };
 }
 
 // ── Cotización ──────────────────────────────────────────────────────────────
