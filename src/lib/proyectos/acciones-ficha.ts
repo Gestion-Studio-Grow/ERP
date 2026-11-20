@@ -25,7 +25,7 @@ const VENTANA_COBRO_IGUAL_MS = 2 * 60_000;
 /** El aviso del cobro igual de recién y el texto del botón que lo confirma (ficha y Bancos). */
 const AVISO_COBRO_IGUAL = "Ya entró un cobro igual hace instantes. ¿Es otro?";
 const CONFIRMA_COBRO_IGUAL = "Sí, es otro cobro: grabarlo";
-import { configProyectos } from "./datos.server";
+import { configProyectos, veLaPlata } from "./datos.server";
 import { cobranzaConCuotas, envioYaGrabado, estaPerdido, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
 import { claveDeEnvio } from "./pago-columnas";
 import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
@@ -94,6 +94,13 @@ async function entrar(modulos: ModuloGestion | readonly ModuloGestion[], proyect
   if (proyectoId !== undefined && (!proyectoId || !(await proyectoVisible(a, proyectoId)))) return "Ese proyecto no existe.";
   return a;
 }
+
+/**
+ * MIA-208 · 3: marcar cobrado o pagado y anular mueven la plata del negocio. Además de «Pagos · editar» (que PRODUCCION
+ * tiene, `gestion-core.ts` PERMISOS_BASE), hace falta ver la plata, el mismo control que `pagarGasto` (O42) y las órdenes
+ * de pago: el productor ve la ficha pero no cobra ni anula. Del lado del servidor; la pantalla esconde los botones.
+ */
+const SIN_PLATA = "Tu usuario no ve la plata del negocio: los cobros, los pagos y sus anulaciones los hace Administración.";
 
 /** Dos guardados casi juntos (dos pestañas) pueden chocar creando la misma cuota: el segundo intento ya la encuentra. */
 async function regenerar(tenantId: string, proyectoId: string) {
@@ -942,6 +949,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   if (c.prevista) return mal("Esta cuota todavía es una previsión: confirmá el evento y cargale la fecha para poder marcarla.");
   const a = await entrar(["pagos", "empresa"], proyectoId);
   if (typeof a === "string") return mal(a);
+  if (!veLaPlata(a.user)) return mal(SIN_PLATA);
   if (!MEDIOS.includes(medio)) return mal("Elegí el medio de pago.");
   if (c.anuladoEl) return mal("Esa cuota ya no corre: la ficha la dejó afuera.");
   if (c.pagadoEl) return mal("Esa cuota ya estaba marcada.");
@@ -1280,6 +1288,7 @@ export async function anularCobroFicha(formData: FormData): Promise<ResultadoFic
   if (pago.medio === MEDIO_RETENCION) return mal("Esto es una retención sufrida: se anula junto con su cobro. Anulá el cobro que entró al banco.");
   const a = await entrar("pagos", pago.proyectoId);
   if (typeof a === "string") return mal(a);
+  if (!veLaPlata(a.user)) return mal(SIN_PLATA);
   const anulo = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx) => {
     // En fila con «Marcar cobrado» y los cobros del proyecto: anular reabre la cuota y cambia lo que falta cobrar.
     await trabarCobranza(tx, tenantId, pago.proyectoId);
@@ -1332,6 +1341,7 @@ export async function anularGastoFicha(formData: FormData): Promise<ResultadoFic
   if (!g) return mal("Ese gasto no existe.");
   const a = await entrar("pagos", g.proyectoId);
   if (typeof a === "string") return mal(a);
+  if (!veLaPlata(a.user)) return mal(SIN_PLATA);
   if (await gastoEnRendicionViva(tenantId, id)) return mal(GASTO_EN_RENDICION);
   const anulo = await oPeriodoCerrado(() => transaccionQueAsienta(async (tx): Promise<{ neto: number; iva: number } | false> => {
     // En fila con «Marcar pagado» (también una parte): anular reabre la cuota y cambia lo que le falta.

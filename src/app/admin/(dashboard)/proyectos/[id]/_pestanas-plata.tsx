@@ -230,6 +230,8 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   const hoy = fechaParaInput(new Date());
   // Con cuotas, se cobra y se paga marcándolas: cargar además por acá contaría dos veces. Sin cuotas, es el único camino.
   const cargaDirecta = vista.editaPagos && veLaPlata(a.user);
+  // MIA-208 · 3: marcar cobrado o pagado y anular también piden ver la plata (el servidor lo exige, `acciones-ficha.ts`
+  // SIN_PLATA): el productor tiene «Pagos · editar» pero no ve estos botones.
   const conCobros = d.cuotas.some((c) => c.tipo === "COBRO" && !c.anuladoEl);
   const conPagos = d.cuotas.some((c) => c.tipo === "PAGO" && !c.anuladoEl);
   // Un perdido no debe nada (pregunta 2 = A): no se ofrece cobrar ni marcar sus cuotas de cobro ni cargar un cobro a mano;
@@ -356,7 +358,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                         {!c.pagadoEl && !c.prevista && vista.editaPagos && admite(c.tipo) && (c.tipo !== "COBRO" || c.pendiente > 0) && (
                           <div className="flex flex-wrap items-center gap-1 sm:justify-end">
                             {/* `limpiar`: tras una parte que salió bien, el monto no queda escrito para un segundo clic. */}
-                            <FormAccion accion={marcarCuota} limpiar className="flex flex-wrap items-center gap-1">
+                            {cargaDirecta && <FormAccion accion={marcarCuota} limpiar className="flex flex-wrap items-center gap-1">
                               <input type="hidden" name="id" value={c.id} />
                               <select name="medio" aria-label={`Medio de ${c.concepto}`} defaultValue="TRANSFERENCIA" className={campoEnLinea}>
                                 {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
@@ -374,7 +376,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                               <input type="hidden" name="visto" value={String(c.pendiente)} />
                               <input name="monto" inputMode="decimal" aria-label={`Monto a ${c.tipo === "COBRO" ? "cobrar" : "pagar"} de ${c.concepto}, en ${c.moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${importeEn(c.pendiente, c.moneda)}`} className={cn(campoEnLinea, "w-40")} />
                               <SubmitButton className={buttonClasses("outline", "md")}>{c.tipo === "COBRO" ? "Marcar cobrado" : "Marcar pagado"}</SubmitButton>
-                            </FormAccion>
+                            </FormAccion>}
                             {!c.auto && <BotonConConfirmacion accion={quitarMovimiento} ocultos={{ id: c.id, proyectoId: p.id }} texto="Quitar" textoConfirma="Quitar" etiqueta={`Quitar ${c.concepto}`} />}
                           </div>
                         )}
@@ -479,7 +481,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                           <button type="submit" className={buttonClasses("outline", "md")} aria-label={`Pagar ${g.descripcion}`}>Pagar</button>
                         </FormAccion>
                       )}
-                      <BotonConConfirmacion accion={anularGastoFicha} ocultos={{ id: g.id }} texto="Anular" textoConfirma="Sí, anular" etiqueta={`Anular gasto ${g.descripcion}`} />
+                      {cargaDirecta && <BotonConConfirmacion accion={anularGastoFicha} ocultos={{ id: g.id }} texto="Anular" textoConfirma="Sí, anular" etiqueta={`Anular gasto ${g.descripcion}`} />}
                     </span>
                   )}
                 </li>
@@ -515,7 +517,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
                 ) : (
                   <>
                     <span>{fechaCorta(c.createdAt)} · {MEDIO_LABEL[c.medio as MedioPago] ?? c.medio}{c.nota && ` · ${c.nota}`} · <strong>{pesos(c.monto)}</strong></span>
-                    {!c.anuladoEl && vista.editaPagos && <BotonConConfirmacion accion={anularCobroFicha} ocultos={{ id: c.id }} texto="Anular" textoConfirma="Sí, anular" etiqueta={`Anular cobro de ${pesos(c.monto)}`} />}
+                    {!c.anuladoEl && cargaDirecta && <BotonConConfirmacion accion={anularCobroFicha} ocultos={{ id: c.id }} texto="Anular" textoConfirma="Sí, anular" etiqueta={`Anular cobro de ${pesos(c.monto)}`} />}
                   </>
                 )}
               </li>
