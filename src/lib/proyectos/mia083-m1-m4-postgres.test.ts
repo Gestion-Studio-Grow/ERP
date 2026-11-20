@@ -74,7 +74,7 @@ test("M1 · «No mueve ninguna cuenta»: el cobro de la cuota entra al libro en 
     await p.enSesion(() => gestion.regenerarCuotas(a.id, id));
     const anticipo: { id: string; monto: number } = await duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: id, tipo: "COBRO", clave: { endsWith: ":cliente:anticipo" } }, select: { id: true, monto: true } });
     assert.equal(anticipo.monto, 605, "a mano: 1.210 al 50 %");
-    const r: { ok: boolean } = await p.enSesion(() => ficha.marcarCuota(p.form({ id: anticipo.id, medio, cuenta: "ninguna" })));
+    const r: { ok: boolean } = await p.enSesion(() => ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: anticipo.id, medio, cuenta: "ninguna" })));
     assert.equal(r.ok, true, `${medio}: ${JSON.stringify(r)}`);
     const pago = await duenio.proyectoPago.findFirstOrThrow({ where: { proyectoId: id }, select: { id: true } });
     const asientos = await duenio.cashMovement.findMany({ where: { proyectoPagoId: pago.id }, select: { type: true, method: true, amount: true } });

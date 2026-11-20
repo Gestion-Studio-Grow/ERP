@@ -275,13 +275,21 @@ export async function crearCuenta(formData: FormData): Promise<Resultado> {
 export async function guardarSaldo(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("empresa");
   const id = txt(formData.get("id"));
-  const c = await prisma.proyectoCuentaBanco.findFirst({ where: { id, tenantId: a.tenantId }, select: { saldo: true } });
-  if (!c) return { ok: false, error: "Esa cuenta no existe." };
-  // MIA-199 (P4-3): con movimientos, el saldo es la suma de ellos; escribirlo a mano los pisaría.
-  if ((await cuentasConMovimientos(prisma, a.tenantId)).has(id)) return { ok: false, error: "Esta cuenta ya tiene cobros o pagos: su saldo sale de ellos y no se escribe a mano." };
   const saldo = redondear(numero(formData.get("saldo")));
-  await prisma.proyectoCuentaBanco.updateMany({ where: { id, tenantId: a.tenantId }, data: { saldo } });
-  await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "cuenta", entidadId: id, campo: "saldo", antes: c.saldo, despues: saldo, autor: a.nombre });
+  // MIA-201 · H3: chequear y escribir en la misma transacción, con la fila de la cuenta trabada. Un cobro o un pago que
+  // mueve la cuenta hace UPDATE de esa fila: si llegó antes, esperamos y lo vemos (rechazo); si llega después, espera y su
+  // `increment` cae sobre el saldo nuevo. El incremento ya no se pierde entre el chequeo y la escritura.
+  const r = await tenantTransaction(async (tx): Promise<Resultado> => {
+    const [c] = await tx.$queryRaw<{ saldo: unknown }[]>`
+      SELECT "saldo" FROM "ProyectoCuentaBanco" WHERE "id" = ${id} AND "tenantId" = ${a.tenantId} FOR UPDATE`;
+    if (!c) return { ok: false, error: "Esa cuenta no existe." };
+    // MIA-199 (P4-3): con movimientos, el saldo es la suma de ellos; escribirlo a mano los pisaría.
+    if ((await cuentasConMovimientos(tx, a.tenantId)).has(id)) return { ok: false, error: "Esta cuenta ya tiene cobros o pagos: su saldo sale de ellos y no se escribe a mano." };
+    await tx.proyectoCuentaBanco.updateMany({ where: { id, tenantId: a.tenantId }, data: { saldo } });
+    await registrarCambio(tx, { tenantId: a.tenantId, entidad: "cuenta", entidadId: id, campo: "saldo", antes: Number(c.saldo), despues: saldo, autor: a.nombre });
+    return { ok: true };
+  });
+  if (!r.ok) return r;
   refrescar();
   return { ok: true };
 }

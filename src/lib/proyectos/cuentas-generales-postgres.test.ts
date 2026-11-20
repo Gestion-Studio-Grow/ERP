@@ -107,7 +107,7 @@ async function preparar(t: import("node:test").TestContext) {
     const p1 = await proyecto(n, { precio: 500_000 / 1.21 });
     const c200 = await cuota(n, { proyectoId: p1, monto: 200_000 });
     const c300 = await cuota(n, { proyectoId: p1, monto: 300_000 });
-    ok(await como(n, n.duenia.id, () => ficha.marcarCuota(form({ id: c200, medio: "TRANSFERENCIA" }))));
+    ok(await como(n, n.duenia.id, () => ficha.marcarCuota(form({ envio: crypto.randomUUID(), id: c200, medio: "TRANSFERENCIA" }))));
     ok(await como(n, n.duenia.id, () => acciones.registrarCobro(form({ proyectoId: p1, medio: "TRANSFERENCIA", monto: "50000" }))));
     // Lo que no suma: prevista, anulada y un cobro de un perdido.
     const prev = await cuota(n, { proyectoId: p1, monto: 40_000, prevista: true });
@@ -241,7 +241,7 @@ test("CG3 · se mueve con la operación: marcar la cuota de 300.000 baja 250.000
   const p = await preparar(t);
   if (!p) return;
   const g0 = await p.generales();
-  p.ok(await p.como(p.a, p.a.duenia.id, () => p.ficha.marcarCuota(p.form({ id: p.ids.a.cuota300, medio: "TRANSFERENCIA" }))));
+  p.ok(await p.como(p.a, p.a.duenia.id, () => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: p.ids.a.cuota300, medio: "TRANSFERENCIA" }))));
   const g1 = await p.generales();
   assert.equal(g0.aCobrar.total - g1.aCobrar.total, 250_000);
   assert.equal(g1.aCobrar.propias, g0.aCobrar.propias);

@@ -20,8 +20,6 @@ import type { Prisma } from "@/generated/prisma/client";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIO_LABEL, MEDIOS, metodoDeCaja, pesos, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 
-/** MIA-199 · P4-2: un cobro sin clave igual a otro de la misma cuota dentro de esta ventana es el mismo pedido repetido. */
-const VENTANA_COBRO_IGUAL_MS = 2 * 60_000;
 import { configProyectos } from "./datos.server";
 import { cobranzaConCuotas, envioYaGrabado, estaPerdido, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
 import { claveDeEnvio } from "./pago-columnas";
@@ -989,6 +987,9 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   const cobra = reparto ? reparto.entra : parcial ?? pendiente;
   // Un id por formulario: el mismo envío dos veces (doble clic, reintento) asienta una sola vez.
   const envio = txt(formData.get("envio")).slice(0, 64);
+  // MIA-201 · H2 (opción A, provisional a confirmar por el dueño): todo cobro trae su clave (la ficha y Administración,
+  // también Bancos, la mandan). Sin clave no hay cómo distinguir el mismo pedido repetido de otro cobro igual de verdad.
+  if (esCobro && !envio) return mal("Falta la clave del envío del cobro: recargá la página y volvé a cobrar.");
   const importe = aPesos(cobra, c.moneda, tc);
   if (!(importe > 0)) return mal(`Falta el tipo de cambio de ${c.moneda}: sin él no se puede asentar en pesos.`);
   // Cada retención en pesos, al mismo cambio que el cobro; el cobro «RETENCION» es su suma (cuadra al centavo).
@@ -1005,18 +1006,15 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   // MIA-199 · P4-2: la clave del envío también va a `ProyectoPago.claveEnvio` (índice único por negocio): dos pedidos
   // iguales no graban dos cobros aunque fallara el candado. Sin esa migración (Gate 2), se graba como antes.
   const claveCobro = esCobro && envio ? `cuota:${envio}`.slice(0, 80) : null;
-  const grabarCuota = (conClave: boolean) => transaccionQueAsienta(async (tx): Promise<boolean | "cambio" | "tope" | "repetido" | "perdido" | "enlazada" | "parecido"> => {
+  const grabarCuota = (conClave: boolean) => transaccionQueAsienta(async (tx): Promise<boolean | "cambio" | "tope" | "repetido" | "perdido" | "enlazada"> => {
     // En fila con los otros cobros y pagos del proyecto (y sus anulaciones), y el pendiente leído de nuevo ADENTRO: si
     // entró o se anuló algo mientras tanto, se asentaría otro importe. Si cambió, no se graba nada (la cuenta y el importe
     // salieron del de afuera).
     await trabarCobranza(tx, tenantId, proyectoId);
-    if (envio && (await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: esCobro ? "ProyectoPago" : "ProyectoGasto", campo: "Envío", antes: envio }, select: { id: true } }))) return "repetido";
-    if (!perdidoAdmite(c.tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido";
-    // MIA-199 · P4-2: un pedido directo SIN clave (la pantalla siempre la manda) igual a un cobro de esta cuota que
-    // acaba de entrar (mismo importe y medio, vivo) no se graba: es el mismo pedido repetido. Con clave nueva (el
-    // formulario recargado), otro cobro igual de verdad entra. Ventana de 2 minutos (provisional a confirmar).
-    if (esCobro && !envio && (await tx.proyectoPago.findFirst({ where: { tenantId, proyectoId, anuladoEl: null, medio, nota: c.concepto.slice(0, 200), monto: { gte: importe - 0.005, lte: importe + 0.005 }, createdAt: { gte: new Date(Date.now() - VENTANA_COBRO_IGUAL_MS) } }, select: { id: true } }))) return "parecido"; // MIA-089 · V2: un perdido no marca cuotas de cobro; una de pago a proveedor sí (decisión 2 = A, provisional a confirmar por el dueño). En fila con «Marcar perdido».
     const ahora = esCobro ? await pendienteDeLaCuota(tenantId, proyectoId, id, tc, margenPct, tx) : { pendiente: await pendienteDelPago(tenantId, c, tc, tx), cob: null };
+    if (envio && (await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: esCobro ? "ProyectoPago" : "ProyectoGasto", campo: "Envío", antes: envio }, select: { id: true } }))) return "repetido";
+    // MIA-089 · V2: un perdido no marca cuotas de cobro; una de pago a proveedor sí (decisión 2 = A, provisional a confirmar por el dueño). En fila con «Marcar perdido».
+    if (!perdidoAdmite(c.tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido";
     if (ahora === null) return false;
     faltaAhora = ahora.pendiente;
     // CERT-4: un pago toma la cuota (después de la traba de la cobranza) con el candado de `enlazarCuota` y cuenta el
@@ -1097,7 +1095,6 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   });
   // O40: con el día de caja cerrado (o el mes congelado) no se asienta nada y se dice qué hacer.
   if (ganada instanceof PeriodoCerradoError) return mal(ganada.message);
-  if (ganada === "parecido") return mal(`Hace instantes entró un cobro igual de esta cuota (${pesos(importe)} por ${MEDIO_LABEL[medio as MedioPago] ?? medio}). No se grabó otra vez: si es otro cobro, recargá la página y cargalo de nuevo.`);
   // Perder contra otro cobro o contra una anulación: el cartel dice cuál y cuánto falta ahora.
   if (ganada === "cambio") return mal(avisoSaldoCambio(pendiente, faltaAhora, c.moneda, esCobro));
   if (ganada === "tope") return mal(avisoTopeMarcar(importe, leido.cob));

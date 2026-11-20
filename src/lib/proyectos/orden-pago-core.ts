@@ -77,11 +77,13 @@ export const avisoDeOrdenCreada = (numero: number): string =>
 
 /**
  * P6: lo que pide el pago de una orden. Por transferencia, cheque o Mercado Pago sale de una cuenta: si el negocio tiene
- * cuentas cargadas, hay que elegirla (si no, el libro baja y la cuenta no). En efectivo sale de la caja. La fecha del
+ * cuentas cargadas, hay que elegirla (si no, el libro baja y la cuenta no). En efectivo sale de la caja, sin cuenta. La fecha del
  * pago es opcional (vacía = hoy), con formato AAAA-MM-DD y no posterior a hoy (en Argentina). PURA.
  */
 export function errorDelPago(p: { medio: string; cuentaId: string | null; hayCuentas: boolean; fecha: string | null; hoy: string }): string | null {
   if (p.medio !== "EFECTIVO" && p.hayCuentas && !p.cuentaId) return "Elegí la cuenta de la que sale el pago.";
+  // MIA-201 · H1: en efectivo sale de la caja; con una cuenta además, la plata saldría dos veces (caja y banco).
+  if (p.medio === "EFECTIVO" && p.cuentaId) return "Una orden en efectivo sale de la caja: no lleva cuenta del banco.";
   if (p.fecha) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(p.fecha) || Number.isNaN(Date.parse(`${p.fecha}T00:00:00Z`))) return "La fecha del pago no se entiende: elegila en el calendario.";
     if (p.fecha > p.hoy) return "La fecha del pago no puede ser posterior a hoy.";

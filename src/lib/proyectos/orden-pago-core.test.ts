@@ -14,6 +14,9 @@ test("P6 · por transferencia, cheque o Mercado Pago el pago pide la cuenta; en 
   for (const medio of ["TRANSFERENCIA", "CHEQUE", "MERCADO_PAGO"]) assert.equal(errorDelPago({ ...base, medio }), "Elegí la cuenta de la que sale el pago.", medio);
   assert.equal(errorDelPago({ ...base, medio: "TRANSFERENCIA", cuentaId: "c1" }), null);
   assert.equal(errorDelPago({ ...base, medio: "EFECTIVO" }), null, "en efectivo sale de la caja");
+  // MIA-201 · H1: una orden en efectivo con cuenta (pedido armado a mano) saldría de la caja y además del banco.
+  assert.equal(errorDelPago({ ...base, medio: "EFECTIVO", cuentaId: "c1" }), "Una orden en efectivo sale de la caja: no lleva cuenta del banco.");
+  assert.equal(errorDelPago({ ...base, medio: "EFECTIVO", cuentaId: "c1", hayCuentas: false }), "Una orden en efectivo sale de la caja: no lleva cuenta del banco.");
   assert.equal(errorDelPago({ ...base, medio: "TRANSFERENCIA", hayCuentas: false }), null, "sin cuentas cargadas no hay cuál elegir");
 });
 

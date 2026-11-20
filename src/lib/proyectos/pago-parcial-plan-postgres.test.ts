@@ -58,7 +58,7 @@ async function preparar(t: import("node:test").TestContext) {
     return { id: p.id, item: item.id };
   };
   const cuotasPago = (proyectoId: string) => duenio.proyectoCuota.findMany({ where: { proyectoId, tipo: "PAGO" }, select: { id: true, clave: true, monto: true, moneda: true, pagadoEl: true, anuladoEl: true, prevista: true } });
-  const marcar = (id: string, extra: Record<string, string> = {}) => enSesion(() => ficha.marcarCuota(form({ id, medio: "TRANSFERENCIA", ...extra })) as Promise<Res>);
+  const marcar = (id: string, extra: Record<string, string> = {}) => enSesion(() => ficha.marcarCuota(form({ envio: crypto.randomUUID(), id, medio: "TRANSFERENCIA", ...extra })) as Promise<Res>);
   const pagadoVivo = async (proyectoId: string) => r2((await duenio.proyectoGasto.findMany({ where: { proyectoId, anuladoEl: null }, select: { neto: true, iva: true } })).reduce((s, g) => s + g.neto + g.iva, 0));
   /** Lo que falta por renglón (Administración) y el KPI «A pagar», del mismo proyecto y de todo el negocio. */
   const administracion = async (proyectoId: string) => {

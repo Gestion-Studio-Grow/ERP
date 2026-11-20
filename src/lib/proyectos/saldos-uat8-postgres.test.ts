@@ -115,7 +115,7 @@ async function preparar(t: import("node:test").TestContext) {
     assert.equal(r.tipo, "respuesta", JSON.stringify(r));
     return (r as { valor: R }).valor;
   };
-  const marcar = (id: string, extra: Record<string, string> = {}) => () => enSesion(() => ficha.marcarCuota(form({ id, medio: "TRANSFERENCIA", ...extra })) as Promise<Res>);
+  const marcar = (id: string, extra: Record<string, string> = {}) => () => enSesion(() => ficha.marcarCuota(form({ envio: crypto.randomUUID(), id, medio: "TRANSFERENCIA", ...extra })) as Promise<Res>);
   /** Lo que le falta a cada cuota y si está marcada, como lo ve Administración (la misma fuente que la ficha). */
   const administracion = () =>
     enSesion(async () => {

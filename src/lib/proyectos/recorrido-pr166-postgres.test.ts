@@ -113,7 +113,7 @@ async function preparar(t: import("node:test").TestContext) {
     Object.fromEntries(
       (await duenio.proyectoCuota.findMany({ where: { proyectoId, tipo: "PAGO", anuladoEl: null }, select: { id: true, clave: true, monto: true, pagadoEl: true, pagadoPor: true } })).map((c) => [c.clave!.split(":").pop(), c]),
     );
-  const marcar = (id: string, extra: Record<string, string> = {}) => () => enSesion(() => ficha.marcarCuota(form({ id, medio: "TRANSFERENCIA", ...extra })) as Promise<Res>);
+  const marcar = (id: string, extra: Record<string, string> = {}) => () => enSesion(() => ficha.marcarCuota(form({ envio: crypto.randomUUID(), id, medio: "TRANSFERENCIA", ...extra })) as Promise<Res>);
   /** Gastos vivos del proyecto y su caja (egresos − reingresos). */
   const plata = async (proyectoId: string) => {
     const gastos = await duenio.proyectoGasto.findMany({ where: { proyectoId, anuladoEl: null }, select: { id: true, neto: true, iva: true } });

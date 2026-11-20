@@ -95,7 +95,7 @@ async function preparar(t: import("node:test").TestContext) {
     cuota: (await duenio.proyectoCuota.findUniqueOrThrow({ where: { id: cuotaId }, select: { pagadoEl: true } })).pagadoEl,
     saldoCuenta: (await duenio.proyectoCuentaBanco.findUniqueOrThrow({ where: { id: cuenta.id }, select: { saldo: true } })).saldo,
   });
-  const marcar = (cuotaId: string) => enSesion(() => ficha.marcarCuota(form({ id: cuotaId, medio: "EFECTIVO", cuenta: cuenta.id })));
+  const marcar = (cuotaId: string) => enSesion(() => ficha.marcarCuota(form({ envio: crypto.randomUUID(), id: cuotaId, medio: "EFECTIVO", cuenta: cuenta.id })));
   const cerrar = (declaradoEfectivo: number) => enSesion(() => cerrarDia(form({ day: HOY, declarado_EFECTIVO: String(declaradoEfectivo), note: "Cierre MIA-083" })));
   return { base, duenio, a, proyectoId: proy.id, cobro, pago, cuenta, foto, marcar, cerrar };
 }

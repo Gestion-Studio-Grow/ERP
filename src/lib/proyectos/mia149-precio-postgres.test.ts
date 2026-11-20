@@ -267,7 +267,7 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   assert.deepEqual(await cobrado(), { n: 0, total: 0 });
   const [c1, c2] = await duenio.proyectoCuota.findMany({ where: { tenantId: a.id, proyectoId: p.id, tipo: "COBRO", anuladoEl: null }, orderBy: { venceEl: "asc" }, select: { id: true, venceEl: true } });
   const vieja = await duenio.proyectoCuota.create({ data: { tenantId: a.id, proyectoId: p.id, tipo: "COBRO", concepto: "Seña cargada antes de aprobar", monto: 450_000, venceEl: new Date(c1.venceEl.getTime() - DIA) }, select: { id: true } });
-  const marcar = (id: string, monto?: string) => direccion(() => ficha.marcarCuota(form({ id, medio: "TRANSFERENCIA", ...(monto && { monto }) })));
+  const marcar = (id: string, monto?: string) => direccion(() => ficha.marcarCuota(form({ envio: crypto.randomUUID(), id, medio: "TRANSFERENCIA", ...(monto && { monto }) })));
   // 5 a la vez: la vieja y la 1ª enteras, y tres partes de 448.550 sobre la 2ª → de la 2ª entra una sola parte: 1.800.000.
   const marcas = await Promise.all([marcar(vieja.id), marcar(c1.id), marcar(c2.id, "448550"), marcar(c2.id, "448550"), marcar(c2.id, "448550")]);
   assert.equal(marcas.filter((r) => r.ok).length, 3, JSON.stringify(marcas));

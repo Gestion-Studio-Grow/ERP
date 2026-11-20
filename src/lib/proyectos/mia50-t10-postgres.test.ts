@@ -895,7 +895,7 @@ test("MIA-191 · 4a · pagar una cuota congelada (gasto +10.000, cuota −10.000
   const [c1, c2] = await p.masCodigos(p.dir);
   ok(p.valor(await p.como(p.dir, () => p.acc.aprobarLiquidacionProyecto(p.form({ proyectoId: z.id, codigo: c1 })))));
   const ficha = await import("./acciones-ficha");
-  ok(p.valor(await p.como(p.admin.userId, () => ficha.marcarCuota(p.form({ id: cuota.id, medio: "TRANSFERENCIA" })))) as Res);
+  ok(p.valor(await p.como(p.admin.userId, () => ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: cuota.id, medio: "TRANSFERENCIA" })))) as Res);
   const gastos = await p.enA((tx) => tx.proyectoGasto.findMany({ where: { proyectoId: z.id, anuladoEl: null }, select: { neto: true } }));
   assert.deepEqual(gastos.map((g) => Number(g.neto)), [10_000], "pagar la cuota asentó el gasto");
   const cab = (await p.liq(z.id))[0];

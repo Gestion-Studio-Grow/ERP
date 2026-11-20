@@ -102,6 +102,13 @@ test("Aurora · previstas, ganancia, a pagar, pago desde la cuenta y saldo con m
   const c2 = await cargar("0001-00000002", "700000", "0", "700000", "C");
   assert.equal((await direccion(() => recuadrosDeCuotas(a.id))).resumen.aPagar - aPagarAntes, 1_910_000, "1.210.000 + 700.000");
   assert.equal((await direccion(() => aPagarSinCuotas(a.id))).porProveedor.get(s), 1_910_000);
+  // MIA-201 · cobertura (gestion-lecturas.server.ts, «Por pagar» de Proveedores): la deuda del proveedor también cuenta
+  // los comprobantes sin cuotas (sin eso, 0).
+  const { listaDeProveedores } = await import("./gestion-lecturas.server");
+  const { actorActual } = await import("./gestion.server");
+  const lista = await direccion(async () => listaDeProveedores(await actorActual(), {}));
+  assert.equal(lista.proveedores.find((x) => x.id === s)?.debe, 1_910_000, "Proveedores: el proveedor debe 1.210.000 + 700.000");
+  assert.equal(lista.porPagarComprobantes, 1_910_000);
 
   // ── P3-2 · P5-2: aprobada con la foto de 2.990.000, la ganancia real sale del precio vendido ──
   await duenio.proyectoPresupuesto.update({ where: { id: v1.id }, data: { estado: "APROBADO" } });
@@ -114,6 +121,16 @@ test("Aurora · previstas, ganancia, a pagar, pago desde la cuenta y saldo con m
   const ficha = (await direccion(() => datos.fichaProyecto(p.id)))!;
   assert.equal(ficha.real.costoReal, 1_700_000, "1.000.000 + 700.000, sin IVA");
   assert.equal(ficha.real.gananciaReal, 1_290_000, "2.990.000 − 1.700.000");
+  // MIA-201 · cobertura (ficha.server.ts, pestaña Finanzas): la misma ganancia, con el precio vendido de la foto (con los
+  // renglones daría 2.700.000 − 1.700.000 = 1.000.000).
+  const fichaSrv = await import("./ficha.server");
+  const finanzas = await direccion(async () => {
+    const ac = await actorActual();
+    const cab = await fichaSrv.cabeceraFicha(ac, p.id);
+    assert.ok(cab, "la cabecera de la ficha");
+    return fichaSrv.datosFinanzas(ac, cab, fichaSrv.vistaDe(ac));
+  });
+  assert.equal(finanzas.real.gananciaReal, 1_290_000, "Finanzas: 2.990.000 − 1.700.000");
 
   // ── P6: la orden por transferencia sale de la cuenta elegida, con el día del pago; anularla la devuelve ──
   const crearCuenta = async (nombre: string, saldo: string) => {
@@ -122,8 +139,8 @@ test("Aurora · previstas, ganancia, a pagar, pago desde la cuenta y saldo con m
   };
   const banco = await crearCuenta("Banco Aurora", "1808950");
   const saldo = async (id = banco) => (await duenio.proyectoCuentaBanco.findUniqueOrThrow({ where: { id }, select: { saldo: true } })).saldo;
-  const orden = async (lineas: { comprobanteId: string; importeCentavos: number }[]) => {
-    const o = await direccion(() => ordenes.crearOrdenPago({ supplierId: s, medio: "TRANSFERENCIA", lineas: lineas.map((l) => ({ ...l, cuotaId: null })) }));
+  const orden = async (lineas: { comprobanteId: string; importeCentavos: number }[], medio = "TRANSFERENCIA") => {
+    const o = await direccion(() => ordenes.crearOrdenPago({ supplierId: s, medio, lineas: lineas.map((l) => ({ ...l, cuotaId: null })) }));
     ok(o);
     return (o as { id: string }).id;
   };
@@ -144,6 +161,13 @@ test("Aurora · previstas, ganancia, a pagar, pago desde la cuenta y saldo con m
   assert.equal((await direccion(() => aPagarSinCuotas(a.id))).porProveedor.get(s), 350_000, "le falta la mitad del segundo");
   ok(await admin(() => ordenes.anularOrden(form({ id: o2 }))));
   assert.equal(await saldo(), 598_950, "anular devuelve los 350.000 a la cuenta");
+  // MIA-201 · H1: una orden EN EFECTIVO con cuenta (pedido armado a mano) se rechaza: saldría de la caja y del banco.
+  const o3 = await orden([{ comprobanteId: c2, importeCentavos: 1_000_000 }], "EFECTIVO");
+  const efectivoConCuenta = await admin(() => ordenes.aprobarYPagarOrden(form({ id: o3, cuentaId: banco, fecha: "2026-11-19" })));
+  assert.equal((efectivoConCuenta as { error?: string }).error, "Una orden en efectivo sale de la caja: no lleva cuenta del banco.");
+  assert.equal(await saldo(), 598_950, "el banco no baja por una orden en efectivo");
+  ok(await admin(() => ordenes.aprobarYPagarOrden(form({ id: o3, fecha: "2026-11-19" }))));
+  assert.equal(await saldo(), 598_950, "en efectivo sale de la caja: el banco sigue igual");
 
   // ── P4-3: con movimientos el saldo no se escribe a mano; una cuenta nueva, sin movimientos, sí ──
   const aMano = await direccion(() => empresa.guardarSaldo(form({ id: banco, saldo: "5000000" })));
@@ -153,4 +177,24 @@ test("Aurora · previstas, ganancia, a pagar, pago desde la cuenta y saldo con m
   const caja2 = await crearCuenta("Banco sin movimientos", "100");
   ok(await direccion(() => empresa.guardarSaldo(form({ id: caja2, saldo: "250" }))));
   assert.equal(await saldo(caja2), 250);
+
+  // ── MIA-201 · H3: el primer movimiento de la cuenta entra MIENTRAS se escribe el saldo a mano. Otra conexión mueve la
+  // cuenta (alta del movimiento + increment de 1.000) y tarda en confirmar; `guardarSaldo` corre en el medio. Antes
+  // chequeaba afuera (no veía el movimiento sin confirmar), esperaba la fila y la pisaba: el increment se perdía (900).
+  // Ahora traba la fila, espera, ve el movimiento y rechaza: 250 + 1.000 = 1.250.
+  let movida!: () => void;
+  const yaMovio = new Promise<void>((r) => (movida = r));
+  const otra = duenio.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${a.id}, true)`;
+    await tx.proyectoMovCuenta.create({ data: { tenantId: a.id, cuentaId: caja2, origenTipo: "ORDEN_PAGO", origenId: "h3-primer-movimiento", importeCentavos: BigInt(100_000) } });
+    await tx.proyectoCuentaBanco.updateMany({ where: { id: caja2, tenantId: a.id }, data: { saldo: { increment: 1000 } } });
+    movida();
+    await new Promise((r) => setTimeout(r, 400));
+  });
+  await yaMovio;
+  const aManoEnElMedio = direccion(() => empresa.guardarSaldo(form({ id: caja2, saldo: "900" })));
+  await otra;
+  const enElMedio = await aManoEnElMedio;
+  assert.equal(enElMedio.ok, false, "el movimiento confirmado en el medio frena la escritura a mano");
+  assert.equal(await saldo(caja2), 1_250, "el increment del movimiento no se pierde");
 });

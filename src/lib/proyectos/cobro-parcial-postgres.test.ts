@@ -115,7 +115,7 @@ async function preparar(t: import("node:test").TestContext) {
     assert.equal(r.tipo, "respuesta", JSON.stringify(r));
     return (r as { valor: R }).valor;
   };
-  const cobrar = (id: string, extra: Record<string, string> = {}) => () => enSesion(() => ficha.marcarCuota(form({ id, medio: "TRANSFERENCIA", ...extra })));
+  const cobrar = (id: string, extra: Record<string, string> = {}) => () => enSesion(() => ficha.marcarCuota(form({ id, medio: "TRANSFERENCIA", envio: crypto.randomUUID(), ...extra })));
   /** Por cobrar del proyecto y lo que le falta a cada cuota (en su moneda), por la fuente única de la ficha y Administración. */
   const estado = (proyectoId: string) =>
     enSesion(async () => {
@@ -366,20 +366,26 @@ test("P4-2 · dos pedidos directos iguales con la misma clave (todo, con cuenta)
   assert.equal(await p.saldoCuenta(banco), 605);
 });
 
-test("P4-2 · dos pedidos directos iguales SIN clave (una parte de 100): entra uno solo; con un formulario nuevo, el segundo sí", async (t) => {
+test("MIA-201 · H2 · todo cobro lleva clave: dos cobros iguales con claves distintas entran los dos; con la misma, uno; sin clave, ninguno", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { id } = await p.proyecto();
   const q = await p.cuota(id, 605, 5);
   const banco = await p.cuenta();
-  const pedido = p.cobrar(q, { monto: "100", cuenta: banco });
-  const rs = await enFila(p.base, p.clave(id), [pedido, pedido]);
-  assert.deepEqual(rs.map((r) => r.ok), [true, false], "el repetido sin clave se frena en el servidor");
-  assert.match(String((rs[1] as { error?: string }).error), /cobro igual/);
-  assert.deepEqual(await p.caja(id), { cobros: 1, cobrado: 100, caja: 100 });
-  assert.equal(await p.saldoCuenta(banco), 100);
-  // Otro cobro de 100 de verdad: el formulario recargado trae su clave y entra (100 + 100 = 200; falta 405).
-  assert.equal((await p.cobrar(q, { monto: "100", cuenta: banco, envio: "formulario-nuevo" })()).ok, true);
+  // Sin clave (un pedido armado a mano): el servidor no lo graba. Antes entraba y un freno de 2 min por «parecido»
+  // bloqueaba el siguiente cobro legítimo del mismo importe (el de Bancos, que no mandaba clave).
+  const sinClave = await p.cobrar(q, { monto: "100", cuenta: banco, envio: "" })();
+  assert.equal(sinClave.ok, false, "sin clave no se graba");
+  assert.match(String((sinClave as { error?: string }).error), /clave del envío/);
+  assert.deepEqual(await p.caja(id), { cobros: 0, cobrado: 0, caja: 0 });
+  // Dos cobros iguales de verdad (dos formularios, dos claves), a la vez: entran los dos (100 + 100).
+  const rs = await enFila(p.base, p.clave(id), [p.cobrar(q, { monto: "100", cuenta: banco, envio: "form-1" }), p.cobrar(q, { monto: "100", cuenta: banco, envio: "form-2" })]);
+  assert.deepEqual(rs.map((r) => r.ok), [true, true], "dos claves distintas: dos cobros");
+  assert.deepEqual(await p.caja(id), { cobros: 2, cobrado: 200, caja: 200 });
+  // El mismo envío repetido (doble clic, reintento): no asienta otra vez.
+  const repetido = await p.cobrar(q, { monto: "100", cuenta: banco, envio: "form-2" })();
+  assert.equal(repetido.ok, true);
+  assert.match(String((repetido as { listo?: string }).listo), /ya estaba registrado/);
   assert.deepEqual(await p.caja(id), { cobros: 2, cobrado: 200, caja: 200 });
   assert.equal(await p.saldoCuenta(banco), 200);
   assert.equal((await p.estado(id)).falta[q], 405);

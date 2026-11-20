@@ -124,7 +124,7 @@ async function preparar(t: import("node:test").TestContext) {
     JSON.stringify(await duenio.proyectoCuota.findMany({ where: { proyectoId }, orderBy: [{ clave: "asc" }, { createdAt: "asc" }], select: { clave: true, tipo: true, monto: true, venceEl: true, prevista: true, pagadoEl: true, anuladoEl: true } }));
   const etapa = async (id: string) => duenio.proyecto.findUniqueOrThrow({ where: { id }, select: { etapa: true, perdidoEl: true } });
   const mover = (id: string, destino: string, motivo?: string) => enSesion(() => ficha.moverProyecto({ id, destino, motivo }));
-  const marcar = (id: string) => enSesion(() => ficha.marcarCuota(form({ id, medio: "TRANSFERENCIA" })));
+  const marcar = (id: string) => enSesion(() => ficha.marcarCuota(form({ envio: crypto.randomUUID(), id, medio: "TRANSFERENCIA" })));
   const cobrar = (proyectoId: string, monto: number) => enSesion(() => acciones.registrarCobro(form({ proyectoId, medio: "TRANSFERENCIA", monto: String(monto) })));
   const porCobrar = (proyectoId: string) =>
     enSesion(async () => {

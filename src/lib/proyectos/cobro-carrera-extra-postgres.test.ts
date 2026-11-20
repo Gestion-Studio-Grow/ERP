@@ -254,7 +254,7 @@ test("5 DIAGNÓSTICO: banco $ 1.000 conciliado con una cuota de $ 1.210 → «Ma
   const cuenta = await p.duenio.proyectoCuentaBanco.create({ data: { tenantId: p.a.id, nombre: "Banco" }, select: { id: true, saldo: true } });
   await p.duenio.proyectoMovBanco.create({ data: { tenantId: p.a.id, cuentaId: cuenta.id, fecha: new Date(AHORA), descripcion: "Transferencia 1000", importe: 1000, cuotaId } });
   // Lo que manda «Marcar cobrada» de Bancos (_bancos.tsx → MarcarCuota sin `falta`): id, medio y cuenta; ni monto ni `visto`.
-  const r = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: cuotaId, medio: "TRANSFERENCIA", cuenta: cuenta.id })) as Promise<Res>);
+  const r = await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: cuotaId, medio: "TRANSFERENCIA", cuenta: cuenta.id })) as Promise<Res>);
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.deepEqual(await p.plata(proyectoId), { pagos: 1, suma: 1210, asientos: 1 }, "DEFECTO: se asienta el pendiente de la cuota, no los $ 1.000 del banco");
   const saldo = (await p.duenio.proyectoCuentaBanco.findUniqueOrThrow({ where: { id: cuenta.id }, select: { saldo: true } })).saldo;

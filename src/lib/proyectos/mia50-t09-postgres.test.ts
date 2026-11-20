@@ -354,7 +354,7 @@ async function fichaPagadoCon400(p: NonNullable<Awaited<ReturnType<typeof prepar
   p.valor(await p.como(p.usuarios.direccion, () => gestion.regenerarCuotas(p.a.id, pr.id)));
   const anticipo = await p.duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: pr.id, tipo: "PAGO", anuladoEl: null, clave: { endsWith: ":anticipo" } }, select: { id: true, monto: true, prevista: true } });
   assert.deepEqual({ monto: anticipo.monto, prevista: anticipo.prevista }, { monto: 1000, prevista: false });
-  ok(p.valor(await p.como(p.usuarios.direccion, () => p.ficha.marcarCuota(p.form({ id: anticipo.id, medio: "TRANSFERENCIA", monto: "400" })))));
+  ok(p.valor(await p.como(p.usuarios.direccion, () => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: anticipo.id, medio: "TRANSFERENCIA", monto: "400" })))));
   const fichaServer = await import("./ficha.server");
   const pagado = async () =>
     p.valor(await p.como(p.usuarios.direccion, async () => {

@@ -145,8 +145,8 @@ function ElegirTipoRetencion({ concepto }: { concepto: string }) {
 /**
  * La de un proyecto, además, cobra o paga UNA PARTE (`monto`, en la moneda de la cuota; vacío = todo lo que falta) y manda
  * lo que faltaba al cargar la pantalla (`visto`): si cambió mientras tanto, el servidor no asienta «todo» sin preguntar.
- * `envio`, uno por apertura: el doble clic asienta una vez. Las de la empresa (y sin `falta`, la conciliación de Bancos) se
- * marcan enteras.
+ * `envio`, uno por apertura, en toda cuota de un proyecto (también desde Bancos): el doble clic asienta una vez. Las de la
+ * empresa (y sin `falta`, la conciliación de Bancos) se marcan enteras.
  */
 export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", concepto = "la cuota", esCobro = true }: { id: string; deEmpresa: boolean; etiqueta: string; falta?: number; moneda?: string; concepto?: string; esCobro?: boolean }) {
   const { error, ocupado, correr } = useAccion();
@@ -180,9 +180,10 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
         {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
       </select>
       <ElegirCuenta />
+      {/* MIA-201 · H2: la clave va en todo cobro de un proyecto, también el de Bancos (sin `falta`); sin ella el servidor no lo graba. */}
+      {!deEmpresa && <input type="hidden" name="envio" value={envio} />}
       {!deEmpresa && falta !== undefined && (
         <>
-          <input type="hidden" name="envio" value={envio} />
           <input type="hidden" name="visto" value={String(falta)} />
           <input name="monto" inputMode="decimal" aria-label={`Monto a ${esCobro ? "cobrar" : "pagar"} de ${concepto}, en ${moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${pesos(falta, moneda)}`} className={campo} />
           {esCobro && (

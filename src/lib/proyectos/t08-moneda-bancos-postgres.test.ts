@@ -178,7 +178,7 @@ test("B no ve lo de A · cambio, cuenta, retenciones y enlaces (acciones, lectur
   const cta = await p.cuenta(0);
   // La cuota primero: un cobro suelto anterior la cubriría (cobranza-core reparte lo cobrado aparte por vencimiento).
   const q = await p.cuota(pr, 100);
-  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", retTipo: RET, retImporte: "7" }))));
+  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: q, medio: "TRANSFERENCIA", retTipo: RET, retImporte: "7" }))));
   const cobro = await p.cobrar(pr, { monto: "500", cuentaId: cta });
   const q2 = await p.cuota(pr, 1000);
   const fa = await p.factura(1210);
@@ -262,7 +262,7 @@ test("C-O38 · cuenta en todo movimiento; saldo a mano; conciliar contra cuota, 
   const cta = await p.cuenta(10000);
   const pr = await p.proyecto();
   const q = await p.cuota(pr, 100);
-  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", cuenta: cta }))));
+  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: q, medio: "TRANSFERENCIA", cuenta: cta }))));
   const cobro = await p.cobrar(pr, { monto: "500", cuentaId: cta });
   const gasto = await p.duenio.proyectoGasto.create({ data: { tenantId: p.a.id, proyectoId: pr, descripcion: "Flete T08", neto: 200, iva: 0 }, select: { id: true } });
   p.ok(await p.enSesion(() => p.acciones.pagarGasto(p.form({ id: gasto.id, medio: "TRANSFERENCIA", cuentaId: cta }))));
@@ -298,12 +298,12 @@ test("C-O36 · 93 al banco + 7 retenidos: cuota cobrada, caja +93, retenido 7, c
   const pr = await p.proyecto();
   const q = await p.cuota(pr, 100);
   // 95 + 7 > 100: no.
-  const pasa = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", monto: "95", retTipo: RET, retImporte: "7" })));
+  const pasa = await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: q, medio: "TRANSFERENCIA", monto: "95", retTipo: RET, retImporte: "7" })));
   assert.equal(pasa.ok, false);
   assert.equal(await p.duenio.proyectoPago.count({ where: { proyectoId: pr } }), 0);
   // Un tipo fuera del catálogo: no.
-  assert.equal((await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", retTipo: "Otra", retImporte: "7" })))).ok, false);
-  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", retTipo: [RET, ""], retImporte: ["7", ""], retCertificado: ["CERT-T08", ""] }))));
+  assert.equal((await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: q, medio: "TRANSFERENCIA", retTipo: "Otra", retImporte: "7" })))).ok, false);
+  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: q, medio: "TRANSFERENCIA", retTipo: [RET, ""], retImporte: ["7", ""], retCertificado: ["CERT-T08", ""] }))));
   assert.ok((await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true } })).pagadoEl, "cuota cobrada");
   const pagos = await p.duenio.proyectoPago.findMany({ where: { proyectoId: pr, anuladoEl: null }, select: { id: true, monto: true, medio: true } });
   assert.deepEqual(pagos.map((x) => [x.medio, x.monto]).sort(), [["RETENCION", 7], ["TRANSFERENCIA", 93]]);
@@ -341,7 +341,7 @@ test("C-O35 · cuota ↔ factura por tramo: facturado y cobrado a mano; parcial 
   const dos = await Promise.all([fa, fb].map((f) => p.enSesion(() => p.empresa.enlazarCuotaFactura(p.form({ cuotaId: q2, facturaId: f, tramo: "SALDO" })))));
   assert.equal(dos.filter((r) => r.ok).length, 1, JSON.stringify(dos));
   // Cobro parcial de 400: cobrado 400 y a la cuota le faltan 600.
-  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", monto: "400" }))));
+  p.ok(await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: q, medio: "TRANSFERENCIA", monto: "400" }))));
   const ac = (await p.enSesion(() => p.mb.aCobrarPorCuota(p.a.id, [q]))).get(q)!;
   assert.deepEqual([ac.tramo, ac.facturado, ac.cobrado, ac.retenido, 1000 - ac.cobrado], ["ANTICIPO", 1210, 400, 0, 600]);
   // Una cuota de pago no lleva factura.

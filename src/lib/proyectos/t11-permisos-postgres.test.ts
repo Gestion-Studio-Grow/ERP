@@ -127,7 +127,7 @@ async function preparar(t: import("node:test").TestContext) {
     const p1 = await proyecto(n, { precio: 500_000 / 1.21 });
     const c200 = await cuota(n, { proyectoId: p1, monto: 200_000 });
     const c300 = await cuota(n, { proyectoId: p1, monto: 300_000 });
-    ok(await como(n, n.duenia.id, () => ficha.marcarCuota(form({ id: c200, medio: "TRANSFERENCIA" }))));
+    ok(await como(n, n.duenia.id, () => ficha.marcarCuota(form({ envio: crypto.randomUUID(), id: c200, medio: "TRANSFERENCIA" }))));
     ok(await como(n, n.duenia.id, () => acciones.registrarCobro(form({ proyectoId: p1, medio: "TRANSFERENCIA", monto: "50000" }))));
     const p2 = await proyecto(n, { precio: 1_200_000 / 1.21, moneda: "USD", tcVenta: 1200 });
     const cUsd = await cuota(n, { proyectoId: p2, monto: 1_000, moneda: "USD" });

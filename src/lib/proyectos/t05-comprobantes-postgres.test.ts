@@ -309,7 +309,7 @@ test("C-O13 · una sola cuenta del costo real: ficha, pestaña, Rentabilidad y D
   for (const [donde, v] of Object.entries(r2b)) assert.equal(typeof v === "number" ? v : v.costoReal, 400, `P2 enlazada ${donde}`);
   assert.deepEqual([r2b.ficha.previsto, r2b.ficha.imputado], [0, 400]);
   // La cuota enlazada no se paga desde el calendario (se pagaría dos veces).
-  const marca = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: cuota.id, medio: "TRANSFERENCIA" })));
+  const marca = await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: cuota.id, medio: "TRANSFERENCIA" })));
   assert.equal(marca.ok, false);
   assert.match(String((marca as { error?: string }).error), /orden de pago/);
   // Aprobada la rendición, el premio la cuenta.
@@ -511,7 +511,7 @@ test("CERT-4 · enlazar la cuota de 300 a un comprobante de 400 y pagarla a mano
     const q = (await p.duenio.proyectoCuota.create({ data: { tenantId: p.a.id, proyectoId: pr, supplierId: s, tipo: "PAGO", concepto: "Cuota cert", monto: 300, venceEl: new Date(AHORA + 10 * DIA) }, select: { id: true } })).id;
     const [en, mk] = await Promise.all([
       new Promise<void>((listo) => setTimeout(listo, demora)).then(() => p.enSesion(() => p.comp.enlazarCuota(p.form({ comprobanteId: c, cuotaId: q })))),
-      p.admin(() => p.ficha.marcarCuota(p.form({ id: q, medio: "TRANSFERENCIA", ...(parte ? { monto: "100" } : {}) }))),
+      p.admin(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: q, medio: "TRANSFERENCIA", ...(parte ? { monto: "100" } : {}) }))),
     ]);
     const cuota = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true } });
     const enlazada = await p.m1((tx) => tx.proyectoCuotaComprobante.count({ where: { cuotaId: q } }));

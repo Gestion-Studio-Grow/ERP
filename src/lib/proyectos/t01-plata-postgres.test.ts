@@ -151,7 +151,7 @@ test("C-P06 · un borrador encima de la aprobada no mueve cuotas ni cabecera; co
   assert.equal(cab.borradorSobreAprobada, true);
   // Cobrar todas las cuotas: la suma de cobros es la venta con IVA de la aprobada y ninguna se cobra por menos.
   for (const c of cobros) {
-    const r: { ok: boolean } = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: c.id, medio: "TRANSFERENCIA" })));
+    const r: { ok: boolean } = await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: c.id, medio: "TRANSFERENCIA" })));
     assert.equal(r.ok, true, JSON.stringify(r));
   }
   const pagos = await p.duenio.proyectoPago.findMany({ where: { proyectoId: id, anuladoEl: null }, select: { id: true, monto: true } });
@@ -169,7 +169,7 @@ test("C-P06 · «Marcar cobrado» por menos que la cuota lo dice, con la diferen
   await p.enSesion(() => p.gestion.regenerarCuotas(p.a.id, id));
   const [primera] = (await cuotasDe(p, id)).filter((c) => c.tipo === "COBRO");
   assert.deepEqual(await p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "EFECTIVO", monto: "10" }))), { ok: true });
-  const r = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: primera.id, medio: "TRANSFERENCIA" })));
+  const r = await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: primera.id, medio: "TRANSFERENCIA" })));
   assert.equal(r.ok, true, JSON.stringify(r));
   const listo = String((r as { listo?: string }).listo).replace(/ /g, " ");
   assert.match(listo, /\$ 10 restantes/, `a mano: la cuota de ${primera.monto} cobra ${primera.monto - 10} y dice que faltan 10: «${listo}»`);
@@ -268,8 +268,8 @@ test("C-O40 · con el día de caja cerrado ninguna acción de Proyectos asienta;
   await p.cerrarDia();
   const acciones: [string, () => Promise<{ ok: boolean; error?: string } | undefined>][] = [
     ["cobro", () => p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "EFECTIVO", monto: "20" })))],
-    ["cuota de cobro", () => p.enSesion(() => p.ficha.marcarCuota(p.form({ id: cuotaCobro.id, medio: "EFECTIVO" })))],
-    ["cuota de pago", () => p.enSesion(() => p.ficha.marcarCuota(p.form({ id: cuotaPago.id, medio: "EFECTIVO" })))],
+    ["cuota de cobro", () => p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: cuotaCobro.id, medio: "EFECTIVO" })))],
+    ["cuota de pago", () => p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: cuotaPago.id, medio: "EFECTIVO" })))],
     ["gasto pagado al cargarlo", () => p.enSesion(() => p.acciones.registrarGasto(p.form({ proyectoId: id, descripcion: "Otro", neto: "10", pagado: "on", medio: "EFECTIVO" })))],
     ["pago de un gasto", () => p.enSesion(() => p.acciones.pagarGasto(p.form({ id: gastoSinPagar.id, medio: "EFECTIVO" })))],
     ["anulación de un cobro", () => p.enSesion(() => p.ficha.anularCobroFicha(p.form({ id: cobroVivo.id })))],
@@ -496,8 +496,8 @@ test("Dos negocios · cada acción de T01 con ids del otro negocio se rechaza y 
   // La dueña de A, con todos los permisos de A, apunta a los ids de B.
   const acciones: [string, () => Promise<{ ok: boolean; error?: string } | null | undefined>][] = [
     ["cobro", () => p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: idB, medio: "EFECTIVO", monto: "20" })))],
-    ["cuota de cobro", () => p.enSesion(() => p.ficha.marcarCuota(p.form({ id: cuotaCobroB.id, medio: "EFECTIVO" })))],
-    ["cuota de pago", () => p.enSesion(() => p.ficha.marcarCuota(p.form({ id: cuotaPagoB.id, medio: "EFECTIVO" })))],
+    ["cuota de cobro", () => p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: cuotaCobroB.id, medio: "EFECTIVO" })))],
+    ["cuota de pago", () => p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: cuotaPagoB.id, medio: "EFECTIVO" })))],
     ["gasto pagado al cargarlo", () => p.enSesion(() => p.acciones.registrarGasto(p.form({ proyectoId: idB, descripcion: "Otro", neto: "10", pagado: "on", medio: "EFECTIVO" })))],
     ["pago de un gasto", () => p.enSesion(() => p.acciones.pagarGasto(p.form({ id: gastoB.id, medio: "EFECTIVO" })))],
     ["anulación de un cobro", () => p.enSesion(() => p.ficha.anularCobroFicha(p.form({ id: pagoB.id })))],
@@ -602,8 +602,8 @@ test("O37 (corregido tras el primer rojo) · todo cobro y pago de T01 asienta ×
   const antes = await p.caja();
   const ok = async (r: Promise<{ ok: boolean } | undefined>, que: string) => assert.equal((await r)?.ok, true, que);
   await ok(p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "EFECTIVO", monto: "500" }))), "cobro suelto +500");
-  await ok(p.enSesion(() => p.ficha.marcarCuota(p.form({ id: anticipoCliente.id, medio: "TRANSFERENCIA" }))), "anticipo del cliente");
-  await ok(p.enSesion(() => p.ficha.marcarCuota(p.form({ id: anticipoProveedor.id, medio: "EFECTIVO" }))), "anticipo al proveedor −300");
+  await ok(p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: anticipoCliente.id, medio: "TRANSFERENCIA" }))), "anticipo del cliente");
+  await ok(p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: anticipoProveedor.id, medio: "EFECTIVO" }))), "anticipo al proveedor −300");
   await ok(p.enSesion(() => p.acciones.registrarGasto(p.form({ proyectoId: id, descripcion: "Flete O37", neto: "80", pagado: "on", medio: "EFECTIVO" }))), "gasto pagado −80");
   await ok(p.enSesion(() => p.acciones.pagarGasto(p.form({ id: gasto.id, medio: "EFECTIVO" }))), "pago de gasto −150");
   await ok(p.enSesion(() => p.empresa.marcarCuotaEmpresa(p.form({ id: empresa.id, medio: "EFECTIVO" }))), "pago de la empresa −250");
@@ -657,13 +657,13 @@ test("§ 2.2 bis P-06 · aprobada $ 14.701.500, borrador $ 15.191.550, anticipo 
   const cobrosDe = async () => (await cuotasDe(p, id)).filter((c) => c.tipo === "COBRO");
   const [anticipo, saldo] = await cobrosDe();
   assert.deepEqual([anticipo.monto, saldo.monto], [7_350_750, 7_350_750]);
-  assert.equal((await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: anticipo.id, medio: "TRANSFERENCIA" })))).ok, true);
+  assert.equal((await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: anticipo.id, medio: "TRANSFERENCIA" })))).ok, true);
   const v2 = await p.duenio.proyectoPresupuesto.create({ data: { tenantId: p.a.id, proyectoId: id, version: 2, estado: "BORRADOR", token: `t01c-${id}`, ivaPct: 21 }, select: { id: true } });
   await p.duenio.proyectoItem.create({ data: { tenantId: p.a.id, presupuestoId: v2.id, rubro: "General", descripcion: "Stand", cantidad: 1, precio: 12_555_000 } });
   await p.enSesion(() => p.gestion.regenerarCuotas(p.a.id, id));
   const saldoDespues = (await cobrosDe()).find((c) => c.id === saldo.id)!;
   assert.equal(saldoDespues.monto, 7_350_750, "el saldo sigue en 7.350.750 y no en 7.840.800");
-  const r = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: saldo.id, medio: "TRANSFERENCIA" })));
+  const r = await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: saldo.id, medio: "TRANSFERENCIA" })));
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.doesNotMatch(String((r as { listo?: string }).listo), /restantes/, "se cobra entera: sin diferencia");
   const cobrado = (await p.duenio.proyectoPago.findMany({ where: { proyectoId: id, anuladoEl: null }, select: { monto: true } })).reduce((s, x) => s + x.monto, 0);
@@ -681,7 +681,7 @@ test("§ 2.2 bis O40 · día cerrado: cobro de $ 1.000 y pago de una cuota de $ 
   await p.cerrarDia();
   const antes = await p.caja();
   const cobro = await p.enSesion(() => p.acciones.registrarCobro(p.form({ proyectoId: id, medio: "EFECTIVO", monto: "1000" })));
-  const pagoCuota = await p.enSesion(() => p.ficha.marcarCuota(p.form({ id: cuota.id, medio: "TRANSFERENCIA" })));
+  const pagoCuota = await p.enSesion(() => p.ficha.marcarCuota(p.form({ envio: crypto.randomUUID(), id: cuota.id, medio: "TRANSFERENCIA" })));
   const manual = await p.enSesion(() => p.libro.addLibroEntry({ ok: false } as never, p.form({ type: "INGRESO", method: "EFECTIVO", amount: "1000", detail: "Manual T01" })));
   for (const [que, r] of [["cobro", cobro], ["pago de cuota", pagoCuota], ["asiento manual", manual]] as const) {
     assert.equal(r?.ok, false, `${que}: ${JSON.stringify(r)}`);
