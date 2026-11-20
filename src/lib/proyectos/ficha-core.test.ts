@@ -1,4 +1,4 @@
-import { tipoDeArchivoSubido } from "./ficha-core";
+import { cobroFrenadoPorPerdido, contar, tipoDeArchivoSubido } from "./ficha-core";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cambiosEntreVersiones, cashflowDelEvento, ventaTotalItem } from "./gestion-core";
@@ -159,4 +159,45 @@ test("precioAlCambiarCambio: US$ 4.033,33 tipeados a 1.350 siguen siendo US$ 4.0
   assert.equal(precioAlCambiarCambio(aMil400, 1400, 1350), aMil350, "ida y vuelta vuelve al mismo precio");
   assert.equal(precioAlCambiarCambio(0, 1350, 1400), 0, "sin precio a mano (sale del recargo) no se toca");
   assert.equal(precioAlCambiarCambio(1000, 0, 1400), 1000, "sin cambio viejo no se inventa");
+});
+
+test("ADV-7 (MIA-107) · cobroFrenadoPorPerdido: sólo un cobro sin marcar de un perdido; falla cerrada como `perdidoAdmite`", () => {
+  const perdido = { perdidoEl: new Date("2026-11-01T12:00:00Z") };
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: null, proyecto: perdido }), true);
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "OTRO", pagadoEl: null, proyecto: perdido }), true, "un tipo desconocido no pasa");
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "PAGO", pagadoEl: null, proyecto: perdido }), false, "la deuda con un proveedor se paga sin reabrir");
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: new Date(), proyecto: perdido }), false, "lo cobrado sigue cobrado");
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: null, proyecto: { perdidoEl: null } }), false, "un proyecto vivo se cobra");
+  assert.equal(cobroFrenadoPorPerdido({ tipo: "COBRO", pagadoEl: null, proyecto: null }), false, "una cuota de la empresa no tiene proyecto");
+});
+
+test("contar: singular con 1, plural con 0 y con más («1 ítem», no «1 ítems»)", () => {
+  assert.equal(contar(1, "ítem", "ítems"), "1 ítem");
+  assert.equal(contar(0, "ítem", "ítems"), "0 ítems");
+  assert.equal(contar(3, "movimiento", "movimientos"), "3 movimientos");
+  assert.equal(contar(1, "punto", "puntos"), "1 punto");
+});
+
+test("MIA-232 · H1-H3: motivo reservado, freno sin re-aprobar y «Vendido» sin perdidos (reglas puras)", async () => {
+  const { rechazoDeMotivoDePerdido, esCancelado } = await import("./cancelacion-core");
+  const { frenaSinAprobacion, vendidoDelCliente } = await import("./ficha-core");
+  // H1: se rechaza exactamente lo que `esCancelado` tomaría como cancelación; lo demás pasa.
+  for (const m of ["Cancelado: el cliente se bajó", "Cancelado: "]) assert.ok(esCancelado(m) && rechazoDeMotivoDePerdido(m), m);
+  for (const m of ["El cliente canceló: se bajó", "cancelado: en minúscula", "Cancelado sin dos puntos", "Eligió otro proveedor"]) assert.equal(rechazoDeMotivoDePerdido(m), null, m);
+  // H2 generalizado por «1 a» (MIA-234): sin una versión aprobada frena hacia Confirmado o después, la haya perdido o no.
+  for (const destino of ["APROBADO", "PRODUCCION", "ARMADO", "DESARME", "CIERRE"]) assert.equal(frenaSinAprobacion({ destino, aprobada: false }), true, destino);
+  for (const destino of ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"]) assert.equal(frenaSinAprobacion({ destino, aprobada: false }), false, destino);
+  for (const destino of ["APROBADO", "PRODUCCION", "CIERRE"]) assert.equal(frenaSinAprobacion({ destino, aprobada: true }), false, `${destino} con versión aprobada`);
+  // H3: el perdido no suma; sin presupuesto aprobado tampoco.
+  const perdidoEl = new Date("2026-11-20T12:00:00Z");
+  assert.equal(vendidoDelCliente([{ t: { total: 1863.4 }, perdidoEl: null }, { t: { total: 1863.4 }, perdidoEl }, { t: null, perdidoEl: null }]), 1863.4);
+  assert.equal(vendidoDelCliente([]), 0);
+});
+
+test("MIA-239 · el valor del pipeline del productor comercial suma sólo sus proyectos: el ajeno (venta null) cuenta como lead, sin plata", () => {
+  const r = resumenPipeline([
+    { etapa: "PEDIDO", venta: 1000, perdido: false },
+    { etapa: "PROPUESTA", venta: null, perdido: false },
+  ]);
+  assert.deepEqual(r, { abiertos: 2, valor: 1000 });
 });

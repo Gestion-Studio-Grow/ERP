@@ -228,6 +228,13 @@ function edicionPermite(app: AppDescriptor, n: NegocioApps): boolean {
   // pedía además el perfil Empresa, que con el motor de perfiles apagado no tiene nadie: la página
   // decía «no está disponible». Sin el módulo asignado, sigue decidiendo el perfil, como hoy.
   if (n.contexto?.origen === "producto" && app.modulo !== null && n.contexto.modulos.has(app.modulo)) return true;
+  // MIA-50 T11 (Adenda 2): dentro del panel cerrado de un vertical (la productora), una app que el panel admite y tiene su
+  // módulo asignado no pide además el perfil, igual que en el piloto: Cuentas a cobrar y a pagar se prenden asignando el
+  // módulo. Sin el módulo asignado, sigue decidiendo el perfil, como hoy. Fuera de un panel cerrado (CH), nada cambia.
+  if (app.modulo !== null && new Set(n.modulosAsignados).has(app.modulo)) {
+    const panel = appDelPanelCerrado(n);
+    if (panel && panel.id !== app.id && entraEnElPanel(panel, app)) return true;
+  }
   // Hoy las pantallas de edición sólo se suman con el motor de perfiles prendido
   // (`menuItemsParaTenant`: ENTERPRISE_NAV_ITEMS sólo si `activeProfile !== null`).
   if (n.perfil === null) return false;
@@ -240,7 +247,9 @@ function edicionPermite(app: AppDescriptor, n: NegocioApps): boolean {
  */
 export function appDelPanelCerrado(n: NegocioApps, apps: readonly AppDescriptor[] = REGISTRO_APPS): AppDescriptor | null {
   const asignados = n.contexto ? n.contexto.modulos : new Set(n.modulosAsignados);
-  return apps.find((a) => a.panelCerrado?.blueprint === n.blueprintId && a.panelCerrado && a.modulo !== null && asignados.has(a.modulo)) ?? null;
+  // Con módulo, además del vertical tiene que estar asignado (la productora: `proyectos`). Sin módulo, alcanza el
+  // vertical (GSG-CRM-018: el ARM nace sin módulos y es sólo el CRM).
+  return apps.find((a) => !!a.panelCerrado && a.panelCerrado.blueprint === n.blueprintId && (a.modulo === null || asignados.has(a.modulo))) ?? null;
 }
 
 const entraEnElPanel = (panel: AppDescriptor, app: AppDescriptor): boolean =>
@@ -589,7 +598,7 @@ export function conMostradorEnLaBarra(menu: readonly ItemMenuDeHoy[], visibles: 
  */
 export function conProyectosEnLaBarra(menu: readonly ItemMenuDeHoy[], visibles: readonly AppDescriptor[]): ItemMenuDeHoy[] {
   // Proyectos y las apps de gestión de eventos, en este orden (todas exigen el mismo módulo, salvo «Eventos y sponsors», que va por interruptor).
-  const ORDEN = ["gestion-inicio", "proyectos", "eventos-sponsors", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo"];
+  const ORDEN = ["gestion-inicio", "proyectos", "eventos-sponsors", "crm-comercial", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo"];
   const apps = ORDEN.map((id) => visibles.find((a) => a.id === id)).filter((a): a is AppDescriptor => !!a && !menu.some((i) => i.href === a.ruta));
   if (apps.length === 0) return [...menu];
   const i = menu.findIndex((m) => m.href === "/admin/turnos");

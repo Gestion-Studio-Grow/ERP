@@ -1,4 +1,4 @@
-// VERIFICACIÓN EN DOS PASOS del panel de una productora: código de 6 dígitos de una app (TOTP, RFC 6238), códigos de
+// VERIFICACIÓN EN DOS PASOS del panel de una productora o de un taller de stands (RUBROS_CON_SEGUNDO_PASO): código de 6 dígitos de una app (TOTP, RFC 6238), códigos de
 // respaldo y el pase de 10 minutos entre la clave y el código. Puro: sin base, sin cookies y sin pedido.
 
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -8,6 +8,21 @@ const SEGUNDOS_POR_PASO = 30;
 
 /** Quien ve plata no entra sólo con la clave. Provisional hasta confirmarlo con MIA. */
 export const ROLES_CON_SEGUNDO_PASO: readonly string[] = ["DIRECCION", "ADMINISTRACION"];
+
+/**
+ * Los rubros donde rige la verificación en dos pasos. Es LA regla: la usan el ingreso (`exigeSegundoPaso`), la pantalla
+ * de Equipo («Dos pasos: …», «Reiniciar dos pasos») y la pestaña Seguridad. E-4 (GSG-MIA-090): MIA Taller
+ * (`taller-stands`) la hereda, decisión (2) A del dueño del 18/11, provisional a confirmar por el dueño.
+ */
+export const RUBROS_CON_SEGUNDO_PASO: readonly string[] = ["productora", "taller-stands"];
+export const rigeSegundoPaso = (rubro: string | null | undefined): boolean => RUBROS_CON_SEGUNDO_PASO.includes(rubro ?? "");
+
+/** Lo que dice Equipo de los dos pasos de una persona con cuenta, con la misma regla del ingreso. */
+export function estadoDeDosPasos(rubro: string | null | undefined, activos: boolean, rol: string): string {
+  if (!rigeSegundoPaso(rubro)) return "este negocio no los pide";
+  if (activos) return "activos";
+  return ROLES_CON_SEGUNDO_PASO.includes(rol) ? "se activan en su próximo ingreso" : "no los pide su rol";
+}
 export const MAX_INTENTOS = 5;
 export const BLOQUEO_MS = 15 * 60_000;
 export const VIGENCIA_PASE_MS = 10 * 60_000;
@@ -123,3 +138,25 @@ export function leerPase(pase: string | undefined | null, ahoraMs: number, clave
   if (!iguales(firma, firmar(`${userId}.${vence}`, clave))) return null;
   return Number(vence) > ahoraMs ? userId : null;
 }
+
+// ── MIA-50 T11 (O47, D10): el código en el momento de una acción sensible ──────────────────────────────────────────────
+
+/** El campo del formulario que trae el código de la app (o uno de respaldo). */
+export const CAMPO_CODIGO = "codigoSegundoPaso";
+
+/**
+ * Las acciones que piden el código en ese momento (O47): pagar (una liquidación, una orden de pago), cambiar parámetros de
+ * precio o de reparto y, cuando existan en esta rama, aprobar una liquidación o un ajuste (T10, T12) y cerrar el mes.
+ */
+export type AccionSensible = "pagar" | "parametros" | "aprobar" | "cerrar-mes";
+
+/** D10: un código validado para pagar abre una ventana de `VIGENCIA_PASE_MS` (10 min) para los pagos seguidos de la misma persona. */
+const ABREN_VENTANA: readonly AccionSensible[] = ["pagar"];
+export const abreVentana = (accion: AccionSensible): boolean => ABREN_VENTANA.includes(accion);
+
+/** ¿Hay que pedir el código ahora? Siempre, salvo un pago dentro de la ventana de la misma persona (D10). PURA. */
+export const pideCodigoAhora = (accion: AccionSensible, ventanaVigente: boolean): boolean => !(abreVentana(accion) && ventanaVigente);
+
+/** Los grupos de parámetros que piden el código (O47: «parámetros de precio o de reparto»). PURA. */
+export const GRUPOS_CON_CODIGO: readonly string[] = ["precio", "reparto"];
+export const parametroPideCodigo = (grupo: string): boolean => GRUPOS_CON_CODIGO.includes(grupo);

@@ -14,7 +14,7 @@ import { useToastSiHay } from "../../ToastProvider";
 const campoEnLinea = "min-h-11 min-w-0 rounded-lg border border-line bg-surface px-3 text-sm text-strong";
 
 /** Clave aleatoria URL-safe (32 caracteres) para un envío. */
-function nuevaClave(): string {
+export function nuevaClave(): string {
   const b = new Uint8Array(16);
   crypto.getRandomValues(b);
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
@@ -31,6 +31,11 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
   const [error, setError] = useState<string | null>(null);
   // El servidor no grabó y pide un sí explícito (p. ej. un cobro igual a uno de recién): el texto de la casilla.
   const [confirmar, setConfirmar] = useState<string | null>(null);
+  // MIA-203: el sí es un botón que reenvía este mismo formulario (la misma clave `envio`) con `confirmaRepetido=1`.
+  const [reenviar, setReenviar] = useState<string | null>(null);
+  // MIA-205 · 2: la clave `envio` del pedido que pidió el sí. La ficha es de servidor y, al avisar, se refresca: el `envio`
+  // oculto vuelve con otra clave. El botón del sí reenvía con ésta, no con la nueva.
+  const envioDelAviso = useRef<string | null>(null);
   const [enCurso, iniciar] = useTransition();
   const form = useRef<HTMLFormElement>(null);
   const clave = useRef<string | null>(null);
@@ -40,6 +45,7 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
     if (enCurso) return;
     const fd = new FormData(e.currentTarget, (e.nativeEvent as SubmitEvent).submitter);
     if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
+    if (fd.get("confirmaRepetido") === "1" && envioDelAviso.current) fd.set("envio", envioDelAviso.current);
     iniciar(async () => {
       setError(null);
       try {
@@ -47,10 +53,14 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
         // El servidor contestó (bien o mal): el próximo envío es otro. Si la llamada se cortó, la clave queda.
         if (claveDeEnvio) clave.current = null;
         if (!r.ok) {
+          envioDelAviso.current = r.reenviar ? (fd.get("envio") as string | null) : null;
           setConfirmar(r.confirmar ?? null);
+          setReenviar(r.reenviar ?? null);
           return setError(r.error);
         }
+        envioDelAviso.current = null;
         setConfirmar(null);
+        setReenviar(null);
         // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
         if (r.listo) toast?.showSuccess(r.listo);
         if (limpiar) form.current?.reset();
@@ -60,9 +70,19 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
       }
     });
   };
+  // MIA-208 · 2: el sí responde al formulario como estaba al avisar. Si después cambia el monto o el medio, el sí viejo
+  // (y su aviso) se borra: si no, «Sí, es otro cobro» mandaba el importe nuevo sin que el servidor volviera a preguntar.
+  // Tildar la casilla del sí no cuenta como cambio.
+  const alCambiar = (e: FormEvent<HTMLFormElement>) => {
+    if (!(confirmar || reenviar) || (e.target as HTMLInputElement).name === "confirmaRepetido") return;
+    envioDelAviso.current = null;
+    setConfirmar(null);
+    setReenviar(null);
+    setError(null);
+  };
   return (
     <EnvioEnCurso.Provider value={enCurso}>
-      <form ref={form} className={className} onSubmit={enviar} aria-busy={enCurso || undefined}>
+      <form ref={form} className={className} onSubmit={enviar} onChange={alCambiar} aria-busy={enCurso || undefined}>
         {children}
         {error && <p role="alert" className="col-span-full basis-full text-sm font-medium text-danger">{error}</p>}
         {confirmar && (
@@ -70,6 +90,11 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
             <input type="checkbox" name="confirmaRepetido" value="1" className="size-5" />
             {confirmar}
           </label>
+        )}
+        {reenviar && (
+          <button type="submit" name="confirmaRepetido" value="1" disabled={enCurso} className={cn(buttonClasses("solid", "md"), "col-span-full min-h-11 basis-full")}>
+            {reenviar}
+          </button>
         )}
       </form>
     </EnvioEnCurso.Provider>
@@ -114,7 +139,7 @@ export function ControlEtapa({ id, etapa, perdido, motivo, siguiente, etapas }: 
   if (perdido) {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <p className="text-sm text-danger">Perdido{motivo ? `: ${motivo}` : ""}</p>
+        <p className="text-sm text-danger">{motivo?.startsWith("Cancelado: ") ? motivo : `Perdido${motivo ? `: ${motivo}` : ""}`}</p>
         <button type="button" disabled={ocupado} className={buttonClasses("outline", "md")} onClick={() => mover(etapa)}>Reabrir</button>
         {error && <p role="alert" className="basis-full text-sm font-medium text-danger">{error}</p>}
       </div>

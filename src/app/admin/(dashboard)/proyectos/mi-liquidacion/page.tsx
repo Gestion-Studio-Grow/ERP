@@ -5,6 +5,10 @@ import { actorActual } from "@/lib/proyectos/gestion.server";
 import { fechaCorta, pesos } from "@/lib/proyectos/core";
 import { etiquetaMes, leerExtras, totalDeExtras } from "@/lib/proyectos/empresa-core";
 import { misLiquidaciones } from "@/lib/proyectos/empresa.server";
+import { misPartesDeProyectos, saldosAFavorDe } from "@/lib/proyectos/liquidacion-proyecto.server";
+import { AVISO_SALDO } from "@/lib/proyectos/liquidacion-proyecto-core";
+import { formatearPesos } from "@/lib/rendiciones/dinero";
+import { Badge } from "@/components/ui";
 import { tarjeta } from "../_vista";
 import { MarcarVista } from "../administracion/_controles";
 
@@ -19,6 +23,7 @@ export default async function MiLiquidacion({ searchParams }: { searchParams: Pr
   const lista = a.personaId ? await misLiquidaciones(a.tenantId, a.personaId) : [];
   const elegida = lista.find((l) => l.periodo === periodo) ?? lista[0];
   const extras = elegida ? leerExtras(elegida.extras) : [];
+  const [partes, saldos] = await Promise.all([misPartesDeProyectos(a), a.personaId ? saldosAFavorDe(a.tenantId, a.personaId) : []]);
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -56,6 +61,37 @@ export default async function MiLiquidacion({ searchParams }: { searchParams: Pr
             <Link href={`/admin/proyectos/imprimir-liquidacion/${elegida.id}`} prefetch={false} className={cn(buttonClasses("solid", "md"), "mt-3 min-h-11")}>Descargar PDF</Link>
           </section>
         </div>
+      )}
+      {partes.length > 0 && (
+        <section className={cn(tarjeta, "mt-4")} aria-labelledby="titulo-partes">
+          <h2 id="titulo-partes" className="font-semibold text-strong">Tu parte en los proyectos</h2>
+          <p className="text-sm text-muted">Lo que te toca de cada proyecto. Mientras no esté aprobada es provisoria: cambia con los costos. Aprobada, entra a la liquidación del mes cuando se cumpla «cuándo se paga».</p>
+          <ul className="mt-3 grid gap-2">
+            {partes.map((x) => (
+              <li key={x.proyectoId} className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2">
+                <Link href={`/admin/proyectos/${x.proyectoId}?tab=liquidacion`} prefetch={false} className="inline-flex min-h-11 min-w-0 items-center break-words font-medium text-strong underline">{`Proyecto · ${x.proyecto}`}</Link>
+                <span className="flex items-center gap-2">
+                  <Badge tone={x.estado === "APROBADA" ? "success" : "neutral"}>{x.estado === "APROBADA" ? "Aprobada" : "Provisoria"}</Badge>
+                  <span className="tabular-nums font-semibold text-strong">{formatearPesos(x.total)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {saldos.length > 0 && (
+        <section className={cn(tarjeta, "mt-4")} aria-labelledby="titulo-saldos">
+          <h2 id="titulo-saldos" className="font-semibold text-strong">Saldo a favor de la empresa</h2>
+          <p className="text-sm text-muted">{`Un proyecto te dejó en contra: tu parte cerró en negativo o bajó por un costo que llegó después. ${AVISO_SALDO}`}</p>
+          <ul className="mt-3 grid gap-2">
+            {saldos.map((x) => (
+              <li key={x.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2">
+                <Link href={`/admin/proyectos/${x.proyectoId}?tab=liquidacion`} prefetch={false} className="inline-flex min-h-11 min-w-0 items-center break-words font-medium text-strong underline">{`Proyecto · ${x.proyecto}`}</Link>
+                <span className="tabular-nums font-semibold text-strong">{formatearPesos(x.monto - x.aplicado)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </main>
   );

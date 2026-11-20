@@ -2,10 +2,11 @@
 // seed-mia-producciones.ts, que tiene la guarda. Ninguna persona, empresa ni monto es real.
 
 import { randomBytes } from "node:crypto";
+import Module, { createRequire } from "node:module";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { precioAlEnviar } from "../src/lib/proyectos/ficha-core";
 import { metodoDeCaja, type MedioPago } from "../src/lib/proyectos/core";
-import { CHECKLIST_BASE, planDeCuotas, type ItemFicha } from "../src/lib/proyectos/gestion-core";
+import { CHECKLIST_BASE } from "../src/lib/proyectos/gestion-core";
 
 const DIA = 86_400_000;
 const en = (dias: number) => new Date(Date.now() + dias * DIA);
@@ -27,7 +28,23 @@ export async function cobroDeCuota(
   return pago;
 }
 
+/**
+ * MIA-258 · la función de la app que arma las cuotas de un proyecto (`regenerarCuotas`), para que el seed no las calcule
+ * por su cuenta. Su módulo es de servidor (`import "server-only"`): como en el bundle de servidor de Next, acá
+ * `server-only` se resuelve al módulo vacío. Fuera de un pedido no hay actor: rehace cobros y pagos (`rehaceLosPagos`).
+ */
+async function cuotasDeLaApp() {
+  const vacio = createRequire(__filename).resolve("next/dist/compiled/server-only/empty.js");
+  const M = Module as unknown as { _resolveFilename: (pedido: string, ...resto: unknown[]) => string };
+  const original = M._resolveFilename;
+  M._resolveFilename = function (this: unknown, pedido: string, ...resto: unknown[]) {
+    return pedido === "server-only" ? vacio : original.call(this, pedido, ...resto);
+  };
+  return import("../src/lib/proyectos/gestion.server");
+}
+
 export async function sembrarGestion(prisma: PrismaClient, tenantId: string, recargoGeneral: number) {
+  const { regenerarCuotas } = await cuotasDeLaApp();
   await prisma.proyectoCuota.deleteMany({ where: { tenantId } });
   await prisma.proyectoMensaje.deleteMany({ where: { tenantId } });
   await prisma.proyectoReunion.deleteMany({ where: { tenantId } });
@@ -43,8 +60,11 @@ export async function sembrarGestion(prisma: PrismaClient, tenantId: string, rec
   const usuario = (local: string) => prisma.user.findFirst({ where: { tenantId, email: { startsWith: `${local}@` } }, select: { id: true } });
   const dueno = await usuario("admin");
   const diseno = await usuario("diseno");
+  // E3 (MIA-093): el mail sin tildes ni eñes («dueno@», no «dueño@»): el campo es type="email" y el navegador no los acepta,
+  // así que esas fichas no se podían guardar desde la pantalla. Sólo para lo que se siembre de acá en adelante.
+  const local = (nombre: string) => nombre.split(" ")[0].normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
   const persona = (nombre: string, puesto: string, rol: string, sueldoBase: number, facturaA: string, userId?: string | null) =>
-    prisma.proyectoPersona.create({ data: { tenantId, nombre, puesto, rol, sueldoBase, facturaA, userId: userId ?? null, email: `${nombre.split(" ")[0].toLowerCase()}@mia-producciones.demo` } });
+    prisma.proyectoPersona.create({ data: { tenantId, nombre, puesto, rol, sueldoBase, facturaA, userId: userId ?? null, email: `${local(nombre)}@mia-producciones.demo` } });
   const dir = await persona("Dueño de MIA", "Dirección general", "DIRECCION", 6_500_000, "MIA Producciones", dueno?.id);
   const dis = await persona("Equipo de diseño", "Diseño 3D", "DISENO", 2_800_000, "Monotributo", diseno?.id);
   const pro = await persona("Paula Ibáñez", "Productora ejecutiva", "PRODUCCION", 3_400_000, "Monotributo", (await usuario("produccion"))?.id);
@@ -52,6 +72,8 @@ export async function sembrarGestion(prisma: PrismaClient, tenantId: string, rec
   const adm = await persona("Rocío Medina", "Administración", "ADMINISTRACION", 2_900_000, "MIA Producciones", (await usuario("administracion"))?.id);
   await persona("Lucía Paz", "Comercial", "COMERCIAL", 2_700_000, "Monotributo", (await usuario("comercial"))?.id);
   const gra = await persona("Nadia Quiroga", "Diseño gráfico", "DISENO", 2_300_000, "Monotributo");
+  // MIA-259: un usuario de prueba por puesto (ficticio). Productor de campo entra con PIN, como Producción.
+  await persona("Bruno Ledesma", "Productor de campo", "PRODUCCION_CAMPO", 2_400_000, "Monotributo", (await usuario("campo"))?.id);
 
   // Proveedores con su ficha.
   const provs: Record<string, string> = {};
@@ -69,8 +91,6 @@ export async function sembrarGestion(prisma: PrismaClient, tenantId: string, rec
     provs[name.split(" ")[0]] = s.id;
     await prisma.proyectoProveedorFicha.upsert({ where: { supplierId: s.id }, create: { tenantId, supplierId: s.id, rubro, ciudad, anticipoPct, evaluacion, condiciones, notas: "Proveedor de prueba." }, update: { rubro, ciudad, anticipoPct, evaluacion, condiciones } });
   }
-  const fichas = await prisma.proyectoProveedorFicha.findMany({ where: { tenantId }, select: { supplierId: true, anticipoPct: true } });
-  const anticipoProveedor = Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct]));
 
   const cliente = async (name: string) => (await prisma.client.findFirst({ where: { tenantId, name } })) ?? prisma.client.create({ data: { tenantId, name, phone: "1150000200" } });
 
@@ -96,25 +116,24 @@ export async function sembrarGestion(prisma: PrismaClient, tenantId: string, rec
         token: token(), ivaPct: 21, creadoPor: "Paula Ibáñez", nota: "Versión inicial", aprobadoInternoPor: d.etapa === "PEDIDO" ? null : "Dueño de MIA", aprobadoInternoEl: d.etapa === "PEDIDO" ? null : creado,
       },
     });
-    const items: ItemFicha[] = [];
     let posicion = 0;
     for (const l of d.lineas) {
       // Como en la app: al enviar la versión, el precio queda fijo. Si no, la propuesta del cliente sale en cero.
       const precio = pres.estado === "BORRADOR" ? 0 : (precioAlEnviar({ descripcion: l.descripcion, rubro: l.rubro, cantidad: l.cant, costo: l.costo, moneda: l.moneda ?? "ARS", recargoPct: l.recargo, precio: 0 }, { USD: TC_USD }, recargoGeneral)?.precio ?? 0);
-      const it = await prisma.proyectoItem.create({
+      await prisma.proyectoItem.create({
         data: { tenantId, presupuestoId: pres.id, rubro: l.rubro, descripcion: l.descripcion, unidad: "u", cantidad: l.cant, costo: l.costo, precio, moneda: l.moneda ?? "ARS", recargoPct: l.recargo, supplierId: l.prov ? provs[l.prov] : null, fechaLimite: en(l.limite), estadoItem: l.estado, posicion: posicion++ },
       });
-      items.push({ id: it.id, descripcion: l.descripcion, rubro: l.rubro, cantidad: l.cant, costo: l.costo, moneda: l.moneda ?? "ARS", recargoPct: l.recargo, precio, fechaLimite: en(l.limite), supplierId: it.supplierId });
     }
-    if (["APROBADO", "PRODUCCION", "ARMADO", "DESARME", "CIERRE"].includes(d.etapa)) {
-      const plan = planDeCuotas(items, { proyectoId: p.id, nombre: d.nombre, fechaEvento: en(d.dias), creado, anticipoClientePct: 50, ivaPct: 21, recargoGeneral, tiposDeCambio: { USD: TC_USD }, anticipoProveedor });
-      for (const c2 of plan) {
-        const cobrada = d.cobrado && c2.clave.endsWith("cliente:anticipo");
-        const cuota = await prisma.proyectoCuota.create({ data: { tenantId, proyectoId: p.id, auto: true, ...c2, ...(cobrada && { pagadoEl: en(-20), pagadoPor: "Rocío Medina", medio: "TRANSFERENCIA" }) } });
-        // Como `marcarCuota`: una cuota cobrada tiene su cobro registrado (la fuente de «cobrado», ver cobranza-core.ts),
-        // su movimiento de caja y el enlace que la reabre si se anula el cobro. Sin esto, las pantallas no coinciden.
-        if (cobrada) await cobroDeCuota(prisma, tenantId, { proyectoId: p.id, numero: d.numero, cuotaId: cuota.id, concepto: c2.concepto, monto: c2.monto, cobradoEl: en(-20), autor: "Rocío Medina" });
-      }
+    // MIA-258: las cuotas las arma la app (`regenerarCuotas`, lo mismo que corre al guardar la ficha), con las fechas y
+    // los días que el proyecto y sus ítems tienen guardados. Armadas acá con `planDeCuotas` y otro `en()`, el vencimiento
+    // salía corrido en milisegundos y Administración veía «Pagos por revisar» (9 en el #4) sin que nadie tocara un costo.
+    await regenerarCuotas(tenantId, p.id);
+    const anticipo = d.cobrado ? await prisma.proyectoCuota.findFirst({ where: { tenantId, proyectoId: p.id, auto: true, tipo: "COBRO", clave: { endsWith: ":cliente:anticipo" } } }) : null;
+    if (anticipo) {
+      await prisma.proyectoCuota.update({ where: { id: anticipo.id }, data: { pagadoEl: en(-20), pagadoPor: "Rocío Medina", medio: "TRANSFERENCIA" } });
+      // Como `marcarCuota`: una cuota cobrada tiene su cobro registrado (la fuente de «cobrado», ver cobranza-core.ts),
+      // su movimiento de caja y el enlace que la reabre si se anula el cobro. Sin esto, las pantallas no coinciden.
+      await cobroDeCuota(prisma, tenantId, { proyectoId: p.id, numero: d.numero, cuotaId: anticipo.id, concepto: anticipo.concepto, monto: anticipo.monto, cobradoEl: en(-20), autor: "Rocío Medina" });
     }
     await prisma.proyectoTarea.createMany({
       data: [

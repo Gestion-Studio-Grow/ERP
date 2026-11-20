@@ -19,7 +19,7 @@ import type { getCajaData } from "@/lib/caja-actions";
 import { esperadoDelCajon } from "@/lib/caja/esperado-del-cajon";
 import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
 import { CASH_METHODS, CASH_METHOD_LABEL } from "@/lib/caja/libro-caja";
-import { frozenDayMessage } from "@/lib/caja/cierre-diario";
+import { formatDayLabel, frozenDayMessage, nextDayKey } from "@/lib/caja/cierre-diario";
 import { rotuloDeOrigen } from "@/lib/caja/libro-caja";
 import { fmtShortDate, fmtTime } from "@/lib/datetime";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
@@ -428,9 +428,14 @@ export default function CajaRenglon({
             <p className="py-3 text-sm text-body">
               {dia.lastClosedDay ? frozenDayMessage(dia.day, dia.lastClosedDay) : null} Si hay que seguir cobrando hoy, la dueña o el dueño lo reabre desde el cierre.
             </p>
+            {/* M3 (MIA-083): sin callejón. Un clic para cargar en el primer día abierto (el alta de siempre del libro,
+                `addLibroEntry`) o para ir a reabrir este día en el cierre. */}
             <div className="flex flex-wrap gap-2">
-              <Link href="/admin/caja/cierre" className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
-                Ver el cierre
+              {puedeCargar && dia.lastClosedDay && (
+                <CargarMovimiento dia={nextDayKey(dia.lastClosedDay)} variante="solid" esMostrador={caja !== null} etiqueta={`Cargarlo con fecha ${formatDayLabel(nextDayKey(dia.lastClosedDay))}`} />
+              )}
+              <Link href={`/admin/caja/cierre?dia=${dia.day}`} className={buttonClasses("outline", "md")} {...atributosBoton("outline", "md")}>
+                Reabrir el día
               </Link>
               <Link href="/admin/caja/libro" className={buttonClasses("ghost", "md")} {...atributosBoton("ghost", "md")}>
                 Ver el mes en el libro

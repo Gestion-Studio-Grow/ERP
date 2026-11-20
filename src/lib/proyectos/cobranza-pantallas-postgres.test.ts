@@ -82,7 +82,7 @@ test("QA MIA: con cuotas marcadas sin cobro, un cobro parcial y un proyecto en U
   // La plata entra por las acciones reales: el cobro parcial de P1, el cobro en pesos de P2 y «Marcar cobrado» de su cuota vieja.
   assert.deepEqual(await enSesion(() => registrarCobro(form({ proyectoId: p1.id, medio: "TRANSFERENCIA", monto: "300", nota: "parcial" }))), { ok: true });
   assert.deepEqual(await enSesion(() => registrarCobro(form({ proyectoId: p2.id, medio: "EFECTIVO", monto: "36000", nota: "en pesos" }))), { ok: true });
-  const marcada = await enSesion(() => marcarCuota(form({ id: qu1, medio: "TRANSFERENCIA" })));
+  const marcada = await enSesion(() => marcarCuota(form({ envio: crypto.randomUUID(), id: qu1, medio: "TRANSFERENCIA" })));
   assert.equal(marcada.ok, true, JSON.stringify(marcada));
   // Lo que cobró «Marcar cobrado»: lo que le faltaba a la cuota (60 − 30 USD), a 1.200.
   const pagosP2 = await duenio.proyectoPago.findMany({ where: { proyectoId: p2.id }, orderBy: { createdAt: "asc" }, select: { monto: true } });

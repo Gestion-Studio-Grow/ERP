@@ -7,13 +7,17 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { aItemFicha, tiposDeCambio } from "./gestion.server";
 import { configProyectos } from "./datos.server";
-import { aPesos, codigoProyecto, nivelDeCarga, pipelinePonderado, proyeccionDeCaja, resumenCuotas, totalesFicha, type NivelCarga } from "./gestion-core";
+import { totalesCongelados } from "./precio-foto.server";
+import { aPesos, conVentaCongelada, codigoProyecto, nivelDeCarga, pipelinePonderado, ventaOEstimado, proyeccionDeCaja, resumenCuotas, totalesFicha, type NivelCarga } from "./gestion-core";
 import { desviosDelEvento, estaAbierto, estaActivo, estaConfirmado, finDeSemana, margenSobreVenta } from "./empresa-core";
 import { redondear, yaVencio } from "./core";
 import { conciliarConCobros, pagadoDeCuota, repartoDelNegocio, resumenConCobranza, sinCalendarioDelNegocio, SIN_PREVISTAS_SIN_MARCAR } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { conPagosParciales, conPartesComoPagadas } from "./pago-parcial-core";
+import { cobroFrenadoPorPerdido } from "./ficha-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { aPagarSinCuotas, costoRealDeProyectos } from "./comprobantes.server";
+import { cuentasConMovimientos, hayM8 } from "./moneda-bancos.server";
 
 const MESES_PROYECCION = 6;
 
@@ -34,19 +38,28 @@ export async function cuotasDelNegocio(tenantId: string) {
       moneda: true,
       venceEl: true,
       pagadoEl: true,
+      // MIA-211 · S1: «OP 00000012» si la pagó una orden de pago (la pantalla no ofrece anularla desde la cuota).
+      pagadoPor: true,
       medio: true,
       factura: true,
       comentario: true,
       auto: true,
       supplier: { select: { name: true } },
-      proyecto: { select: { id: true, numero: true, nombre: true, createdAt: true, client: { select: { id: true, name: true } } } },
+      proyecto: { select: { id: true, numero: true, nombre: true, createdAt: true, perdidoEl: true, client: { select: { id: true, name: true } } } },
     },
   });
 }
 export type CuotaDelNegocio = Awaited<ReturnType<typeof cuotasDelNegocio>>[number];
 
 export async function recuadrosDeCuotas(tenantId: string) {
-  const [cuotas, tc, config] = await Promise.all([cuotasDelNegocio(tenantId), tiposDeCambio(tenantId), configProyectos(tenantId)]);
+  const [cuotas, tc, config, sinPagar] = await Promise.all([
+    cuotasDelNegocio(tenantId),
+    tiposDeCambio(tenantId),
+    configProyectos(tenantId),
+    // N8b (MIA-084): los gastos cargados sin pagar no son cuotas y no van a «A pagar», pero sí a «Por pagar a proveedores»
+    // de Rentabilidad (`resultadoReal`: neto + IVA de los no pagados ni anulados). Se muestran aparte, con su nombre.
+    prisma.proyectoGasto.aggregate({ where: { tenantId, pagadoEl: null, anuladoEl: null }, _sum: { neto: true, iva: true }, _count: { _all: true } }),
+  ]);
   // «A cobrar» de cada proyecto = lo aprobado menos lo cobrado (cobranza-core), igual que Rentabilidad y Clientes.
   const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct);
   // Cada renglón con lo que le falta (los cobros manuales se descuentan de las cuotas más viejas): suman lo mismo que el total.
@@ -54,7 +67,13 @@ export async function recuadrosDeCuotas(tenantId: string) {
   // pagó tal como entró (el original y los pesos asentados), sacado de la misma cobranza, sin otra consulta.
   // Y las de pago con lo pagado en parte a proveedor (pago-parcial-core): les queda su monto menos esas partes.
   const partes = await pagosParcialesDeCuotas(tenantId, cuotas, tc);
-  const { pendiente, cobrado } = conPagosParciales(cuotas, repartoDelNegocio(cuotas, tc, cobranzas), partes);
+  const reparto = conPagosParciales(cuotas, repartoDelNegocio(cuotas, tc, cobranzas), partes);
+  // ADV-7 (MIA-107): un cobro sin marcar de un perdido no se cobra (`perdidoAdmite`, decisión 2 = A, provisional a
+  // confirmar por el dueño): no queda pendiente en la lista ni lo espera el cashflow, igual que la ficha y el servidor.
+  // Sin esto, un cobro cargado a mano en Pedido o Presupuesto quedaba con su monto entero: la cobranza del perdido da
+  // total 0 y el reparto no lo topea.
+  const pendiente = reparto.pendiente.map((x, i) => (cobroFrenadoPorPerdido(cuotas[i]) ? 0 : x));
+  const { cobrado } = reparto;
   // Lo aprobado que ninguna cuota espera (calendario corto o sin cuotas): un renglón «Sin calendario» por evento, para
   // que la lista sume lo mismo que «A cobrar». Sin fecha: no entra a la proyección de caja.
   const faltantes = sinCalendarioDelNegocio(cuotas, pendiente, tc, cobranzas);
@@ -65,17 +84,37 @@ export async function recuadrosDeCuotas(tenantId: string) {
       })
     : [];
   const porId = new Map(eventos.map((e) => [e.id, e]));
+  // «No se pasa 2» (MIA-089 · V6): un gasto cargado directo y sin pagar no tiene cuota, pero se debe igual. Entra a «A
+  // pagar» por lo mismo que en Rentabilidad (neto + IVA, `resultadoReal` en core.ts) y se lista con su renglón, así la
+  // lista suma lo mismo que el total. Los gastos que nacen de marcar una cuota ya nacen pagados: no se cuenta dos veces.
+  // Y uno a mano sin pagar del proveedor que ya tiene una cuota de pago pendiente no se graba sin un sí explícito
+  // (`registrarGasto`, MIA-094). Forma sumada, freno por proveedor y rótulo: decisión del dueño, 18/11/2026.
+  const gastosSinPagar = await prisma.proyectoGasto.findMany({
+    where: { tenantId, pagadoEl: null, anuladoEl: null },
+    orderBy: { fecha: "asc" },
+    take: 500,
+    select: { id: true, descripcion: true, neto: true, iva: true, fecha: true, supplier: { select: { name: true } }, proyecto: { select: { id: true, numero: true, nombre: true, createdAt: true } } },
+  });
+  const resumen = resumenConCobranza(conPartesComoPagadas(cuotas, partes), tc, cobranzas);
+  const aPagarDeGastos = redondear((sinPagar._sum.neto ?? 0) + (sinPagar._sum.iva ?? 0));
+  // MIA-199 (P5-1): un comprobante cargado sin cuotas también se debe; antes «A pagar» lo dejaba afuera y daba $ 0.
+  const sinCuotas = await aPagarSinCuotas(tenantId);
   return {
-    cuotas: cuotas.map((c, i) => ({ ...c, pendiente: pendiente[i], cobrado: cobrado[i], pagado: pagadoDeCuota(c, c.proyectoId ? cobranzas.get(c.proyectoId) : null) })),
+    cuotas: cuotas.map((c, i) => ({ ...c, pendiente: pendiente[i], cobrado: cobrado[i], noSeCobra: cobroFrenadoPorPerdido(c), pagado: pagadoDeCuota(c, c.proyectoId ? cobranzas.get(c.proyectoId) : null) })),
     sinCalendario: faltantes.flatMap((f) => {
       const proyecto = porId.get(f.proyectoId);
       return proyecto ? [{ ...f, proyecto }] : [];
     }),
     tc,
-    resumen: resumenConCobranza(conPartesComoPagadas(cuotas, partes), tc, cobranzas),
+    gastosSinPagar: gastosSinPagar.map((g) => ({ ...g, total: redondear(g.neto + g.iva) })),
+    // El total y la cantidad salen del agregado (exactos aunque la lista corte en 500): el renglón «incluye N gastos».
+    gastosSinPagarResumen: { total: aPagarDeGastos, cantidad: sinPagar._count._all },
+    comprobantesSinCuotas: redondear(sinCuotas.total),
+    resumen: { ...resumen, aPagar: redondear(resumen.aPagar + aPagarDeGastos + sinCuotas.total) },
   };
 }
 export type SinCalendarioDelNegocio = Awaited<ReturnType<typeof recuadrosDeCuotas>>["sinCalendario"][number];
+export type GastoSinPagar = Awaited<ReturnType<typeof recuadrosDeCuotas>>["gastosSinPagar"][number];
 
 export async function proveedoresActivos(tenantId: string) {
   return prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } });
@@ -84,7 +123,7 @@ export async function proveedoresActivos(tenantId: string) {
 // ── Cashflow ────────────────────────────────────────────────────────────────
 
 export async function cashflowDeEmpresa(tenantId: string) {
-  const [cuentas, personas, fijos, { cuotas, tc }, proyectos] = await Promise.all([
+  const [cuentas, personas, fijos, { cuotas, tc, gastosSinPagar }, proyectos] = await Promise.all([
     prisma.proyectoCuentaBanco.findMany({ where: { tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true, saldo: true } }),
     prisma.proyectoPersona.findMany({ where: { tenantId, activa: true }, select: { sueldoBase: true } }),
     prisma.proyectoGastoFijo.findMany({ where: { tenantId, activo: true }, select: { tipo: true, frecuencia: true, monto: true, moneda: true, fecha: true, activo: true } }),
@@ -93,7 +132,10 @@ export async function cashflowDeEmpresa(tenantId: string) {
   ]);
   const cajaHoy = redondear(cuentas.reduce((s, c) => s + aPesos(c.saldo, c.moneda, tc), 0));
   const sueldosMes = redondear(personas.reduce((s, p) => s + p.sueldoBase, 0));
-  const proyeccion = proyeccionDeCaja({ cajaHoy, cuotas, sueldosMes, fijos, tiposDeCambio: tc, meses: MESES_PROYECCION });
+  // Un gasto directo cargado y sin pagar sale de la caja como una cuota de pago a su fecha (vencido: este mes), así
+  // el «A pagar» de Administración y el egreso del cashflow son la misma plata (MIA-089 · V6/T).
+  const deGastos = gastosSinPagar.map((g) => ({ tipo: "PAGO", monto: g.total, moneda: "ARS", venceEl: g.fecha, pagadoEl: null }));
+  const proyeccion = proyeccionDeCaja({ cajaHoy, cuotas: [...cuotas, ...deGastos], sueldosMes, fijos, tiposDeCambio: tc, meses: MESES_PROYECCION });
   const minimo = proyeccion.reduce((m, x) => Math.min(m, x.saldo), 0);
   return {
     cuentas: cuentas.map((c) => ({ ...c, enPesos: aPesos(c.saldo, c.moneda, tc) })),
@@ -115,6 +157,8 @@ export function faltaCambio(tc: Readonly<Record<string, number>>, filas: readonl
 // ── Bancos ──────────────────────────────────────────────────────────────────
 
 export async function datosDeBancos(tenantId: string) {
+  // MIA-267: con M8, un renglón conciliado con un movimiento de la cuenta (O38) tampoco está «sin conciliar». Sin M8, la columna no existe.
+  const conOrigen = await hayM8();
   const [cuentas, movimientos, sinConciliar, { cuotas, tc }, conciliadas] = await Promise.all([
     prisma.proyectoCuentaBanco.findMany({ where: { tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true, saldo: true } }),
     prisma.proyectoMovBanco.findMany({
@@ -130,18 +174,22 @@ export async function datosDeBancos(tenantId: string) {
         lote: true,
         cuotaId: true,
         cuenta: { select: { nombre: true, moneda: true } },
-        cuota: { select: { id: true, tipo: true, concepto: true, pagadoEl: true, anuladoEl: true, proyectoId: true } },
+        cuota: { select: { id: true, tipo: true, concepto: true, pagadoEl: true, anuladoEl: true, proyectoId: true, proyecto: { select: { perdidoEl: true } } } },
       },
     }),
-    prisma.proyectoMovBanco.groupBy({ by: ["cuentaId"], where: { tenantId, cuotaId: null }, _count: { _all: true } }),
+    prisma.proyectoMovBanco.groupBy({ by: ["cuentaId"], where: { tenantId, cuotaId: null, ...(conOrigen && { origenId: null }) }, _count: { _all: true } }),
     recuadrosDeCuotas(tenantId),
     prisma.proyectoMovBanco.findMany({ where: { tenantId, cuotaId: { not: null } }, select: { cuotaId: true } }),
   ]);
+  const conMovimientos = await cuentasConMovimientos(prisma, tenantId);
   const usadas = new Set(conciliadas.map((c) => c.cuotaId));
   return {
-    cuentas: cuentas.map((c) => ({ ...c, sinConciliar: sinConciliar.find((s) => s.cuentaId === c.id)?._count._all ?? 0 })),
-    movimientos,
-    candidatas: cuotas.filter((c) => !usadas.has(c.id)),
+    cuentas: cuentas.map((c) => ({ ...c, conMovimientos: conMovimientos.has(c.id), sinConciliar: sinConciliar.find((s) => s.cuentaId === c.id)?._count._all ?? 0 })),
+    // MIA-111: el cobro de un perdido no se cobra (ADV-7, `cobroFrenadoPorPerdido`, la misma `perdidoAdmite` de la ficha
+    // y del servidor; decisión 2 = A, provisional a confirmar por el dueño): no se propone ni se elige para un depósito,
+    // y el que ya estaba conciliado no ofrece «Marcar cobrada». Al reabrir, vuelve.
+    movimientos: movimientos.map((m) => ({ ...m, cuota: m.cuota ? { ...m.cuota, noSeCobra: cobroFrenadoPorPerdido(m.cuota) } : null })),
+    candidatas: cuotas.filter((c) => !usadas.has(c.id) && !c.noSeCobra),
     tc,
   };
 }
@@ -158,11 +206,16 @@ export async function monedasYFijos(tenantId: string) {
 
 // ── Liquidaciones ───────────────────────────────────────────────────────────
 
+/** De qué cuentas puede salir un sueldo (N1, MIA-084): sólo las de pesos, porque la liquidación es en pesos. */
+export async function cuentasEnPesos(tenantId: string) {
+  return prisma.proyectoCuentaBanco.findMany({ where: { tenantId, moneda: "ARS" }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true } });
+}
+
 export async function liquidacionesDelPeriodo(tenantId: string, periodo: string) {
   return prisma.proyectoLiquidacion.findMany({
     where: { tenantId, periodo },
     orderBy: { persona: { nombre: "asc" } },
-    select: { id: true, periodo: true, base: true, extras: true, total: true, facturaA: true, estado: true, publicadaEl: true, vistaEl: true, persona: { select: { nombre: true, puesto: true } } },
+    select: { id: true, periodo: true, base: true, extras: true, total: true, facturaA: true, estado: true, publicadaEl: true, vistaEl: true, personaId: true, persona: { select: { nombre: true, puesto: true, userId: true } } },
   });
 }
 
@@ -184,7 +237,7 @@ export async function liquidacionParaImprimir(tenantId: string, id: string) {
 
 // ── Proyectos con sus números ───────────────────────────────────────────────
 
-/** Lo que Dirección mira de cada proyecto: venta y costo de la ficha viva (la última versión), lo real, lo cobrado y lo vencido. */
+/** Lo que Dirección mira de cada proyecto: venta y costo de la versión de la plata (la aprobada, como la cabecera de la ficha), lo real, lo cobrado y lo vencido. */
 export async function proyectosConNumeros(tenantId: string) {
   const [proyectos, config, tc] = await Promise.all([
     prisma.proyecto.findMany({
@@ -206,24 +259,47 @@ export async function proyectosConNumeros(tenantId: string) {
         motivoPerdida: true,
         createdAt: true,
         client: { select: { name: true } },
-        presupuestos: { orderBy: { version: "desc" }, take: 1, select: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { name: true } } } } } },
-        gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, anuladoEl: true } },
+        // O49 (MIA-154): la versión de la plata, la misma que la cabecera de la ficha (`versionDeLaPlata`): la última aprobada
+        // y, sin ninguna aprobada, la última. Acá van sólo los encabezados; los ítems de la elegida se leen abajo.
+        presupuestos: { orderBy: { version: "desc" }, select: { id: true, estado: true } },
+        gastos: { where: { anuladoEl: null }, select: { id: true, rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
         cuotas: { where: { anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR, tipo: "COBRO" }, select: { id: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, tipo: true } },
       },
     }),
     configProyectos(tenantId),
     tiposDeCambio(tenantId),
   ]);
-  const cobranzas = await cobranzasDelNegocio(tenantId, tc, config.margenPct, proyectos.map((p) => p.id));
+  const ids = proyectos.map((p) => p.id);
+  const laDeLaPlata = proyectos.map((p) => (p.presupuestos.find((v) => v.estado === "APROBADO") ?? p.presupuestos[0])?.id).filter((x): x is string => !!x);
+  const [cobranzas, cuotasDePago, itemsDeLaPlata] = await Promise.all([
+    cobranzasDelNegocio(tenantId, tc, config.margenPct, ids),
+    prisma.proyectoCuota.findMany({
+      where: { tenantId, proyectoId: { in: ids }, tipo: { not: "COBRO" }, pagadoEl: null, anuladoEl: null, prevista: false },
+      select: { id: true, proyectoId: true, tipo: true, monto: true, moneda: true, pagadoEl: true, anuladoEl: true, prevista: true },
+    }),
+    prisma.proyectoItem.findMany({ where: { tenantId, presupuestoId: { in: laDeLaPlata } }, orderBy: { posicion: "asc" }, include: { supplier: { select: { name: true } } } }),
+  ]);
+  const itemsPorVersion = new Map<string, typeof itemsDeLaPlata>();
+  for (const i of itemsDeLaPlata) itemsPorVersion.set(i.presupuestoId, [...(itemsPorVersion.get(i.presupuestoId) ?? []), i]);
+  // O13 (MIA-50 T05): el costo real del total sale de la cuenta única (la misma que la ficha y Rentabilidad). Las líneas
+  // por ítem siguen siendo el detalle de desvíos.
+  const reales = await costoRealDeProyectos(
+    tenantId,
+    proyectos.map((p) => ({ id: p.id, t: null, gastos: p.gastos, cuotas: cuotasDePago.filter((q) => q.proyectoId === p.id) })),
+    tc,
+  );
   const hoy = new Date();
+  // MIA-199 · P3-2: la versión aprobada con foto se vendió por su total congelado (sin IVA), no por la suma de renglones.
+  const congelados = await totalesCongelados(prisma, tenantId, proyectos.flatMap((p) => p.presupuestos.filter((v) => v.estado === "APROBADO").map((v) => v.id)));
   return proyectos.map((p) => {
-    const items = p.presupuestos[0]?.items ?? [];
-    const t = totalesFicha(items.map(aItemFicha), tc, config.margenPct);
+    const laVersion = p.presupuestos.find((v) => v.estado === "APROBADO") ?? p.presupuestos[0];
+    const items = (laVersion && itemsPorVersion.get(laVersion.id)) ?? [];
+    const t = conVentaCongelada(totalesFicha(items.map(aItemFicha), tc, config.margenPct), laVersion?.estado === "APROBADO" ? congelados.get(laVersion.id) : undefined);
+    const real = reales.get(p.id)!;
     const d = desviosDelEvento(items.map((i) => ({ id: i.id, descripcion: i.descripcion, rubro: i.rubro, cantidad: i.cantidad, costo: i.costo, moneda: i.moneda, costoReal: i.costoReal, proveedor: i.supplier?.name ?? i.proveedor })), p.gastos, tc);
     // Cobrado, avance y vencido en línea con los cobros registrados contra lo aprobado (cobranza-core).
     const cob = cobranzas.get(p.id);
     const r = cob ? conciliarConCobros(p.cuotas, tc, cob, hoy) : resumenCuotas(p.cuotas, tc, hoy);
-    const estimado = p.presupuestoEstimado ? aPesos(p.presupuestoEstimado, p.moneda, tc) : 0;
     return {
       id: p.id,
       codigo: codigoProyecto(p.numero, p.createdAt),
@@ -239,15 +315,15 @@ export async function proyectosConNumeros(tenantId: string) {
       createdAt: p.createdAt,
       venta: t.venta,
       // Un lead todavía sin ficha pesa por lo que se estimó.
-      ventaOEstimado: t.venta > 0 ? t.venta : estimado,
+      ventaOEstimado: ventaOEstimado(t.venta, p.presupuestoEstimado, p.moneda, tc),
       costo: t.costo,
       margen: t.margen,
       margenPct: t.margenPct,
-      conDatos: d.conDatos,
+      conDatos: real.conGastos,
       lineas: d.lineas,
-      costoReal: d.costoReal,
-      margenReal: d.conDatos ? redondear(t.venta - d.costoReal) : null,
-      margenRealPct: d.conDatos ? margenSobreVenta(t.venta, d.costoReal) : null,
+      costoReal: real.costoReal,
+      margenReal: real.conGastos ? redondear(t.venta - real.costoReal) : null,
+      margenRealPct: real.conGastos ? margenSobreVenta(t.venta, real.costoReal) : null,
       cobrado: r.cobrado,
       cobrosPct: cob ? cob.avancePct : 0,
       vencido: r.cobrosVencidos,

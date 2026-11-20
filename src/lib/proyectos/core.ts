@@ -67,10 +67,14 @@ export function leerNumero(texto: string): number {
 
 export const redondear = redondearAlCentavo;
 
-export function pesos(n: number): string {
-  // Sin centavos si el importe no los tiene; con ellos, tal cual: un cobro de $ 1.500,75 no se muestra como $ 1.501.
-  const d = admiteCentavos(n) && !Number.isInteger(n) ? 2 : 0;
-  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
+/**
+ * El helper único de plata (MIA-50 adenda 1 § A). Una sola regla: se redondea al centavo y se muestra el redondeado,
+ * sin centavos si da entero (1.500,004 → $ 1.500) y con 2 si no ($ 1.500,75). La moneda es USD si dice «USD»; si no, ARS.
+ */
+export function pesos(n: number, moneda = "ARS"): string {
+  const r = redondear(n);
+  const d = admiteCentavos(r) && !Number.isInteger(r) ? 2 : 0;
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: moneda === "USD" ? "USD" : "ARS", minimumFractionDigits: d, maximumFractionDigits: d }).format(r);
 }
 
 export function porcentaje(n: number): string {
@@ -113,7 +117,17 @@ export interface GastoCalculable {
   iva: number;
   pagadoEl: Date | null;
   anuladoEl: Date | null;
+  /** Gasto de campo rendido y todavía sin aprobar (O13): cuenta en el provisorio, no en el costo del premio. */
+  sinAprobar?: boolean;
 }
+
+/** Lo imputado al proyecto por comprobantes de proveedor (M1 · T05), en pesos: `imputadoPorProyecto` lo arma. */
+export interface Imputado {
+  costo: number;
+  pagado: number;
+  porPagar: number;
+}
+export const SIN_IMPUTADO: Imputado = { costo: 0, pagado: 0, porPagar: 0 };
 
 /** Lo que sale de la caja por un gasto. */
 export const totalDelGasto = (g: { neto: number; iva: number }): number => redondear(g.neto + g.iva);
@@ -122,6 +136,12 @@ export interface ResultadoReal {
   conGastos: boolean;
   /** Sin IVA, para compararlo contra el costo presupuestado. */
   costoReal: number;
+  /** El costo real sin los gastos rendidos que falta aprobar: el único que cuenta para el premio (O13). */
+  costoParaElPremio: number;
+  /** De qué está hecho el real: imputado por comprobantes, gastos (rendidos y viejos sin comprobante) y lo previsto. */
+  imputado: number;
+  gastos: number;
+  previsto: number;
   /** Con IVA: es lo que salió o va a salir de la caja. */
   pagado: number;
   porPagar: number;
@@ -133,22 +153,29 @@ export interface ResultadoReal {
 }
 
 /**
- * Lo que dejó el trabajo con los gastos cargados hasta ahora. Los anulados no cuentan. `cuotasPorPagar`: lo que falta pagar
- * a proveedores por cuotas (en pesos, sin las partes ya pagadas, que ya son gastos): es costo comprometido y deuda, y sin
- * él la ganancia real queda inflada (GSG-UAT-008 · D6). PURA.
+ * EL costo real del proyecto (O13): la única función que lo calcula; la ficha, Dirección y Rentabilidad la llaman.
+ * Suma (1) lo imputado por comprobantes de proveedor (`imputado`, M1), (2) los gastos de campo rendidos y los gastos
+ * viejos sin comprobante (`gastos`; los anulados no cuentan) y (3) lo previsto: `cuotasPorPagar`, lo que falta pagar a
+ * proveedores por cuotas que NO están enlazadas a un comprobante (enlazada, la cuenta su comprobante y deja de ser
+ * prevista). Sin lo previsto la ganancia real queda inflada (GSG-UAT-008 · D6). Para el premio no cuentan los gastos
+ * rendidos que falta aprobar (`sinAprobar`). PURA.
  */
-export function resultadoReal(t: Totales | null, gastos: readonly GastoCalculable[], cuotasPorPagar = 0): ResultadoReal {
+export function resultadoReal(t: Totales | null, gastos: readonly GastoCalculable[], cuotasPorPagar = 0, imputado: Imputado = SIN_IMPUTADO): ResultadoReal {
   const vivos = gastos.filter((g) => !g.anuladoEl);
   const comprometido = Math.max(0, cuotasPorPagar);
-  const costoReal = redondear(vivos.reduce((s, g) => s + g.neto, 0) + comprometido);
-  const pagado = redondear(vivos.filter((g) => g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0));
-  const porPagar = redondear(vivos.filter((g) => !g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0) + comprometido);
-  const conGastos = vivos.length > 0 || comprometido > 0;
-  if (!t || !conGastos) return { conGastos, costoReal, pagado, porPagar, desvio: null, gananciaReal: null, margenReal: null };
+  const deGastos = redondear(vivos.reduce((s, g) => s + g.neto, 0));
+  const costoReal = redondear(deGastos + imputado.costo + comprometido);
+  const costoParaElPremio = redondear(costoReal - vivos.filter((g) => g.sinAprobar).reduce((s, g) => s + g.neto, 0));
+  const pagado = redondear(vivos.filter((g) => g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0) + imputado.pagado);
+  const porPagar = redondear(vivos.filter((g) => !g.pagadoEl).reduce((s, g) => s + g.neto + g.iva, 0) + comprometido + imputado.porPagar);
+  const conGastos = vivos.length > 0 || comprometido > 0 || imputado.costo > 0;
+  const partes = { costoParaElPremio, imputado: redondear(imputado.costo), gastos: deGastos, previsto: redondear(comprometido) };
+  if (!t || !conGastos) return { conGastos, costoReal, ...partes, pagado, porPagar, desvio: null, gananciaReal: null, margenReal: null };
   const gananciaReal = redondear(t.neto - costoReal);
   return {
     conGastos,
     costoReal,
+    ...partes,
     pagado,
     porPagar,
     desvio: redondear(costoReal - t.costo),

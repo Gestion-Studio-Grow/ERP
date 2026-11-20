@@ -85,6 +85,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import pg from "pg";
 import type { PrismaClient } from "@/generated/prisma/client";
+import type { ClienteBase } from "@/lib/prisma-base";
 import { baseLocalParaSeed } from "@/lib/seed/guarda-base";
 import { hashPassword } from "@/lib/auth-password";
 
@@ -495,4 +496,14 @@ export function prismaComoDuenio(base: BaseEfimera): Promise<PrismaClient> {
     clientesComoDuenio.set(base, cliente);
   }
   return cliente;
+}
+
+/**
+ * El mismo cliente de `prismaComoDuenio`, con el tipo de la app (`ClienteBase`, prisma-base.ts). Para
+ * los tests que lo pasan, o pasan sus `tx`, a funciones que piden `Prisma.TransactionClient`: con el
+ * alias `PrismaClient` (que admite un `omit` global) tsc compara los 195 delegados uno por uno, ~30 s
+ * y casi 2 GB del pico (MIA-219). El cliente se arma sin `omit`, así que es un `ClienteBase` de verdad.
+ */
+export async function prismaComoDuenioBase(base: BaseEfimera): Promise<ClienteBase> {
+  return (await prismaComoDuenio(base)) as unknown as ClienteBase;
 }

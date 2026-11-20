@@ -31,6 +31,7 @@ import {
   type TenantParaApps,
 } from "./visibles";
 import { searchNavItems } from "@/modules/nav-search";
+import { puertaDeGestionAbierta } from "@/lib/proyectos/puerta-de-gestion";
 
 // Filas de Tenant como las de la base local de QA (leídas con psql el 2026-09-23): beauty-spa sin
 // blueprint ni módulos; magra con su seed.
@@ -488,7 +489,8 @@ test("panel cerrado: el dueño de una productora ve sólo lo de su trabajo, aunq
   assert.equal(appDelPanelCerrado(n)?.id, "proyectos");
   assert.deepEqual(
     appsVisibles(n).map((a) => a.id).sort(),
-    ["caja-del-dia", "cierre-del-dia", "clientes", "facturacion", "gestion-administracion", "gestion-agentes", "gestion-calendario", "gestion-direccion", "gestion-diseno", "gestion-equipo", "gestion-inicio", "gestion-mi-liquidacion", "gestion-propuesta-ia", "gestion-proveedores", "libro-de-caja", "proyectos", "reportes", "usuarios"],
+    // MIA-50 T11 (Adenda 2): Flujo de fondos entra al panel (cuelga de `reports`, que este negocio tiene asignado).
+    ["caja-del-dia", "cierre-del-dia", "cierre-del-mes", "clientes", "facturacion", "flujo-de-fondos", "gestion-administracion", "gestion-agentes", "gestion-calendario", "gestion-direccion", "gestion-diseno", "gestion-equipo", "gestion-inicio", "gestion-mi-liquidacion", "gestion-propuesta-ia", "gestion-proveedores", "libro-de-caja", "proyectos", "reportes", "resultado-del-mes", "usuarios"],
   );
   assert.equal(motivoNoDisponible(appPorId("agenda"), n), "panel");
   assert.equal(motivoNoDisponible(appPorId("inicio"), n), "panel");
@@ -554,4 +556,47 @@ test("SEGURIDAD: «Mover stock» apagado cierra las apps de stock del encargado;
   // Un override de una capability fuera de la matriz se ignora (candado de permisoEfectivo).
   const raro = negocio({ role: "RECEPTION", contexto, esMostrador: true, overrides: [{ capability: "stock:read", allowed: false }] });
   assert.equal(motivoNoDisponible(appPorId("inventario"), raro), null);
+});
+
+test("MIA-50 T11 · C-CF1 (Adenda 2, reemplaza MIA-089): en una productora, Cuentas a cobrar, a pagar y Flujo entran al panel; las abre quien tiene «Empresa»; en CH, como siempre", () => {
+  // Decisión del dueño (Adenda 2): las tres apps del ERP vuelven a la productora, dentro del panel cerrado, para el rol de Proyectos
+  // con «Empresa · ver». MIA-089 las había sacado; este test lo reemplaza. El negocio de prueba tiene los módulos asignados y, como
+  // la productora de hoy, sin «Trabaja por apps» ni perfil (la edición la decide el módulo asignado dentro del panel).
+  const mods = ["proyectos", "cuentas-a-cobrar", "cuentas-a-pagar", "reports"];
+  const apps = ["cuentas-a-cobrar", "cuentas-a-pagar", "flujo-de-fondos"] as const;
+  for (const role of ["OWNER", "RECEPTION", "PROFESSIONAL"] as const) {
+    const mia = negocio({ role, blueprintId: "productora", modulosAsignados: mods });
+    const panel = appDelPanelCerrado(mia)!;
+    assert.equal(panel.id, "proyectos");
+    for (const id of apps) {
+      const app = appPorId(id);
+      // El panel ya no la saca; el rol del ERP sigue mandando (sólo la cuenta dueña), y la URL no rebota.
+      assert.equal(motivoNoDisponible(app, mia), role === "OWNER" ? null : "rol", `${role} · ${id}`);
+      assert.equal(appsVisibles(mia).some((a) => a.id === id), role === "OWNER", `${role} · ${id} visible`);
+      assert.ok(!rutaFueraDelPanel(app.ruta, panel), `${role} · ${app.ruta}`);
+    }
+  }
+  // Sin los módulos asignados (MIA real hasta que el dueño los prenda, Gate 2), Cuentas a cobrar y a pagar siguen cerradas.
+  const sinModulos = negocio({ role: "OWNER", blueprintId: "productora", modulosAsignados: ["proyectos", "reports"] });
+  for (const id of ["cuentas-a-cobrar", "cuentas-a-pagar"] as const) assert.equal(motivoNoDisponible(appPorId(id), sinModulos), "edicion", `sin módulo · ${id}`);
+  // La puerta del rol de Proyectos (página y acción): los 8 actores. Abren Dirección y Administración; editan los mismos.
+  const actores: [string, Parameters<typeof puertaDeGestionAbierta>[1], boolean][] = [
+    ["Dirección", { rol: "DIRECCION", permisos: [] }, true],
+    ["Administración", { rol: "ADMINISTRACION", permisos: [] }, true],
+    ["Comercial", { rol: "COMERCIAL", permisos: [] }, false],
+    ["Diseño", { rol: "DISENO", permisos: [] }, false],
+    ["Producción", { rol: "PRODUCCION", permisos: [] }, false],
+    ["Producción de campo", { rol: "PRODUCCION_CAMPO", permisos: [] }, false],
+    ["Administración sin «Empresa» (guardado por Dirección)", { rol: "ADMINISTRACION", permisos: [{ rol: "ADMINISTRACION", modulo: "empresa", ver: false, editar: false }] }, false],
+    ["sin ficha", null, false],
+  ];
+  for (const [quien, actor, abre] of actores) {
+    assert.equal(puertaDeGestionAbierta("proyectos", actor, "empresa", "ver"), abre, `${quien} · ver`);
+    assert.equal(puertaDeGestionAbierta("proyectos", actor, "empresa", "editar"), abre, `${quien} · editar`);
+  }
+  // CH: sin panel cerrado, la puerta de Proyectos no existe; las apps las decide el rol del ERP, como siempre.
+  const ch = negocio({ role: "OWNER", modulosAsignados: mods });
+  assert.equal(appDelPanelCerrado(ch), null);
+  for (const id of apps) assert.notEqual(motivoNoDisponible(appPorId(id), ch), "panel", id);
+  assert.equal(puertaDeGestionAbierta(null, null, "empresa", "editar"), true);
 });

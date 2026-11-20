@@ -5,7 +5,10 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { cobranza, cobranzaEnMoneda, leerOriginal, pendientesDeCobro, totalAprobado, type Cobranza } from "./cobranza-core";
+import { topeDeAdicionalesPorProyecto } from "./presupuesto-m2.server";
+import { totalesCongelados } from "./precio-foto.server";
+import { redondearAlCentavo } from "@/lib/dinero/redondeo";
+import { cobranza, cobranzaDePerdido, cobranzaEnMoneda, leerOriginal, pendientesDeCobro, totalAprobado, type Cobranza } from "./cobranza-core";
 import { cambioDeVenta } from "./gestion-core";
 
 /** Pesos por unidad de cada moneda cargada en el negocio. */
@@ -17,11 +20,12 @@ export async function tiposDeCambio(tenantId: string, db: Db = prisma): Promise<
 /** Lo que hay que leer de un proyecto para su cobranza: su moneda, el último presupuesto aprobado y los cobros no anulados. */
 export const SELECT_COBRANZA = {
   moneda: true,
+  perdidoEl: true,
   presupuestos: {
     where: { estado: "APROBADO" },
     orderBy: { version: "desc" as const },
     take: 1,
-    select: { ivaPct: true, tcVenta: true, items: { select: { cantidad: true, costo: true, precio: true, moneda: true, recargoPct: true } } },
+    select: { id: true, ivaPct: true, tcVenta: true, items: { select: { cantidad: true, costo: true, precio: true, moneda: true, recargoPct: true } } },
   },
   pagos: { where: { anuladoEl: null }, select: { id: true, monto: true } },
 } as const;
@@ -58,17 +62,45 @@ export async function originalesDeCobros(tenantId: string, proyectos: readonly {
 export function cobranzaDe(
   p: {
     moneda: string;
-    presupuestos: { ivaPct: number; tcVenta: number | null; items: { cantidad: number; costo: number; precio: number; moneda: string; recargoPct: number | null }[] }[];
+    presupuestos: { id?: string; ivaPct: number; tcVenta: number | null; congelado?: number | null; items: { cantidad: number; costo: number; precio: number; moneda: string; recargoPct: number | null }[] }[];
     pagos: { id: string; monto: number }[];
+    perdidoEl: Date | null;
   },
   tc: Readonly<Record<string, number>>,
   recargoGeneral: number,
   enlaces: ReadonlyMap<string, EnlaceDeCobro> = new Map(),
+  adicionales = 0,
+): Cobranza {
+  const c = cobranzaSinPerder(p, tc, recargoGeneral, enlaces, adicionales);
+  // Un proyecto perdido no tiene nada por cobrar (pregunta 2 = A, provisional a confirmar por el dueño): lo cobrado sigue
+  // como cobrado y devolverlo es otra operación. En la fuente única: ficha, Administración, Rentabilidad y Dirección.
+  return p.perdidoEl ? cobranzaDePerdido(c) : c;
+}
+
+function cobranzaSinPerder(
+  p: Parameters<typeof cobranzaDe>[0],
+  tc: Readonly<Record<string, number>>,
+  recargoGeneral: number,
+  enlaces: ReadonlyMap<string, EnlaceDeCobro>,
+  adicionales: number,
 ): Cobranza {
   const aprobado = p.presupuestos[0];
   const cobros = p.pagos.map((x) => ({ monto: x.monto, original: enlaces.get(x.id)?.original ?? null, cuotaId: enlaces.get(x.id)?.cuotaId ?? null }));
   if (!aprobado) return cobranza(0, cobros);
-  return cobranzaEnMoneda(totalAprobado(aprobado, tc, recargoGeneral), cobros, { moneda: p.moneda, cambioVenta: cambioDeVenta(p.moneda, aprobado.tcVenta, tc), tcHoy: tc[p.moneda] ?? 0 });
+  // MIA T06 · O11: el tope sube el precio con IVA de los adicionales aprobados (en pesos), y nada más.
+  // MIA T07 · O16: con la foto de la aprobación, el tope es el total congelado con IVA, no lo que digan hoy los ítems.
+  const base = aprobado.congelado != null ? redondearAlCentavo(aprobado.congelado * (1 + aprobado.ivaPct / 100)) : totalAprobado(aprobado, tc, recargoGeneral);
+  return cobranzaEnMoneda(base + adicionales, cobros, { moneda: p.moneda, cambioVenta: cambioDeVenta(p.moneda, aprobado.tcVenta, tc), tcHoy: tc[p.moneda] ?? 0 });
+}
+
+/**
+ * MIA T07 · O16: a la versión aprobada de cada proyecto le pone su total congelado (la foto de M3), si lo tiene. Así el
+ * tope de cobro sale de lo que aceptó el cliente. Sin M3, no cambia nada.
+ */
+export async function anotarCongelados(db: Db, tenantId: string, proyectos: readonly { presupuestos: { id?: string; congelado?: number | null }[] }[]): Promise<void> {
+  const aprobadas = proyectos.map((p) => p.presupuestos[0]).filter((x): x is { id: string; congelado?: number | null } => !!x?.id);
+  const totales = await totalesCongelados(db, tenantId, aprobadas.map((x) => x.id));
+  for (const x of aprobadas) x.congelado = totales.get(x.id) ?? null;
 }
 
 /** La cobranza de cada proyecto del negocio (o de los pedidos), por id. Con `db` = la transacción, lee adentro de ella. */
@@ -83,8 +115,8 @@ export async function cobranzasDelNegocio(
     where: { tenantId, ...(proyectoIds && { id: { in: [...proyectoIds] } }) },
     select: { id: true, ...SELECT_COBRANZA },
   });
-  const enlaces = await originalesDeCobros(tenantId, proyectos, db);
-  return new Map(proyectos.map((p) => [p.id, cobranzaDe(p, tc, recargoGeneral, enlaces)]));
+  const [enlaces, adicionales] = await Promise.all([originalesDeCobros(tenantId, proyectos, db), topeDeAdicionalesPorProyecto(db, tenantId, proyectoIds), anotarCongelados(db, tenantId, proyectos)]);
+  return new Map(proyectos.map((p) => [p.id, cobranzaDe(p, tc, recargoGeneral, enlaces, adicionales.get(p.id) ?? 0)]));
 }
 
 /**
@@ -95,6 +127,27 @@ export async function cobranzaConCuotas(db: Db, tenantId: string, proyectoId: st
   const cuotas = await db.proyectoCuota.findMany({ where: { tenantId, proyectoId, anuladoEl: null, tipo: "COBRO" }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, prevista: true } });
   const cob = (await cobranzasDelNegocio(tenantId, tc, recargoGeneral, [proyectoId], db)).get(proyectoId) ?? cobranza(0, []);
   return { cuotas, cob };
+}
+
+/**
+ * El mismo envío de un alta de cuota (doble clic, reintento): con el candado de su clave, si el historial ya tiene su
+ * «Envío», se contesta como hecho y no se graba otra (MIA-089 · V7, sin migración: como `registrarCobro`). Sin clave
+ * válida, `null`: el alta se graba como siempre.
+ */
+export async function envioYaGrabado(tx: Db, tenantId: string, clave: string | null): Promise<boolean> {
+  if (!clave) return false;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`envio-cuota:${tenantId}:${clave}`}))`;
+  return !!(await tx.proyectoCambio.findFirst({ where: { tenantId, entidad: "ProyectoCuota", campo: "Envío", antes: clave }, select: { id: true } }));
+}
+
+/**
+ * Si el proyecto está perdido, leído para la transacción que va a cobrar o marcar (MIA-089 · V2). `FOR UPDATE`: en
+ * Serializable la foto de la transacción es de ANTES de esperar el candado; leer la fila con candado hace que un «Marcar
+ * perdido» confirmado en el medio aborte por conflicto (40001) y `tenantTransaction` reintente con la foto nueva.
+ */
+export async function estaPerdido(tx: Db, tenantId: string, proyectoId: string): Promise<boolean> {
+  const filas = await tx.$queryRaw<{ perdido: boolean }[]>`SELECT ("perdidoEl" IS NOT NULL) AS perdido FROM "Proyecto" WHERE id = ${proyectoId} AND "tenantId" = ${tenantId} FOR UPDATE`;
+  return filas[0]?.perdido === true;
 }
 
 /**

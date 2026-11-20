@@ -214,6 +214,12 @@ const TENANTS: Record<string, TenantBrand> = {
   "mia-producciones": {
     name: "MIA Producciones", monogram: "MIA", preset: "azul", frontTheme: "light",
   },
+  // MIA Taller (GSG-MIA-045): negocio propio, con su link `mia-taller`. Nombre provisional a confirmar.
+  // Sin ficha, su ingreso decía «Mi negocio» y no se distinguía del de Producciones (V9). Acento neutro
+  // del motor (celeste): no usa colores del cliente sin su autorización registrada.
+  "mia-taller": {
+    name: "MIA Taller", monogram: "MT", preset: "celeste", frontTheme: "light",
+  },
 };
 
 // (resolveTenantLayout / FONT_VAR / DEFAULT_SECTION_ORDER / resolveSectionOrder ahora viven
@@ -259,6 +265,21 @@ export function marcaDelNegocio(
 ): { nombre: string; monograma: string } {
   if (brand.propia || !identidad) return { nombre: brand.name, monograma: brand.monogram };
   return { nombre: identidad.nombre, monograma: identidad.monograma };
+}
+
+/**
+ * C5 (GSG-MIA-076/080): la marca de las pantallas de la CUENTA (definir el PIN, cambiar la contraseña). Igual que
+ * `marcaDelNegocio`, pero un negocio SIN ficha propia (y sin identidad de producto GSG) muestra su `Tenant.name`, nunca
+ * el genérico «Mi negocio». Sin nombre legible, queda vacío (la pantalla ya nombra el negocio de la cuenta aparte).
+ */
+export function marcaConElNombreDelNegocio(
+  brand: TenantBrand,
+  identidad: { nombre: string; monograma: string } | null,
+  nombreDelNegocio: string | null | undefined,
+): { nombre: string; monograma: string } {
+  const marca = marcaDelNegocio(brand, identidad);
+  if (brand.propia || identidad) return marca;
+  return { nombre: nombreDelNegocio?.trim() || "", monograma: marca.monograma };
 }
 
 // Acento resuelto (hex + texto-sobre-acento) para una superficie según SU tema.

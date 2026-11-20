@@ -128,6 +128,10 @@ test("suscribirse y desuscribirse; cada acción sube la versión aunque el motor
  * grilla (y reusar lo que no cambió) + volver a armar la cuenta abierta. Se compara con la alternativa
  * «inmutable» (`useReducer` que copia el estado para aplicar la acción sobre la copia): sólo la copia ya cuesta
  * más que todo lo anterior junto. Los números van al reporte del test (`t.diagnostic`).
+ * MIA-221: lo que se EXIGE no depende del reloj (comparar dos tiempos de ~2 ms daba rojo de a ratos en CI): durante las
+ * acciones se cuentan las copias del estado (`structuredClone`, `JSON.parse`) y los caracteres que se pasan a texto
+ * (`JSON.stringify`). El patrón vale si el estado no se copia nunca, sigue siendo el mismo objeto y cada acción pasa a
+ * texto menos de un décimo de lo que pesa el estado entero (copiarlo es pasarlo entero). El tiempo queda en el reporte.
  */
 test("medición: una acción con el almacén (motor + grilla + cuenta) cuesta menos que sólo copiar el estado", (t) => {
   const N = 40;
@@ -141,24 +145,44 @@ test("medición: una acción con el almacén (motor + grilla + cuenta) cuesta me
     structuredClone(a.estado());
   }
   let celdasNuevas = 0;
+  const estadoAntes = a.estado();
+  const pesoDelEstado = textoDelEstado(estadoAntes).length;
+  const cuenta = { copias: 0, caracteresATexto: 0 };
+  const { stringify, parse } = JSON;
+  const clonar = globalThis.structuredClone;
+  globalThis.structuredClone = ((v, o) => (cuenta.copias++, clonar(v, o))) as typeof structuredClone;
+  JSON.parse = ((...x: Parameters<typeof parse>) => (cuenta.copias++, parse(...x))) as typeof parse;
+  JSON.stringify = ((...x: Parameters<typeof stringify>) => {
+    const texto = stringify(...x);
+    cuenta.caracteresATexto += texto?.length ?? 0;
+    return texto;
+  }) as typeof stringify;
   const t0 = performance.now();
-  for (let i = 0; i < N; i++) {
-    // Alterna «a cargo de» la cancha (no cambia la grilla) y vuelta, como cuando recepción reparte quién paga.
-    a.aplicar((e, ahora) => ejecutar(e, r.id, { tipo: "aCargoCancha", idx: 2, de: i % 2 === 0 ? "1" : "" }, ahora));
-    const nueva = compartirAgenda(vista, armarAgenda(a.estado(), HOY, a.ahora()));
-    celdasNuevas += nueva.turnos.filter((c) => !vista.turnos.includes(c)).length;
-    vista = nueva;
-    armarCuenta(a.estado(), r.id);
+  try {
+    for (let i = 0; i < N; i++) {
+      // Alterna «a cargo de» la cancha (no cambia la grilla) y vuelta, como cuando recepción reparte quién paga.
+      a.aplicar((e, ahora) => ejecutar(e, r.id, { tipo: "aCargoCancha", idx: 2, de: i % 2 === 0 ? "1" : "" }, ahora));
+      const nueva = compartirAgenda(vista, armarAgenda(a.estado(), HOY, a.ahora()));
+      celdasNuevas += nueva.turnos.filter((c) => !vista.turnos.includes(c)).length;
+      vista = nueva;
+      armarCuenta(a.estado(), r.id);
+    }
+  } finally {
+    Object.assign(JSON, { stringify, parse });
+    globalThis.structuredClone = clonar;
   }
   const porAccion = (performance.now() - t0) / N;
+  const aTextoPorAccion = Math.round(cuenta.caracteresATexto / N);
 
   const t1 = performance.now();
   for (let i = 0; i < N; i++) structuredClone(a.estado());
   const copia = (performance.now() - t1) / N;
 
-  t.diagnostic(`por acción (motor + grilla + cuenta): ${porAccion.toFixed(2)} ms · sólo copiar el estado: ${copia.toFixed(2)} ms · celdas nuevas en ${N} acciones de «a cargo de»: ${celdasNuevas}`);
+  t.diagnostic(`por acción (motor + grilla + cuenta): ${porAccion.toFixed(2)} ms · sólo copiar el estado: ${copia.toFixed(2)} ms · celdas nuevas en ${N} acciones de «a cargo de»: ${celdasNuevas} · copias del estado: ${cuenta.copias} · a texto por acción: ${aTextoPorAccion} de ${pesoDelEstado} caracteres del estado`);
   assert.equal(celdasNuevas, 0, "«a cargo de» no repinta ningún turno de la grilla");
-  assert.ok(porAccion < copia, `el almacén (${porAccion.toFixed(2)} ms) tiene que costar menos que copiar el estado (${copia.toFixed(2)} ms)`);
+  assert.equal(cuenta.copias, 0, "una acción no copia el estado (ni `structuredClone` ni `JSON.parse`)");
+  assert.equal(a.estado(), estadoAntes, "la acción cambia el estado en su lugar: el mismo objeto, no uno nuevo");
+  assert.ok(aTextoPorAccion * 10 < pesoDelEstado, `cada acción pasa a texto ${aTextoPorAccion} caracteres: tiene que ser menos de un décimo del estado (${pesoDelEstado}), que es lo que cuesta copiarlo`);
   assert.ok(porAccion < 16, `una acción entra en un cuadro (16 ms): ${porAccion.toFixed(2)} ms`);
 });
 

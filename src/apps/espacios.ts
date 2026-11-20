@@ -210,7 +210,7 @@ export const ESPACIOS_NAV: readonly EspacioNav[] = [
     nombreEnServicios: "Recepción",
     objetivo: "Atender y cobrar",
     apps: [
-      "padel-clases", "taller", "inmobiliaria", "gestion-inicio", "proyectos", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "eventos-sponsors", "club", "vender", "caja-rapida", "balanza", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
+      "padel-clases", "taller", "inmobiliaria", "gestion-inicio", "proyectos", "gestion-diseno", "gestion-calendario", "gestion-proveedores", "gestion-administracion", "gestion-direccion", "gestion-agentes", "gestion-propuesta-ia", "gestion-mi-liquidacion", "gestion-equipo", "eventos-sponsors", "crm-comercial", "club", "vender", "caja-rapida", "balanza", "agenda", "pedidos", "ventas-del-dia", "confirmar-manana", "lista-de-espera", "vales-de-regalo",
       "paquetes-y-abonos", "devoluciones-y-cambios", "presupuestos", "envios-y-reparto", "tienda-online", "huecos-de-la-semana",
     ],
   },
@@ -317,6 +317,16 @@ export function espacioNav(id: EspacioNavId): EspacioNav {
 export function nombreDeEspacioNav(id: EspacioNavId, { esMostrador }: { esMostrador: boolean }): string {
   const e = espacioNav(id);
   return !esMostrador && e.nombreEnServicios ? e.nombreEnServicios : e.nombre;
+}
+
+/**
+ * Un nombre propio para el espacio de la recepción según lo que tiene adentro, o `null` (el de siempre). Hoy: el
+ * negocio ARM (vertical «arm», GSG-CRM-018 · V1), cuya recepción es SÓLO el CRM comercial, la llama «Comercial»; no
+ * atiende ni cobra. Con cualquier otra app al lado (la agenda de una estética, Proyectos de la productora, CRM-011)
+ * no aplica y queda «Recepción», «Mostrador» o «Gestión», como hasta ahora. PURA.
+ */
+export function nombrePropioDelEspacio(id: string, appIds: readonly string[]): string | null {
+  return id === "mostrador" && appIds.length > 0 && appIds.every((a) => a === "crm-comercial") ? "Comercial" : null;
 }
 
 /** Posición del espacio en la navegación. */

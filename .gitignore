@@ -78,3 +78,6 @@ docs/qa/factoque-integracion/
 
 # Salida local del navegador de QA (capturas y logs: nada binario en Git)
 .playwright-mcp/
+
+# MIA-259: sesiones y secretos locales del ayudante de ingreso por puesto (demo local)
+.ingreso-por-puesto/

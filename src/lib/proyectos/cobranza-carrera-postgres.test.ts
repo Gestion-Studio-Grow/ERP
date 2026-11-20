@@ -131,7 +131,7 @@ async function preparar(t: import("node:test").TestContext) {
     return (r as { valor: R }).valor;
   };
   const cobrar = (proyectoId: string, monto: number) => () => enSesion(() => acciones.registrarCobro(form({ proyectoId, medio: "TRANSFERENCIA", monto: String(monto) })));
-  const marcar = (id: string) => () => enSesion(() => ficha.marcarCuota(form({ id, medio: "TRANSFERENCIA" })));
+  const marcar = (id: string) => () => enSesion(() => ficha.marcarCuota(form({ envio: crypto.randomUUID(), id, medio: "TRANSFERENCIA" })));
   /** La cobranza del proyecto, leída por la fuente única con la sesión de la dueña. */
   const cobranzaDe = (proyectoId: string) =>
     enSesion(async () => {

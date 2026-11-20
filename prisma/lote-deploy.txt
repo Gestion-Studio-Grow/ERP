@@ -138,7 +138,8 @@
 # Owner-level: AUTORIZADA por el dueño, tarjeta MIA-PAGO-CLAVE-BASE (15/11), transmitida por GSG-ORQ-007 a GSG-PLAT-014.
 # Ensayo en copia de Neon OK (rama ensayo-tanda3-20261114: la columna existe y "ProyectoPago" es de neondb_owner, el rol
 # dueño con el que corre la migración del build). Vuelta atrás: al pie de la migración.
-20261114230000_proyecto_pago_clave_envio
+# (aplicada: MEDIDO el 18/11 en la copia de Neon ensayo-salida-mia-20261118, GSG-PLAT-023; sale de la lista)
+# 20261114230000_proyecto_pago_clave_envio
 #
 # 2026-11-15 · PR #171 · CRM «Eventos y sponsors» (GSG-CRM-009, MIA). Aditiva: cinco tablas nuevas ("EventoRelevado",
 # "MarcaRelevada", "EventoMarca", "AccionDelEquipo", "PedidoAlEquipo") con RLS tenant_isolation adentro, claves foráneas
@@ -148,3 +149,35 @@
 # por excepción. El módulo nace apagado (interruptor «eventos-sponsors»).
 # (aplicada por el build de producción del merge de #171, main 170e56f, dpl READY 15/11 16:17Z: sale de la lista)
 # 20261114231500_eventos_y_sponsors
+#
+# 2026-11-17 · tanda/mia-publicacion · GSG-PLAT-020 · MIA: CRM comercial (CRM-010/017/018) + Taller (MIA-045).
+# Orden del dueño (17/11 02:41Z): «los vamos a publicar ahora». Siete migraciones ADITIVAS: tablas nuevas con RLS
+# tenant_isolation adentro, columnas nullable o con default, CHECK sólo sobre lo nuevo; sin enum, sin DROP de datos,
+# sin backfill. Ensayo (17/11, copia de Neon br-snowy-pine-acoouvrq, informe PLAT-020 en Factory-GSG): NO fue con
+# `prisma migrate deploy` (el contenedor no tiene TCP a Postgres). Fue el SQL de los siete migration.sql, sin
+# cambios, en UNA sentencia DO por el driver HTTPS de Neon, que además registró cada una en _prisma_migrations
+# con el mismo checksum sha256 que calcula Prisma (7/7 iguales, certificado en GSG-PLAT-020). El `migrate deploy`
+# real lo corre el build de producción (scripts/vercel-build.mjs, pasos 1b y 2), que frena sin publicar si algo falla.
+# La tabla de apoyo de la prueba del CRM ("FilaDePruebaCrm") NO viaja: no tiene migración.
+# Gate 2: orden del dueño del 17/11 03:35:53Z («te autorizo a publicar y modificar»). Si #175 sale antes, su
+# 20261114230000_proyecto_pago_clave_envio ya estará aplicada y no va en esta lista.
+20261116150000_crm_comercial
+20261116160000_crm_comercial_pronostico
+20261116200000_taller_piezas_despiece
+20261116201000_taller_horas
+20261116202000_taller_pedidos
+20261116203000_taller_consumo
+20261117010000_crm_vinculo_negocios
+#
+# 2026-11-18 · tanda/mia-publicacion · GSG-PLAT-023 · rama de integración de los sprints de MIA (orden de GSG-ORQ-007,
+# 18/11 ~01:55Z: «esta noche no se publica»). Suma #188 (Consola de la Cuadrilla, MIA-071/072) y #191 (MIA-083,
+# Administración) a las siete de arriba. Las tres son ADITIVAS: tablas nuevas con RLS tenant_isolation adentro,
+# columnas nullable o con default, CHECK e índices sólo sobre lo nuevo; sin enum, sin DROP, sin backfill.
+# Choque de timestamp: consola_cuadrilla y mia_m7a_parametros_vistas comparten 20261117120000; Prisma las ordena por
+# nombre completo (consola < mia) y no dependen una de otra.
+# MEDIDO el 18/11 en la copia de Neon ensayo-salida-mia-20261118 (de main, 01:46Z): 20261114230000_proyecto_pago_clave_envio
+# YA está aplicada en producción, sale de la lista (estaba arriba, sin comentar).
+# Gate 2 de estas tres: PENDIENTE del dueño. Sin su orden, esta lista no llega a main.
+20261117120000_consola_cuadrilla
+20261117120000_mia_m7a_parametros_vistas
+20261117130000_cuadrilla_correcciones

@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { buttonClasses, cn } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
-import { etapaLabel, fechaCorta } from "@/lib/proyectos/core";
-import { codigoProyecto, plataEn, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
+import { etapaLabel, fechaCorta, pesos } from "@/lib/proyectos/core";
+import { appDeGestionVisible, codigoProyecto, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
 import { actorActual, avisarDeadlines, puede } from "@/lib/proyectos/gestion.server";
 import { cuandoEnArgentina } from "@/lib/proyectos/gestion-lecturas-core";
 import { datosDeInicio } from "@/lib/proyectos/gestion-lecturas.server";
+import { textoSinAcceso } from "@/lib/proyectos/puerta-de-gestion";
+import { requireUser } from "@/lib/authz";
+import { buscarApp } from "@/apps/registro";
+import { getNegocioApps } from "@/apps/contexto.server";
+import { motivoNoDisponible } from "@/apps/visibles";
 import { tarjeta } from "../_vista";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +25,28 @@ function saludo(): string {
   return hora < 13 ? "Buen día" : "Buenas tardes";
 }
 
-export default async function InicioGestion() {
+/**
+ * MIA-194 · punto 1: el aviso de quien llegó rebotado de una app que no puede abrir (`?sin-acceso=<app>`). El porqué no se lee
+ * del link: se recalcula. Si el negocio no tiene la app (módulo, edición, en preparación o apagada), «no está prendida»; si no,
+ * es el rol (el del ERP o el de Proyectos). Una app que la persona sí abre no da aviso.
+ */
+async function avisoSinAcceso(pedida: string | string[] | undefined, a: Awaited<ReturnType<typeof actorActual>>): Promise<string | null> {
+  const app = buscarApp(typeof pedida === "string" ? pedida : undefined);
+  if (!app) return null;
+  const user = await requireUser();
+  const motivo = motivoNoDisponible(app, await getNegocioApps(user.role, user.overrides));
+  if (motivo === null && appDeGestionVisible(app.id, a.rol, a.permisos)) return null;
+  return textoSinAcceso(app, motivo === null || motivo === "rol" ? "rol" : "no-prendida");
+}
+
+export default async function InicioGestion({ searchParams }: { searchParams?: Promise<{ "sin-acceso"?: string | string[] }> }) {
   await requireApp("gestion-inicio");
   const a = await actorActual();
+  const aviso = await avisoSinAcceso((await searchParams)?.["sin-acceso"], a);
   if (a.rol === "SIN_FICHA") {
     return (
       <main className="mx-auto grid w-full max-w-3xl gap-2 px-4 py-5">
+        {aviso && <p role="status" className="rounded-xl border border-line bg-surface p-3 text-sm text-strong">{aviso}</p>}
         <h1 className="text-2xl font-bold text-strong">Todavía no estás en el equipo</h1>
         <p className="text-sm text-muted">Pedile a Dirección que te cargue en Equipo y permisos: tu rol define qué apps ves.</p>
       </main>
@@ -49,6 +70,7 @@ export default async function InicioGestion() {
 
   return (
     <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-5">
+      {aviso && <p role="status" className="rounded-xl border border-line bg-surface p-3 text-sm text-strong">{aviso}</p>}
       <header className="rounded-2xl bg-accent p-5 text-on-accent">
         <p className="text-sm first-letter:uppercase">{hoyLargo()}</p>
         <h1 className="mt-1 text-2xl font-bold">{saludo()}, {a.nombre.split(" ")[0]}</h1>
@@ -84,7 +106,7 @@ export default async function InicioGestion() {
                     <span className="text-muted"><strong className="font-semibold text-strong">{cuandoEnArgentina(e.fecha)}</strong> · {fechaCorta(e.fecha)}</span>
                     <span className="min-w-0 break-words text-strong">
                       <span className="font-medium">{ETIQUETA[e.tipo]}</span>: {e.titulo}
-                      {e.monto !== null && e.moneda && <strong className="ml-1 whitespace-nowrap">{plataEn(e.monto, e.moneda)}</strong>}
+                      {e.monto !== null && e.moneda && <strong className="ml-1 whitespace-nowrap">{pesos(e.monto, e.moneda)}</strong>}
                       {e.proyecto && <span className="block text-xs text-muted">{e.proyecto}</span>}
                     </span>
                   </Link>

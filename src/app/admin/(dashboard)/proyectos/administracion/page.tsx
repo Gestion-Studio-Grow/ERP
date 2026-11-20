@@ -1,10 +1,12 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { KpiTile, Pestanas } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
 import { appPorId } from "@/apps/registro";
 import { motivoNoDisponible } from "@/apps/visibles";
 import { getNegocioApps } from "@/apps/contexto.server";
-import { actorActual, puede } from "@/lib/proyectos/gestion.server";
+import { actorActual, columnasOcultas, puede } from "@/lib/proyectos/gestion.server";
+import { pagaLiquidaciones, permisoDe } from "@/lib/proyectos/gestion-core";
 import { faltaCambio, recuadrosDeCuotas } from "@/lib/proyectos/empresa.server";
 import { pesos } from "@/lib/proyectos/core";
 import { TabCuentas } from "./_cuentas";
@@ -12,6 +14,7 @@ import { TabCashflow } from "./_cashflow";
 import { TabBancos } from "./_bancos";
 import { TabMonedas } from "./_monedas";
 import { TabLiquidaciones } from "./_liquidaciones";
+import { TabAntiguedad } from "./_antiguedad";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Administración" };
@@ -19,12 +22,13 @@ export const metadata = { title: "Administración" };
 const DE_EMPRESA = [
   { id: "cobrar", label: "Cuentas a cobrar" },
   { id: "pagar", label: "Cuentas a pagar" },
+  { id: "antiguedad", label: "Antigüedad" }, // MIA-50 T09 · O34
   { id: "cashflow", label: "Cashflow" },
   { id: "bancos", label: "Bancos" },
   { id: "monedas", label: "Monedas y gastos fijos" },
 ] as const;
 
-type Busqueda = { tab?: string; estado?: string; q?: string; mes?: string };
+type Busqueda = { tab?: string; estado?: string; q?: string; mes?: string; vista?: string; guardada?: string };
 
 export default async function Administracion({ searchParams }: { searchParams: Promise<Busqueda> }) {
   const user = await requireApp("gestion-administracion");
@@ -63,21 +67,37 @@ export default async function Administracion({ searchParams }: { searchParams: P
             }
           />
           <KpiTile label="Cobros vencidos" value={pesos(datos.resumen.cobrosVencidos)} sub={datos.resumen.cantCobrosVencidos === 1 ? "1 cobro" : `${datos.resumen.cantCobrosVencidos} cobros`} />
-          <KpiTile label="A pagar" value={pesos(datos.resumen.aPagar)} sub={`${pesos(datos.resumen.aPagar7)} en 7 días`} />
-          <KpiTile label="Pagos vencidos" value={pesos(datos.resumen.pagosVencidos)} sub={datos.resumen.cantPagosVencidos === 1 ? "1 pago" : `${datos.resumen.cantPagosVencidos} pagos`} />
+          {/* Lo que se paga es costo: el rol que no ve el costo tampoco ve sus totales (igual que las columnas de A pagar, O46). */}
+          {!columnasOcultas(a).includes("costoTotal") && (
+            <>
+              <KpiTile label="A pagar" value={pesos(datos.resumen.aPagar)} sub={`${pesos(datos.resumen.aPagar7)} en 7 días`} />
+              <KpiTile label="Pagos vencidos" value={pesos(datos.resumen.pagosVencidos)} sub={datos.resumen.cantPagosVencidos === 1 ? "1 pago" : `${datos.resumen.cantPagosVencidos} pagos`} />
+            </>
+          )}
         </div>
+      )}
+      {/* N8b (decisión del dueño, 18/11/2026): «A pagar» suma las cuotas por pagar y los gastos cargados sin pagar, igual
+          que «Por pagar a proveedores» de Rentabilidad. El renglón dice cuántos gastos incluye y lleva a Proveedores. */}
+      {datos && datos.gastosSinPagarResumen.cantidad > 0 && !columnasOcultas(a).includes("costoTotal") && (
+        <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-line bg-surface-raised p-3 text-sm">
+          <span className="font-medium text-strong">«A pagar» incluye {datos.gastosSinPagarResumen.cantidad === 1 ? "1 gasto cargado sin pagar" : `${datos.gastosSinPagarResumen.cantidad} gastos cargados sin pagar`}</span>
+          <span className="font-semibold tabular-nums text-strong">{pesos(datos.gastosSinPagarResumen.total)}</span>
+          {puede(a, "proveedores", "ver") && <Link href="/admin/proyectos/proveedores#por-pagar" className="font-medium text-strong underline underline-offset-2">Verlos en Proveedores</Link>}
+        </p>
       )}
       {datos && faltaCambio(datos.tc, datos.cuotas.filter((c) => !c.pagadoEl)) && (
         <p role="alert" className="mb-4 rounded-lg border border-line bg-surface-raised p-3 text-sm text-danger">Hay importes en dólares sin tipo de cambio: no suman a estos totales hasta que lo cargues en Monedas y gastos fijos.</p>
       )}
-      <Pestanas pestanas={pestanas} etiqueta="Vistas de Administración" conRaya className="mb-4" />
+      {/* MIA-154: a 390 px las vistas bajan a otro renglón en vez de quedar cortadas (con Antigüedad ya no entran). */}
+      <Pestanas pestanas={pestanas} etiqueta="Vistas de Administración" conRaya className="mb-4 flex-wrap" />
       {(tab === "cobrar" || tab === "pagar") && datos && (
-        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
+        <TabCuentas tipo={tab === "cobrar" ? "COBRO" : "PAGO"} estado={sp.estado} q={sp.q} vista={sp.vista} guardada={sp.guardada === "1"} cuotas={datos.cuotas} sinCalendario={tab === "cobrar" ? datos.sinCalendario : []} gastosSinPagar={tab === "cobrar" ? [] : datos.gastosSinPagar} tc={datos.tc} tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} veClientes={veClientes} />
       )}
+      {tab === "antiguedad" && datos && <TabAntiguedad tenantId={a.tenantId} cuotas={datos.cuotas} tc={datos.tc} verPagos={!columnasOcultas(a).includes("costoTotal")} />}
       {tab === "cashflow" && <TabCashflow tenantId={a.tenantId} />}
       {tab === "bancos" && <TabBancos tenantId={a.tenantId} editaEmpresa={editaEmpresa} editaPagos={editaPagos} />}
       {tab === "monedas" && <TabMonedas tenantId={a.tenantId} editaEmpresa={editaEmpresa} />}
-      {tab === "liquidaciones" && <TabLiquidaciones tenantId={a.tenantId} mes={sp.mes} edita={puede(a, "liquidaciones", "editar")} paga={a.rol === "DIRECCION" || a.rol === "ADMINISTRACION"} />}
+      {tab === "liquidaciones" && <TabLiquidaciones a={a} mes={sp.mes} vista={sp.vista} guardada={sp.guardada === "1"} edita={puede(a, "liquidaciones", "editar")} paga={pagaLiquidaciones(a.rol, permisoDe(a.rol, "liquidaciones", a.permisos))} />}
     </main>
   );
 }

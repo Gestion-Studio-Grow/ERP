@@ -11,6 +11,7 @@ import GlobalLoadingProvider from "./GlobalLoadingProvider";
 import { VocabularioDelNegocio } from "./VocabularioDelNegocio";
 import { vocabularioDelNegocio } from "@/lib/vocabulario-negocio";
 import DemoBanner from "./DemoBanner";
+import AvisoDeLaCuadrilla from "./AvisoDeLaCuadrilla";
 import VigiaDeInactividad from "./VigiaDeInactividad";
 import { requireUser } from "@/lib/authz";
 import { mustChangePasswordFor } from "@/lib/must-change-password";
@@ -29,6 +30,7 @@ import { productoUsaTienda } from "@/lib/producto-identidad";
 import { getContextoApps, getNegocioApps } from "@/apps/contexto.server";
 import { actorActual } from "@/lib/proyectos/gestion.server";
 import { appDeGestionVisible, appEnLaBarra, ROL_LABEL } from "@/lib/proyectos/gestion-core";
+import { destinoSinAcceso } from "@/lib/proyectos/puerta-de-gestion";
 import { prisma } from "@/lib/prisma";
 import { BarraGestion } from "./proyectos/_barra";
 import { appDeRuta } from "@/apps/rutas";
@@ -275,14 +277,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const actor = panel?.id === "proyectos" ? await actorActual() : null;
   // Las apps de un interruptor (Eventos y sponsors) no están en el lanzador: con el interruptor prendido se suman
   // acá y pasan por la misma regla del rol. Apagado, `appsDeInterruptores` no devuelve nada y todo queda igual.
-  const delPanel = actor ? [...visiblesDelNegocio, ...appsDeInterruptores(interruptores, negocioApps).filter((x) => !visiblesDelNegocio.some((v) => v.id === x.id))] : visiblesDelNegocio;
-  const abribles = actor ? delPanel.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : visiblesDelNegocio;
+  // El ARM (panel del CRM, GSG-CRM-018 · V1): el CRM va por interruptor y no está en el lanzador; se suma igual a la barra.
+  const conInterruptores = actor || panel?.id === "crm-comercial";
+  const delPanel = conInterruptores ? [...visiblesDelNegocio, ...appsDeInterruptores(interruptores, negocioApps).filter((x) => !visiblesDelNegocio.some((v) => v.id === x.id))] : visiblesDelNegocio;
+  const abribles = actor ? delPanel.filter((a) => appDeGestionVisible(a.id, actor.rol, actor.permisos)) : delPanel;
   const visibles = actor ? abribles.filter((a) => appEnLaBarra(a.id, actor.rol)) : abribles;
   let barraFuera: React.ReactNode = null;
   if (actor) {
     const pathname = (await headers()).get("x-pathname");
     const app = pathname ? appDeRuta(pathname) : null;
-    if (app && !abribles.some((a) => a.id === app.id)) redirect("/admin/proyectos/inicio");
+    if (app && !abribles.some((a) => a.id === app.id)) redirect(destinoSinAcceso(app.id)); // con el aviso de qué no se abrió (MIA-194)
     // Fuera de /admin/proyectos (caja, facturación…) el buscador y los avisos siguen a mano; adentro los pone su propio layout.
     if (pathname && !pathname.startsWith("/admin/proyectos")) {
       const avisos = await prisma.proyectoAviso.count({ where: { tenantId: actor.tenantId, destinatario: actor.user.id, leidoEl: null } });
@@ -377,6 +381,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <AdminThemeScript nuevo={nuevo || modoApps} />
       {/* Banda de "modo demo" — solo aparece en el deploy de demo; null en real. */}
       <DemoBanner />
+      {/* La cuadrilla de agentes (GSG-MIA-062): sólo donde hay agentes; si no, no dibuja nada. */}
+      <AvisoDeLaCuadrilla />
       {/* 15 min sin uso real → PIN, aunque los sondeos automáticos renueven la cookie (GSG-SEG-004). */}
       <VigiaDeInactividad />
       {/* Diseño nuevo: sus hojas y `useDiseno()` para el shell y las pantallas. Apagado devuelve su

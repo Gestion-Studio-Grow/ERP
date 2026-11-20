@@ -3,9 +3,22 @@
 
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { pesos, redondear } from "./core";
+import { numeroDeOrden } from "./orden-pago-core";
 import { aPesos, cuotaParaMovimiento, estadoCuota, generaCuotas, type CuotaLeida, type LineaExtracto, type MesProyectado, type NivelCarga } from "./gestion-core";
 
 // ── Meses ───────────────────────────────────────────────────────────────────
+
+/**
+ * «Lo propio» en Liquidaciones (G4, MIA-083): la persona de la liquidación es quien actúa, por su ficha o por la cuenta
+ * vinculada a esa persona. Las dos formas que ya usaba pagar («Nadie se paga lo propio»): una persona con la ficha
+ * inactiva sigue siendo dueña de su liquidación por la cuenta.
+ */
+export function esLoPropio(actor: { personaId: string | null; userId: string }, de: { personaId: string; userId: string | null }): boolean {
+  return actor.personaId === de.personaId || (!!de.userId && de.userId === actor.userId);
+}
+
+/** Por qué no se toca la propia: la hace otra persona con permiso, como el pago. */
+export const LIQUIDACION_PROPIA = "Esta liquidación es tuya: la genera, la edita, la publica o la borra otra persona de Dirección o Administración. Nadie se liquida lo propio.";
 
 export const periodoValido = (p: string): boolean => /^\d{4}-(0[1-9]|1[0-2])$/.test(p);
 
@@ -21,12 +34,31 @@ export const FILTROS_CUOTA = ["pendientes", "vencidos", "pagados", "todos"] as c
 export type FiltroCuota = (typeof FILTROS_CUOTA)[number];
 
 /** «Pendientes» es todo lo que falta pagar, vencido o no: lo vencido es lo más urgente de lo pendiente. */
-export function pasaFiltro(c: Pick<CuotaLeida, "venceEl" | "pagadoEl">, filtro: FiltroCuota, hoy: Date = new Date()): boolean {
+/** `noSeCobra`: un cobro de un perdido (`cobroFrenadoPorPerdido`, ficha-core): no está pendiente ni vencido; sólo en «Todos» (ADV-7). */
+export function pasaFiltro(c: Pick<CuotaLeida, "venceEl" | "pagadoEl"> & { noSeCobra?: boolean }, filtro: FiltroCuota, hoy: Date = new Date()): boolean {
+  if (c.noSeCobra) return filtro === "todos";
   const estado = estadoCuota(c, hoy);
   if (filtro === "pendientes") return estado !== "PAGADA";
   if (filtro === "vencidos") return estado === "VENCIDA";
   if (filtro === "pagados") return estado === "PAGADA";
   return true;
+}
+
+/**
+ * MIA-267: una orden de pago pagada salda comprobantes de proveedor, no cuotas, pero es un pago hecho: en «A pagar»
+ * aparece en «Pagados» y en «Todos». La búsqueda mira el proveedor y el número de la orden.
+ */
+export function ordenesDelFiltro<T extends { numero: number; estado: string; supplier: { name: string } }>(ordenes: readonly T[], filtro: FiltroCuota, busqueda = ""): T[] {
+  if (filtro !== "pagados" && filtro !== "todos") return [];
+  const q = busqueda.trim().toLowerCase();
+  return ordenes.filter((o) => o.estado === "PAGADA" && (!q || `${numeroDeOrden(o.numero)} ${o.supplier.name}`.toLowerCase().includes(q)));
+}
+
+/** MIA-267: la lista de Bancos son los renglones del extracto; sin extracto, no se niega lo que ya movió la cuenta. */
+export function textoSinRenglones(cuentasConMovimientos: boolean): string {
+  return cuentasConMovimientos
+    ? "Todavía no importaste ningún extracto. Los cobros y pagos ya mueven el saldo de cada cuenta; importá el extracto del banco para conciliarlos."
+    : "Todavía no importaste ningún extracto.";
 }
 
 // ── Lo que dejó el evento ───────────────────────────────────────────────────
@@ -250,6 +282,18 @@ export function lineasNuevas<T extends { fecha: Date; descripcion: string; impor
   });
 }
 
+/**
+ * Bancos (`_bancos.tsx`): un movimiento ya conciliado ofrece «Marcar cobrada» o «Marcar pagada» sólo si su cuota sigue
+ * por marcar y quien mira puede: las de un proyecto con «Pagos» y las de la empresa con «Empresa». El cobro de un
+ * perdido (`noSeCobra`, ADV-7 · MIA-111) no se ofrece: es la misma regla que Cuentas a cobrar y el servidor. PURA.
+ */
+export function ofreceMarcarConciliada(
+  cuota: { pagadoEl: Date | null; anuladoEl: Date | null; proyectoId: string | null; noSeCobra?: boolean },
+  permisos: { editaPagos: boolean; editaEmpresa: boolean },
+): boolean {
+  return !cuota.pagadoEl && !cuota.anuladoEl && !cuota.noSeCobra && (cuota.proyectoId ? permisos.editaPagos : permisos.editaEmpresa);
+}
+
 /** Una cuota por movimiento: dos movimientos iguales no se proponen contra la misma. */
 export function propuestasDeConciliacion<T extends CuotaLeida & { id: string }>(movimientos: readonly (LineaExtracto & { id: string })[], cuotas: readonly T[], tc: Readonly<Record<string, number>>): Map<string, T> {
   const libres = [...cuotas];
@@ -261,4 +305,30 @@ export function propuestasDeConciliacion<T extends CuotaLeida & { id: string }>(
     libres.splice(libres.indexOf(c), 1);
   }
   return salida;
+}
+
+// ── Rentabilidad ────────────────────────────────────────────────────────────
+
+/**
+ * Los recuadros de Rentabilidad, sumados de sus filas (T, MIA-089): «Vendido (neto, aprobado)», «Ganancia presupuestada»
+ * suman los proyectos con presupuesto aprobado que no se perdieron; «Ganancia real», los que tienen presupuesto aprobado
+ * (como antes: la de un perdido queda para decidir); «Por cobrar» y «Por pagar a proveedores», todos (un perdido no tiene
+ * nada por cobrar, y lo que se le debe a un proveedor se debe igual).
+ * Un perdido no es una venta: queda afuera como en «Facturación» de Dirección (`estaConfirmado`). Decisión 1 = A del
+ * veredicto MIA-094, la decidió el dueño el 20/11 (MIA-224).
+ */
+export function totalesDeRentabilidad(
+  filas: readonly { perdidoEl: Date | null; t: { neto: number; ganancia: number } | null; real: { gananciaReal: number | null; porPagar: number }; porCobrar: number }[],
+) {
+  const conPresupuesto = filas.filter((f) => f.t);
+  const vendidos = conPresupuesto.filter((f) => !f.perdidoEl);
+  const suma = (lista: readonly (typeof filas)[number][], g: (f: (typeof filas)[number]) => number) => redondear(lista.reduce((s, f) => s + g(f), 0));
+  return {
+    neto: suma(vendidos, (f) => f.t!.neto),
+    ganancia: suma(vendidos, (f) => f.t!.ganancia),
+    gananciaReal: suma(conPresupuesto, (f) => f.real.gananciaReal ?? 0),
+    conGastos: conPresupuesto.filter((f) => f.real.gananciaReal !== null).length,
+    porCobrar: suma(filas, (f) => f.porCobrar),
+    porPagar: suma(filas, (f) => f.real.porPagar),
+  };
 }

@@ -41,5 +41,7 @@ test("el texto se limpia y se corta", () => {
 
 test("el importe lleva su moneda", () => {
   assert.equal(plataPdf(1234.5, "ARS"), "$ 1.234,50");
-  assert.equal(plataPdf(1234.5, "USD"), "USD  1.234,50");
+  assert.equal(plataPdf(1234.5, "USD"), "US$ 1.234,50");
+  assert.equal(plataPdf(2000, "ARS"), "$ 2.000", "MIA-50 adenda 1 § A: sin centavos si da entero, como `pesos`");
+  assert.equal(plataPdf(1500.004, "ARS"), "$ 1.500", "se redondea al centavo y se muestra el redondeado");
 });

@@ -16,8 +16,10 @@ import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 import { fechaCorta, leerNumero } from "./core";
 import { actorActual, avisar, exigirEditar, proyectoVisible, puede, regenerarCuotasDe, registrarCambio, usuariosDeLaPlata, usuariosDelEquipo, type Actor } from "./gestion.server";
-import { COLUMNAS_OCULTAS_BASE, MONEDAS, permisoDe, ROLES_GESTION, RUBROS, TIPOS_AVISO, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { cambiaLosPermisos, COLUMNAS_OCULTAS_BASE, MONEDAS, permisoDe, permisoFijo, ROLES_GESTION, RUBROS, TIPOS_AVISO, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { entre, matrizDelFormulario, respuestaDePresentacion } from "./gestion-lecturas-core";
+import { veLaPlata } from "./datos.server";
+import { esLoPropio } from "./empresa-core";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -114,11 +116,21 @@ export async function crearReunion(formData: FormData): Promise<Resultado> {
 
 // ── Proveedores ─────────────────────────────────────────────────────────────
 
-/** Cambiar el % de anticipo pone al día las cuotas de los proyectos abiertos con ese proveedor. */
+/**
+ * Cambiar el % de anticipo pone al día las cuotas de los proyectos abiertos con ese proveedor. MIA-237: eso es plata (las
+ * cuotas a pagar), así que el % lo cambia sólo quien ve la plata (`veLaPlata`); el resto edita la ficha del proveedor y el %
+ * queda como estaba. Sin el campo (o vacío), se conserva el que tenía: antes un vacío lo pasaba a 0 % sin avisar.
+ */
 export async function guardarProveedor(formData: FormData): Promise<Resultado<{ id: string }>> {
   const a = await exigirEditar("proveedores");
   const { tenantId } = a;
   const id = txt(formData.get("id"), 40) || null;
+  const pctPrevio = id ? ((await prisma.proyectoProveedorFicha.findFirst({ where: { supplierId: id, tenantId }, select: { anticipoPct: true } }))?.anticipoPct ?? 50) : 50;
+  const pctCrudo = String(formData.get("anticipoPct") ?? "").trim();
+  const anticipoPct = pctCrudo === "" ? pctPrevio : entre(leerNumero(pctCrudo), 0, 100, pctPrevio);
+  if (anticipoPct !== pctPrevio && !(await veLaPlata(a.user))) {
+    return { ok: false, error: "El % de anticipo cambia las cuotas a pagar: lo cambia Dirección o Administración. No se guardó nada." };
+  }
   const v = validateSupplierInput({ name: txt(formData.get("name"), 120), taxId: txt(formData.get("taxId"), 20) || null, phone: txt(formData.get("phone"), 40) || null, email: txt(formData.get("email"), 160) || null });
   if (!v.ok) return { ok: false, error: mensajeDeProveedor(v.error) };
   const { name, taxId, phone, email } = v.value;
@@ -129,7 +141,7 @@ export async function guardarProveedor(formData: FormData): Promise<Resultado<{ 
     ciudad: txt(formData.get("ciudad"), 80) || null,
     contacto: txt(formData.get("contacto"), 120) || null,
     condiciones: txt(formData.get("condiciones"), 300),
-    anticipoPct: entre(leerNumero(String(formData.get("anticipoPct") ?? "")), 0, 100, 50),
+    anticipoPct,
     evaluacion: entre(leerNumero(String(formData.get("evaluacion") ?? "")), 1, 5, 4),
     moneda: (MONEDAS as readonly string[]).includes(moneda) ? moneda : "ARS",
     notas: txt(formData.get("notas"), 2000),
@@ -185,6 +197,12 @@ export async function cambiarEstadoProveedor(formData: FormData): Promise<void> 
 
 const esRol = (v: string): v is RolGestion => (ROLES_GESTION as readonly string[]).includes(v);
 
+/** Si alguna de esas cuentas es OWNER del negocio: sin ficha activa, entra como Dirección (`rolDelActor`). */
+async function esCuentaDuenia(tenantId: string, ids: readonly (string | null | undefined)[]): Promise<boolean> {
+  const cuentas = ids.filter((x): x is string => !!x);
+  return cuentas.length > 0 && (await prisma.user.count({ where: { tenantId, id: { in: cuentas }, role: "OWNER" } })) > 0;
+}
+
 export async function guardarPersona(formData: FormData): Promise<Resultado> {
   const a = await exigirEditar("equipo");
   const { tenantId } = a;
@@ -208,8 +226,32 @@ export async function guardarPersona(formData: FormData): Promise<Resultado> {
     if (!cuenta) return { ok: false, error: "No hay una cuenta con ese mail en este negocio. Se da de alta en Usuarios." };
     userId = cuenta.id;
   }
+  // PRY-100: quien no es Dirección no cambia de ficha su propia cuenta. Desvincularse, o vincularse a otra ficha, es el
+  // primer paso para cambiarse el rol (que la línea del rol propio frena) sin pasar por Dirección.
+  const cambiaLaCuentaPropia = (previa?.userId === a.user.id) !== (userId === a.user.id);
+  if (a.rol !== "DIRECCION" && cambiaLaCuentaPropia) return { ok: false, error: "No podés desvincular tu cuenta ni pasarla a otra ficha: que lo haga Dirección." };
+  // H3 (GSG-MIA-104, opción A, provisional a confirmar por el dueño): el rol de una ficha lo cambia sólo Dirección, como la
+  // matriz (PRY-100). Vincular una cuenta a una ficha, o sacársela, le da o le saca ese rol a la cuenta: también Dirección.
+  if (a.rol !== "DIRECCION" && previa && previa.rol !== rol) return { ok: false, error: "El rol de una persona lo cambia Dirección." };
+  if (a.rol !== "DIRECCION" && (previa?.userId ?? null) !== userId) return { ok: false, error: "La cuenta del ERP de una persona la vincula o desvincula Dirección." };
+  // H1 y H2 (par B de GSG-MIA-091): una cuenta OWNER sin ficha activa es Dirección (`rolDelActor`). Vincularle una ficha o
+  // sacársela cambia quién es Dirección: como dar o sacar ese rol, sólo Dirección.
+  if (a.rol !== "DIRECCION" && (previa?.userId ?? null) !== userId && (await esCuentaDuenia(tenantId, [previa?.userId ?? null, userId]))) {
+    return { ok: false, error: "Sólo Dirección vincula o desvincula la cuenta de un dueño del negocio." };
+  }
+  const yo = { personaId: a.personaId, userId: a.user.id };
+  const fichaPropia = !!previa && esLoPropio(yo, { personaId: previa.id, userId: previa.userId });
+  // G4p (MIA-084): la ficha propia no se desvincula ni pasa a otra cuenta, como el rol propio. Sin el vínculo, «lo propio» deja
+  // de reconocerse y la cuenta (la OWNER conserva Dirección sin ficha) se fijaría el sueldo y se liquidaría. Lo hace otra persona.
+  if (previa && fichaPropia && userId !== previa.userId && userId !== a.user.id) return { ok: false, error: "No podés desvincular tu ficha de tu cuenta ni pasarla a otra: que lo haga otra persona de Dirección." };
+  // E7 (MIA-093, decisión del dueño 18/11): tampoco se vincula una ficha a la propia cuenta, ni en el alta. Si no, la ficha se
+  // carga sin cuenta con el sueldo que uno quiere (todavía no es «lo propio») y después se vincula. Lo hace otra persona.
+  if (userId === a.user.id && previa?.userId !== a.user.id) return { ok: false, error: "No podés vincular una ficha a tu propia cuenta: que lo haga otra persona de Dirección, así nadie se fija su sueldo. Si sos la única persona de Dirección, guardala sin vincular y vinculala cuando haya otra." };
   // Sin permiso de liquidaciones, el sueldo no se escribe aunque venga en el formulario.
   const sueldoBase = puede(a, "liquidaciones", "editar") ? entre(leerNumero(String(formData.get("sueldoBase") ?? "")), 0, 1e12, 0) : previa?.sueldoBase ?? 0;
+  // G4: el sueldo base propio lo fija otra persona (con él, generar arma la liquidación propia). Por la ficha o por la cuenta.
+  const propia = fichaPropia || userId === a.user.id;
+  if (propia && sueldoBase !== (previa?.sueldoBase ?? 0)) return { ok: false, error: "No podés fijar tu propio sueldo base: la liquidación que sale de él es tuya. Que lo cambie otra persona de Dirección." };
   const datos = { nombre, email: email || null, rol, puesto: txt(formData.get("puesto"), 120), facturaA: txt(formData.get("facturaA"), 160), sueldoBase, userId };
   try {
     await tenantTransaction(async (tx) => {
@@ -240,6 +282,8 @@ export async function cambiarEstadoPersona(formData: FormData): Promise<void> {
   if (!p) return;
   if (p.userId === a.user.id) throw new Error("No podés darte de baja a vos.");
   if (p.rol === "DIRECCION" && a.rol !== "DIRECCION") throw new Error("Sólo Dirección puede cambiar a alguien de Dirección.");
+  // H2: sin ficha activa, una cuenta OWNER es Dirección. Darle de baja (o de alta) la ficha cambia quién es Dirección.
+  if (a.rol !== "DIRECCION" && (await esCuentaDuenia(a.tenantId, [p.userId]))) throw new Error("Sólo Dirección da de baja o de alta la ficha de un dueño del negocio.");
   await prisma.proyectoPersona.updateMany({ where: { id, tenantId: a.tenantId }, data: { activa } });
   await registrarCambio(prisma, { tenantId: a.tenantId, entidad: "Persona", entidadId: id, campo: `${p.nombre}: estado`, antes: activa ? "De baja" : "Activa", despues: activa ? "Activa" : "De baja", autor: a.nombre });
   revalidatePath(`${RAIZ}/equipo`);
@@ -257,14 +301,22 @@ export async function reiniciarSegundoFactor(formData: FormData): Promise<void> 
   revalidatePath(`${RAIZ}/equipo`);
 }
 
-/** Sólo escribe lo que cambió. Dirección es fija, y nadie se sube a sí mismo los permisos salvo Dirección. */
+/**
+ * Sólo escribe lo que cambió, y Dirección es fija. PRY-100: la matriz la cambia sólo Dirección (`cambiaLosPermisos`,
+ * pregunta 1-A, confirmada por el dueño el 18/11): quien tiene «Equipo» carga personas, no permisos, ni de otros roles ni en dos pasos.
+ */
 export async function guardarPermisos(formData: FormData): Promise<void> {
   const a = await exigirEditar("equipo");
+  if (!cambiaLosPermisos(a.rol)) throw new Error("Los permisos los cambia Dirección.");
   const { tenantId } = a;
-  const filas = matrizDelFormulario((c) => formData.get(c) !== null).filter((f) => a.rol === "DIRECCION" || f.rol !== a.rol);
-  const guardados = await prisma.proyectoPermiso.findMany({ where: { tenantId }, select: { rol: true, modulo: true, ver: true, editar: true, columnasOcultas: true } });
+  const filas = matrizDelFormulario((c) => formData.get(c) !== null);
   await tenantTransaction(async (tx) => {
+    // Dos personas guardando la matriz a la vez: una después de la otra, y cada una compara contra lo que quedó guardado.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`proyecto-permisos:${tenantId}`}))`;
+    const guardados = await tx.proyectoPermiso.findMany({ where: { tenantId }, select: { rol: true, modulo: true, ver: true, editar: true, columnasOcultas: true } });
     for (const f of filas) {
+      // MIA-229: la plata no se le da a un rol que no la ve (`permisoFijo`); una casilla así no se guarda aunque llegue en el POST.
+      if (permisoFijo(f.rol, f.modulo as ModuloGestion)) continue;
       const antes = permisoDe(f.rol, f.modulo as ModuloGestion, guardados);
       const fila = guardados.find((g) => g.rol === f.rol && g.modulo === f.modulo);
       const ocultasAntes = f.rol === "DIRECCION" ? [] : Array.isArray(fila?.columnasOcultas) ? (fila.columnasOcultas as string[]) : [...COLUMNAS_OCULTAS_BASE[f.rol]];

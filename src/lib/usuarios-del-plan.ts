@@ -7,6 +7,7 @@
 // transacción que crea o reactiva, con un candado por negocio: dos altas a la vez no pueden pasar
 // las dos por el último lugar. Sin plan del catálogo, o en CH, no hay tope: se comporta como hoy.
 
+import type { Prisma } from "@/generated/prisma/client";
 import { tenantTransaction } from "@/lib/rls";
 import { leerLimitesEnTx } from "@/lib/uso-del-plan";
 import { decidirAlta, NO_SE_PUDO_CONTAR, type DecisionDeAlta } from "@/planes/limites";
@@ -41,6 +42,8 @@ export async function crearUsuarioSiEntra(alta: {
     /** La clave que fija otra persona es provisoria (GSG-SEG-013): el alta desde Usuarios la manda en true. */
     mustChangePassword?: boolean;
   };
+  /** Lo que nace con el usuario en la misma transacción (la ficha de una productora, MIA-229). */
+  luego?: (tx: Prisma.TransactionClient, userId: string) => Promise<void>;
 }): Promise<ResultadoAltaDeUsuario> {
   const { tenantId } = alta.data;
   return tenantTransaction(
@@ -48,6 +51,7 @@ export async function crearUsuarioSiEntra(alta: {
       const d = await decidirAltaDeUsuarioEnTx(tx, tenantId);
       if (!d.ok) return d;
       const creado = await tx.user.create({ data: alta.data, select: { id: true } });
+      await alta.luego?.(tx, creado.id);
       return { ok: true, id: creado.id };
     },
     { tenantId },

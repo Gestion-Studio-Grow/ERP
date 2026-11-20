@@ -32,6 +32,7 @@ import { cajaRapidaModule, ofertasModule } from "./descriptors/supermercado";
 import { tallerModule } from "./descriptors/taller";
 import { proyectosModule } from "./descriptors/proyectos";
 import { MODULOS_PROYECTOS_ETAPA2 } from "./descriptors/proyectos-etapa2";
+import { tallerStandsModule } from "./descriptors/taller-stands";
 import { inmobiliariaModule } from "./descriptors/inmobiliaria";
 import { terminalModule } from "./descriptors/terminal";
 import { clubModule } from "./descriptors/club";
@@ -68,6 +69,8 @@ export const DESCRIPTORES_CATALOGO = [
   proyectosModule,
   // Etapa 2 de Proyectos (src/modules/descriptors/proyectos-etapa2.ts): interruptores por negocio, apagados por defecto.
   ...MODULOS_PROYECTOS_ETAPA2,
+  // Taller de stands (src/modules/descriptors/taller-stands.ts, GSG-MIA-004). Al final, como los anteriores.
+  tallerStandsModule,
 ];
 
 /**

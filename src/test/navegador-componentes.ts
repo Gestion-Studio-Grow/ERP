@@ -55,7 +55,7 @@ export type Navegador = { browser: Browser; bundle: string; css: string };
  * Empaqueta `entrada` (TSX que cuelga funciones de `window`), arma el CSS y abre Chromium.
  * Devuelve el motivo (texto) si el entorno no tiene con qué.
  */
-export async function prepararNavegador(entrada: string, opciones: { ruta?: string } = {}): Promise<Navegador | string> {
+export async function prepararNavegador(entrada: string, opciones: { ruta?: string; modulos?: Record<string, string> } = {}): Promise<Navegador | string> {
   let esbuild: typeof import("esbuild");
   let playwright: typeof import("playwright");
   try {
@@ -66,7 +66,8 @@ export async function prepararNavegador(entrada: string, opciones: { ruta?: stri
   }
   const chrome = rutaDeChromium(() => playwright.chromium.executablePath());
   if (!chrome) return "no hay un Chromium instalado";
-  const falsos: Record<string, string> = { "next/navigation": NAVEGACION_FALSA(opciones.ruta ?? "/"), "next/link": LINK_FALSO };
+  // `modulos`: otros falsos por nombre exacto de import (p. ej. las acciones de servidor, que traen Prisma).
+  const falsos: Record<string, string> = { ...opciones.modulos, "next/navigation": NAVEGACION_FALSA(opciones.ruta ?? "/"), "next/link": LINK_FALSO };
   const r = await esbuild.build({
     stdin: { contents: entrada, loader: "tsx", resolveDir: RAIZ },
     bundle: true,
@@ -80,7 +81,7 @@ export async function prepararNavegador(entrada: string, opciones: { ruta?: stri
       {
         name: "falsos",
         setup(b) {
-          b.onResolve({ filter: /^next\/(navigation|link)$/ }, (a) => ({ path: a.path, namespace: "falso" }));
+          b.onResolve({ filter: /.*/ }, (a) => (a.path in falsos ? { path: a.path, namespace: "falso" } : undefined));
           b.onLoad({ filter: /.*/, namespace: "falso" }, (a) => ({ contents: falsos[a.path], loader: "js", resolveDir: RAIZ }));
         },
       },

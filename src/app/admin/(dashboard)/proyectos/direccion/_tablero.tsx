@@ -23,7 +23,7 @@ export async function TabTablero({ tenantId }: { tenantId: string }) {
         <KpiTile label={`Facturación ${r.anio}`} value={pesos(r.facturacion)} sub="venta confirmada, sin IVA" />
         <KpiTile label="Margen acumulado" value={pesos(r.margen)} sub={porcentaje(r.margenPct)} />
         <KpiTile label="Eventos activos" value={r.activos} />
-        <KpiTile label="Pipeline abierto" value={pesos(r.pipeline)} />
+        <KpiTile label="Venta abierta por aprobar" value={pesos(r.pipeline)} />
       </div>
 
       <section className={tarjeta}>

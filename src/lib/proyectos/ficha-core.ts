@@ -1,10 +1,67 @@
 // FICHA DEL PROYECTO — reglas puras de las pantallas de proyectos: pipeline, versiones, planilla de venta y cashflow.
 // Sin base ni React. Las reglas de plata viven en gestion-core.ts; acá, lo que las une a la pantalla.
 
+import { esCancelado } from "./cancelacion-core";
 import { ETAPAS, leerNumero, redondear } from "./core";
 import { claveFoto, costoTotalItem, ventaTotalItem, type CuotaLeida, type FotoItem, type LineaCashflow } from "./gestion-core";
 
 export const PERDIDO = "PERDIDO";
+/** Lo que contesta el servidor si se intenta cobrar, marcar una cuota de cobro o cargar un cobro en un perdido (MIA-089 · V2). */
+/** MIA-208/213: el productor (rol de gestión que no ve la plata) no cobra, no paga, no anula ni carga cuotas: lo hace Administración. */
+export const SIN_PLATA = "Tu usuario no ve la plata del negocio: los cobros, los pagos y sus anulaciones los hace Administración.";
+/** K2 · MIA-263: a quien guardó una línea sin permiso de plata, cuando los pagos a proveedores quedaron sin rehacer (MIA-243 · 2A). */
+export const PAGOS_SIN_REHACER = "Los pagos a proveedores no se movieron: quedaron por revisar y los rehace Administración.";
+export const PERDIDO_NO_COBRA = "Este proyecto está perdido: no se le registran cobros ni se marcan cuotas de cobro. Si se retoma, reabrilo primero.";
+
+/**
+ * Qué se mueve en un proyecto perdido, igual en la pantalla y en el servidor: un cobro no (no debe nada, pregunta 2 = A);
+ * un pago a proveedor sí, marcar su cuota o cargarlo a mano, sin reabrir: es plata que se debe igual. Decisión 2 = A del
+ * veredicto MIA-094, confirmada por el dueño el 20/11 (MIA-224). Falla cerrada: sólo PAGO pasa; un tipo desconocido no (la
+ * columna es un String sin CHECK; observación del par revisor de MIA-099).
+ */
+export const perdidoAdmite = (tipo: string): boolean => tipo === "PAGO";
+
+/**
+ * Las cuotas del plan que siguen corriendo según cómo salió el proyecto. Vivo: todas. Perdido: sólo las de pago a proveedor
+ * (decisión 2 del dueño, 20/11, MIA-224: «queda en el proyecto trazado y queda en deuda a ese proveedor»), las mismas
+ * claves, así que reabrir no las duplica. Cancelado: ninguna (C-O04: Dirección resuelve a mano lo que queda). PURA.
+ */
+export function planQueSigue<T extends { tipo: string }>(plan: readonly T[], p: { perdidoEl: Date | null; motivoPerdida: string | null }): T[] {
+  if (!p.perdidoEl) return [...plan];
+  if (esCancelado(p.motivoPerdida)) return [];
+  return plan.filter((c) => perdidoAdmite(c.tipo));
+}
+
+/**
+ * Una cuota sin marcar de un proyecto perdido que la regla de arriba no admite (un cobro): no se cobra y no está pendiente
+ * de cobro. Administración la muestra en «Todos» con su porqué, sin «Cobrado» (ADV-7, MIA-107). Falla cerrada como
+ * `perdidoAdmite`. PURA.
+ */
+export const cobroFrenadoPorPerdido = (c: { tipo: string; pagadoEl: Date | string | null; proyecto?: { perdidoEl: Date | string | null } | null }): boolean => !c.pagadoEl && !!c.proyecto?.perdidoEl && !perdidoAdmite(c.tipo);
+
+/**
+ * «Vendido (aprobado, con IVA)» de la ficha de un cliente: el total aprobado de sus proyectos, sin los perdidos (decisión 1
+ * del dueño, 20/11, MIA-224; hallazgo H3 de GSG-PR215-v1), igual que Rentabilidad y Dirección. Reabierto vuelve a sumar. PURA.
+ */
+export const vendidoDelCliente = (proyectos: readonly { t: { total: number } | null; perdidoEl: Date | string | null }[]): number =>
+  redondear(proyectos.reduce((s, p) => s + (p.perdidoEl ? 0 : (p.t?.total ?? 0)), 0));
+
+/** La fila de historial que deja una aprobación quitada al volver a Pedido (MIA-224 · D4). */
+export const VOLVIO_A_PEDIDO = "Volvió a Pedido: la tiene que aprobar el cliente de nuevo";
+export const FALTA_REAPROBAR =
+  "Este proyecto volvió a Pedido y perdió la aprobación: no pasa a Confirmado hasta que el cliente apruebe una versión (por su link o con «Registrar respuesta»).";
+export const FALTA_APROBACION =
+  "Este proyecto no tiene una versión aprobada por el cliente: no pasa a Confirmado hasta que el cliente apruebe una (por su link o con «Registrar respuesta»).";
+
+/**
+ * MIA-234 · «1 a» del dueño (20/11), que generaliza H2 de MIA-232: ningún proyecto entra en Confirmado ni en una etapa
+ * posterior sin una versión aprobada por el cliente, haya vuelto a Pedido o no. Vale también al reabrir un perdido (vuelve
+ * a su etapa). Freno duro: Dirección no lo fuerza. Las etapas comerciales no se miran. PURA.
+ */
+export function frenaSinAprobacion(d: { destino: string; aprobada: boolean }): boolean {
+  const etapas: readonly string[] = ETAPAS;
+  return !d.aprobada && etapas.indexOf(d.destino) >= etapas.indexOf("APROBADO");
+}
 
 /** Un lead sigue abierto hasta que el cliente confirma o se pierde. */
 export const ETAPAS_DE_LEAD = ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"] as const;
@@ -13,9 +70,10 @@ export const COLUMNAS_PIPELINE: readonly string[] = [...ETAPAS, PERDIDO];
 
 export const columnaDe = (p: { etapa: string; perdidoEl: Date | string | null }): string => (p.perdidoEl ? PERDIDO : p.etapa);
 
-export function resumenPipeline(proyectos: readonly { etapa: string; venta: number; perdido: boolean }[]): { abiertos: number; valor: number } {
+/** MIA-239 · `venta` null = un proyecto ajeno del productor comercial: cuenta como lead abierto, pero no suma al valor. */
+export function resumenPipeline(proyectos: readonly { etapa: string; venta: number | null; perdido: boolean }[]): { abiertos: number; valor: number } {
   const abiertos = proyectos.filter((p) => !p.perdido && (ETAPAS_DE_LEAD as readonly string[]).includes(p.etapa));
-  return { abiertos: abiertos.length, valor: redondear(abiertos.reduce((s, p) => s + p.venta, 0)) };
+  return { abiertos: abiertos.length, valor: redondear(abiertos.reduce((s, p) => s + (p.venta ?? 0), 0)) };
 }
 
 export function iniciales(nombre: string): string {
@@ -183,9 +241,10 @@ export interface FilaFicha {
   moneda: string;
   recargoPct?: number | null;
   /** El precio fijado a mano; 0 si sale del recargo. */
-  precioManual: number;
-  ventaUnitaria: number;
-  venta: number;
+  precioManual?: number;
+  ventaUnitaria?: number;
+  /** MIA-237: sin importes (productor de campo) no viajan la venta ni el precio. */
+  venta?: number;
   costoTotal?: number;
   margen?: number;
   fechaLimite: string;
@@ -218,9 +277,7 @@ export function filaDeFicha(
     proveedorTexto: i.supplier?.name ?? i.proveedor,
     cantidad: i.cantidad,
     moneda: i.moneda,
-    precioManual: i.precio,
-    ventaUnitaria: i.cantidad > 0 ? redondear(venta / i.cantidad) : 0,
-    venta,
+    ...(!ocultas.has("venta") && { precioManual: i.precio, ventaUnitaria: i.cantidad > 0 ? redondear(venta / i.cantidad) : 0, venta }),
     fechaLimite: i.fechaLimite,
     estadoItem: i.estadoItem,
     visibleCliente: i.visibleCliente,
@@ -254,9 +311,27 @@ export function filtrarCashflow<T extends CuotaLeida>(lineas: readonly LineaCash
 const CAMPOS_DE_COSTO = ["Costo", "Recargo", "Moneda", "Plus"];
 
 /** El historial no le muestra a nadie lo que su permiso le esconde en la ficha. */
-export function cambioVisible(c: { entidad: string; campo: string }, permisos: { costos: boolean; pagos: boolean }): boolean {
+export function cambioVisible(c: { entidad: string; campo: string }, permisos: { costos: boolean; pagos: boolean; importes?: boolean }): boolean {
   if (c.campo === "Asiento" || c.campo === "Cuenta movida" || c.campo === "Envío") return false;
+  // MIA-237: sin importes (productor de campo), tampoco el precio que se cambió.
+  if (permisos.importes === false && (c.campo.startsWith("Precio") || c.campo.startsWith("Venta"))) return false;
   if (!permisos.pagos && (c.entidad === "ProyectoCuota" || c.entidad === "ProyectoPago" || c.entidad === "ProyectoGasto")) return false;
   if (!permisos.costos && CAMPOS_DE_COSTO.some((k) => c.campo.startsWith(k))) return false;
   return true;
+}
+
+/**
+ * «Avance de cobro» del Estado financiero de la ficha, 0 a 100: lo cobrado sobre lo cobrado más lo que falta cobrar.
+ * Un perdido no le falta nada y un «100 %» diría que se cobró la venta: su avance es lo cobrado contra la venta original
+ * (decisión 3 = B del dueño, 20/11, MIA-224, PROVISIONAL A CONFIRMAR CON ALE). Sin venta original (perdido sin versión
+ * aprobada), null: no se muestra.
+ */
+export function avanceDeCobro(f: { cobrado: number; aCobrar: number; ventaOriginal?: number | null } | null | undefined, perdido: boolean): number | null {
+  if (perdido) return f?.ventaOriginal && f.ventaOriginal > 0 ? (f.cobrado / f.ventaOriginal) * 100 : null;
+  return f && f.cobrado + f.aCobrar > 0 ? (f.cobrado / (f.cobrado + f.aCobrar)) * 100 : 0;
+}
+
+/** «1 ítem», «3 ítems», «0 ítems»: el número con la palabra en singular sólo cuando es uno. */
+export function contar(n: number, singular: string, plural: string): string {
+  return `${n} ${n === 1 ? singular : plural}`;
 }

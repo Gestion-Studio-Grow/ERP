@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alertasDeDireccion, conReintegros, desviosDelEvento, extrasRecalculados, finDeSemana, leerExtras, lineasNuevas, margenSobreVenta, pasaFiltro, periodoValido, propuestasDeConciliacion, reintegrosCuadran, respuestaDeCarga, tasaDeConversion, totalLiquidacion } from "./empresa-core";
+import { alertasDeDireccion, conReintegros, desviosDelEvento, extrasRecalculados, finDeSemana, leerExtras, lineasNuevas, margenSobreVenta, ofreceMarcarConciliada, pasaFiltro, periodoValido, propuestasDeConciliacion, reintegrosCuadran, respuestaDeCarga, tasaDeConversion, totalLiquidacion } from "./empresa-core";
 
 const item = (id: string, rubro: string, costo: number, costoReal: number | null = null) => ({ id, descripcion: id, rubro, cantidad: 1, costo, moneda: "ARS", costoReal, proveedor: null });
 
@@ -109,6 +109,18 @@ test("dos movimientos iguales no se proponen contra la misma cuota", () => {
   assert.equal(propuestasDeConciliacion([m("1", -100)], [c("a")], {}).size, 0);
 });
 
+test("MIA-111 · Bancos: un movimiento conciliado con el cobro de un perdido no ofrece «Marcar cobrada»; el resto sigue igual", () => {
+  const todo = { editaPagos: true, editaEmpresa: true };
+  const cobro = { pagadoEl: null, anuladoEl: null, proyectoId: "p1" };
+  assert.equal(ofreceMarcarConciliada(cobro, todo), true, "un cobro por marcar, con permiso, se ofrece");
+  assert.equal(ofreceMarcarConciliada({ ...cobro, noSeCobra: true }, todo), false, "el cobro de un perdido no se ofrece (ADV-7, `perdidoAdmite`)");
+  assert.equal(ofreceMarcarConciliada({ ...cobro, noSeCobra: false }, todo), true);
+  assert.equal(ofreceMarcarConciliada({ ...cobro, pagadoEl: new Date(2026, 10, 1) }, todo), false, "ya marcada");
+  assert.equal(ofreceMarcarConciliada({ ...cobro, anuladoEl: new Date(2026, 10, 1) }, todo), false, "anulada");
+  assert.equal(ofreceMarcarConciliada(cobro, { editaPagos: false, editaEmpresa: true }), false, "la de un proyecto pide «Pagos»");
+  assert.equal(ofreceMarcarConciliada({ ...cobro, proyectoId: null }, { editaPagos: false, editaEmpresa: true }), true, "la de la empresa pide «Empresa»");
+});
+
 test("Rendí: los reintegros se rehacen desde la base, uno por gasto, y sobreviven a leerExtras", () => {
   const previos = leerExtras([{ proyectoId: null, nombre: "Bono", monto: 100, manual: true }, { proyectoId: "p", nombre: "Reintegro · viejo", monto: 9, gastoId: "g0", reintegro: true }]);
   assert.equal(previos[1].reintegro, true);
@@ -128,4 +140,17 @@ test("Rendí: el pago cuadra sólo si lo reclamado en la base es exactamente lo 
   assert.equal(reintegrosCuadran(ex, [{ gastoId: "g1", montoCentavos: 550 }, { gastoId: "g2", montoCentavos: 700 }, { gastoId: "g3", montoCentavos: 77700 }]), false, "reclamada fuera del JSON");
   assert.equal(reintegrosCuadran(ex, [{ gastoId: "g1", montoCentavos: 550 }, { gastoId: "g2", montoCentavos: 701 }]), false, "la plata no coincide");
   assert.equal(reintegrosCuadran([ex[0]], []), true);
+});
+
+test("ADV-7 (MIA-107): una cuota que el perdido no admite cobrar no está en «Pendientes» ni en «Vencidos»; sí en «Todos»", () => {
+  const hoy = new Date("2026-11-18T12:00:00Z");
+  const frenada = { venceEl: new Date("2026-10-26T12:00:00Z"), pagadoEl: null, noSeCobra: true };
+  assert.equal(pasaFiltro(frenada, "pendientes", hoy), false);
+  assert.equal(pasaFiltro(frenada, "vencidos", hoy), false);
+  assert.equal(pasaFiltro(frenada, "pagados", hoy), false);
+  assert.equal(pasaFiltro(frenada, "todos", hoy), true);
+  // Sin la marca, la misma cuota vencida sigue pendiente (la regla de siempre).
+  const viva = { venceEl: frenada.venceEl, pagadoEl: null };
+  assert.equal(pasaFiltro(viva, "pendientes", hoy), true);
+  assert.equal(pasaFiltro(viva, "vencidos", hoy), true);
 });

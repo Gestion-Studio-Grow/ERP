@@ -239,6 +239,20 @@ export const INTERRUPTORES = [
     enAuditoria: "eventos y sponsors",
     cambiaLasApps: false,
   },
+  {
+    // CRM comercial operado por agentes (GSG-CRM-010, prueba interna de GSG del 16/11/2026): oportunidades
+    // marca × evento y consultas entrantes, borradores que manda una persona y la cola de los puestos.
+    // Apagado por defecto: toda acción de src/lib/crm-comercial rechaza sin escribir. Ninguna función envía
+    // nada a terceros. Va AL FINAL.
+    id: "crm-comercial",
+    nombre: "CRM comercial",
+    queCambia:
+      "Se habilita el CRM comercial: oportunidades, borradores de mail y WhatsApp que manda una persona, y la cola de pedidos del equipo de agentes. Apagado, toda acción del CRM rechaza y no se guarda nada.",
+    alPrender:
+      "No cambia qué apps ve cada persona ni toca ventas, cobros, caja ni Proyectos. No envía nada a nadie: los mensajes quedan como borradores. Si la migración del módulo no está aplicada, el CRM dice «falta un paso de base de datos».",
+    enAuditoria: "CRM comercial",
+    cambiaLasApps: false,
+  },
 ] as const satisfies readonly Interruptor[];
 
 export type InterruptorId = (typeof INTERRUPTORES)[number]["id"];
@@ -336,6 +350,16 @@ export function eventosSponsorsPrendido(
   estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
 ): boolean {
   return estado[EVENTOS_SPONSORS]?.encendido === true;
+}
+
+/** CRM comercial operado por agentes (src/lib/crm-comercial, GSG-CRM-010). */
+export const CRM_COMERCIAL: InterruptorId = "crm-comercial";
+
+/** ¿El negocio tiene el CRM comercial? Un estado sin la entrada cuenta como apagado. PURA. */
+export function crmComercialPrendido(
+  estado: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
+): boolean {
+  return estado[CRM_COMERCIAL]?.encendido === true;
 }
 
 /**

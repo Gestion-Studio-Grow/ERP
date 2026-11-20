@@ -7,28 +7,33 @@ import type { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, totalesFicha, ventaTotalItem } from "./gestion-core";
-import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
+import { totalesCongelados } from "./precio-foto.server";
+import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, rolVeLaPlata, totalesFicha, columnasSinVenta, veElPlus, veLaVenta, veLaVentaDelProyecto, veLosCobros, ventaOEstimado, ventaTotalItem } from "./gestion-core";
+import { columnasOcultas, filtroDeProyectos, filtroDeProyectosConVenta, puede, tiposDeCambio, versionViva, versionDeLaPlata, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { conPagosParciales, conPartesComoPagadas, porPagarComoGastos } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { comprobantesEnElFlujo, costoRealDeProyectos, cuotasEnlazadas, imputadoSinItem, lineasImputadasDe } from "./comprobantes.server";
 import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
-import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
+import { cambioVisible, columnaDe, FILTROS_CASHFLOW, filaDeFicha, iniciales, monedasSinCambio, PERDIDO, planillaDeVenta, resumenPipeline } from "./ficha-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
+import { modoDeLaPropuesta } from "./precio-proyecto.server";
+import { totalesDelNeto, type ModoPropuesta } from "./precio-proyecto-core";
 
 export interface TarjetaProyecto {
   id: string;
-  ventaTexto: string; // en la moneda del evento; `venta` sigue en pesos para sumar
+  /** MIA-239 · null: el productor comercial no ve la venta de un proyecto que no es de su equipo. */
+  ventaTexto: string | null; // en la moneda del evento; `venta` sigue en pesos para sumar
   codigo: string;
   nombre: string;
   ciudad: string | null;
   cliente: string;
   tipo: string | null;
   iniciales: string[];
-  venta: number;
+  venta: number | null;
   fecha: string;
   fechaOrden: number;
   etapa: string;
@@ -37,6 +42,16 @@ export interface TarjetaProyecto {
 }
 
 export const TOPE_TABLERO = 300;
+
+/**
+ * MIA-251 · el tablero con su indicador «Venta por aprobar»: sólo para quien ve la venta (`veLaVenta`). Campo y Producción no
+ * lo reciben, tampoco en $ 0 (certificación GSG-PR214-v9-C8, observación 2). La pantalla lo recalcula al mover tarjetas.
+ */
+export async function tableroConIndicadores(a: Actor): Promise<{ tarjetas: TarjetaProyecto[]; ventaPorAprobar: number | null }> {
+  const tarjetas = await tableroPipeline(a);
+  const ventaPorAprobar = veLaVenta(a.rol) ? resumenPipeline(tarjetas.map((t) => ({ etapa: t.etapa, venta: t.venta, perdido: t.columna === PERDIDO }))).valor : null;
+  return { tarjetas, ventaPorAprobar };
+}
 
 export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
   const [proyectos, tc, config] = await Promise.all([
@@ -47,6 +62,7 @@ export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
       select: {
         id: true,
         moneda: true,
+        presupuestoEstimado: true,
         numero: true,
         nombre: true,
         etapa: true,
@@ -58,14 +74,19 @@ export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
         perdidoEl: true,
         motivoPerdida: true,
         client: { select: { name: true } },
-        equipo: { select: { persona: { select: { nombre: true } } } },
+        equipo: { select: { personaId: true, persona: { select: { nombre: true } } } },
         presupuestos: { orderBy: { version: "desc" }, take: 1, select: { tcVenta: true, items: { select: { cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true } } } },
       },
     }),
     tiposDeCambio(a.tenantId),
     configProyectos(a.tenantId),
   ]);
-  return proyectos.map((p) => ({
+  return proyectos.map((p) => {
+    // MIA-239: el mismo control que `actorDelProyecto`; fuera de su equipo, el productor comercial ve el lead sin la venta.
+    // MIA-246: Producción, en ninguno.
+    const conVenta = veLaVentaDelProyecto(a.rol, !!a.personaId && p.equipo.some((e) => e.personaId === a.personaId));
+    const venta = redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0));
+    return {
     id: p.id,
     codigo: codigoProyecto(p.numero, p.createdAt),
     nombre: p.nombre,
@@ -73,14 +94,17 @@ export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
     cliente: p.client.name,
     tipo: p.tipoEvento ?? p.evento,
     iniciales: p.equipo.map((e) => iniciales(e.persona.nombre)),
-    venta: redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0)),
-    ventaTexto: ventaEn(redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0)), p.moneda, cambioDeVenta(p.moneda, p.presupuestos[0]?.tcVenta, tc)),
+    // El pipeline del tablero es el mismo que el «Pipeline abierto» de Dirección (`empresa.server.ts`, `ventaOEstimado`):
+    // un lead todavía sin ítems pesa por lo que se estimó (MIA-089 · T: eran 1.000.000 de diferencia en la semilla).
+    venta: conVenta ? ventaOEstimado(venta, p.presupuestoEstimado, p.moneda, tc) : null,
+    ventaTexto: conVenta ? ventaEn(venta, p.moneda, cambioDeVenta(p.moneda, p.presupuestos[0]?.tcVenta, tc)) : null,
     fecha: p.fechaEvento ? fechaCorta(p.fechaEvento) : "Sin fecha",
     fechaOrden: p.fechaEvento?.getTime() ?? Number.MAX_SAFE_INTEGER,
     etapa: p.etapa,
     columna: columnaDe(p),
     motivoPerdida: p.motivoPerdida,
-  }));
+    };
+  });
 }
 
 export interface Vista {
@@ -92,17 +116,37 @@ export interface Vista {
   fichaEdita: boolean;
   cotizaciones: boolean;
   editaCotizaciones: boolean;
+  /** MIA-237 · lo cobrado y lo que falta cobrar (cuotas de COBRO, pagos del cliente): la plata y el productor comercial. */
+  cobros: boolean;
+  /** MIA-237 · pagos y deudas con proveedores (cuotas de PAGO, gastos, comprobantes, costo real): sólo quien ve pagos y costos. */
+  deudas: boolean;
+  /** MIA-237 · la venta y lo que cobra el cliente: el productor de campo no ve ninguno; MIA-246 · Producción ve sólo los costos. */
+  importes: boolean;
+  /** MIA-256 · el plus de cada integrante: Dirección y Administración. */
+  plus: boolean;
   ocultas: Set<string>;
 }
 
 export function vistaDe(a: Actor): Vista {
   const costos = puede(a, "costos", "ver");
-  // Sin el permiso de costos, se ocultan las cuatro columnas aunque el rol no las tenga en su lista.
-  const ocultas = new Set(costos ? columnasOcultas(a) : COLUMNAS_FICHA.map((c) => c.id));
+  const pagos = puede(a, "pagos", "ver");
+  // MIA-239: en un proyecto ajeno (`actorDelProyecto`), el productor comercial no ve ningún importe, tampoco la venta.
+  // MIA-246: Producción ve los costos, no la venta (tampoco el anticipo ni el presupuesto estimado del cliente).
+  const importes = veLaVenta(a.rol) && !a.ajeno;
+  // Sin el permiso de costos, se ocultan las cuatro columnas aunque el rol no las tenga en su lista; sin importes, también la venta.
+  // MIA-246: sin la venta, también el margen y el recargo, aunque Dirección le guarde la ficha sin columnas ocultas.
+  const ocultas = new Set<string>([...(costos ? columnasOcultas(a) : COLUMNAS_FICHA.map((c) => c.id)), ...columnasSinVenta(a.rol)]);
+  if (!importes) ocultas.add("venta");
   return {
     costos,
     editaCostos: puede(a, "costos", "editar"),
-    pagos: puede(a, "pagos", "ver"),
+    pagos,
+    // MIA-237: Dirección y Administración, por su permiso de pagos (como antes); el productor comercial, por su puesto.
+    // MIA-238: fuera de su cartera (`actorDelProyecto`), el productor comercial no ve los cobros.
+    cobros: rolVeLaPlata(a.rol) ? pagos : veLosCobros(a.rol) && !a.ajeno,
+    deudas: pagos && costos,
+    importes,
+    plus: costos && veElPlus(a.rol),
     editaPagos: puede(a, "pagos", "editar"),
     pipelineEdita: puede(a, "pipeline", "editar"),
     fichaEdita: puede(a, "ficha", "editar"),
@@ -122,17 +166,37 @@ export async function cabeceraFicha(a: Actor, id: string) {
     },
   });
   if (!proyecto) return null;
-  const [viva, config, tc, negocio] = await Promise.all([versionViva(a.tenantId, id), configProyectos(a.tenantId), tiposDeCambio(a.tenantId), datosDelNegocio(a.tenantId)]);
+  // MIA-256: el plus de cada integrante no sale del servidor para quien no lo ve (Comercial ve costos, no el plus).
+  if (!veElPlus(a.rol)) for (const e of proyecto.equipo) e.plus = 0;
+  const [viva, base, config, tc, negocio] = await Promise.all([versionViva(a.tenantId, id), versionDeLaPlata(a.tenantId, id), configProyectos(a.tenantId), tiposDeCambio(a.tenantId), datosDelNegocio(a.tenantId)]);
   const items = (viva?.items ?? []).map(aItemFicha);
+  // P-06: la cabecera y las finanzas cuentan la versión aprobada; la pestaña Ficha, el borrador que se está editando.
+  const borradorSobreAprobada = !!viva && !!base && viva.id !== base.id;
+  const itemsPlata = borradorSobreAprobada ? base.items.map(aItemFicha) : items;
+  // MIA T07 · O16/O17: cotizando por total, la venta es el total del tablero (o el congelado de la foto), no la suma de los ítems.
+  const versionPlata = borradorSobreAprobada ? base : viva;
+  const neto = versionPlata ? (await modoDeLaPropuesta(a.tenantId, versionPlata))?.neto ?? null : null;
+  const totales = totalesFicha(itemsPlata, tc, config.margenPct);
+  if (neto != null) {
+    totales.venta = neto;
+    totales.margen = redondear(neto - totales.costo);
+    totales.margenPct = neto > 0 ? redondear((totales.margen / neto) * 100) : 0;
+  }
+  // MIA-211 · H3: lo ya imputado por comprobantes de proveedores sin ítem está en el cashflow; el cartel no lo cuenta.
+  const sueltos = costoSinProveedor(itemsPlata, tc);
+  const sinProveedor = sueltos.cuantos > 0 ? costoSinProveedor(itemsPlata, tc, await imputadoSinItem(a.tenantId, id, new Set(itemsPlata.flatMap((i) => (i.supplierId ? [i.supplierId] : []))), tc)) : sueltos;
   return {
     proyecto,
     viva,
+    base,
+    borradorSobreAprobada,
     config,
     tc,
     negocio,
     codigo: codigoProyecto(proyecto.numero, proyecto.createdAt),
-    totales: totalesFicha(items, tc, config.margenPct),
-    sinProveedor: costoSinProveedor(items, tc),
+    totales,
+    totalesViva: totalesFicha(items, tc, config.margenPct),
+    sinProveedor,
     faltanCambio: monedasSinCambio(viva?.items ?? [], tc),
   };
 }
@@ -140,17 +204,31 @@ export async function cabeceraFicha(a: Actor, id: string) {
 export type Cabecera = NonNullable<Awaited<ReturnType<typeof cabeceraFicha>>>;
 
 export async function datosResumen(a: Actor, cab: Cabecera, vista: Vista) {
-  const [personas, cuotas, cantChecklist, cobranzas] = await Promise.all([
+  // MIA-237: el productor comercial (cobros sin pagos) ve lo cobrado y lo que falta; ni las cuotas de pago ni los gastos.
+  const plata = vista.pagos || vista.cobros;
+  const [personas, cuotas, cantChecklist, cobranzas, gastosSinPagar, gastosPagados, asientos] = await Promise.all([
     prisma.proyectoPersona.findMany({ where: { tenantId: a.tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true, puesto: true } }),
-    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
+    plata ? prisma.proyectoCuota.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR, ...(!vista.pagos && { tipo: "COBRO" }) }, select: { id: true, tipo: true, monto: true, moneda: true, venceEl: true, pagadoEl: true, anuladoEl: true } }) : [],
     prisma.proyectoChecklist.count({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id } }),
-    vista.pagos ? cobranzasDelNegocio(a.tenantId, cab.tc, cab.config.margenPct, [cab.proyecto.id]) : null,
+    plata ? cobranzasDelNegocio(a.tenantId, cab.tc, cab.config.margenPct, [cab.proyecto.id]) : null,
+    // MIA-089 · V6: el gasto directo sin pagar también se debe (lo mismo que Administración y Rentabilidad).
+    vista.pagos ? prisma.proyectoGasto.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, pagadoEl: null, anuladoEl: null }, select: { neto: true, iva: true } }) : [],
+    // MIA-154: y el gasto cargado ya pagado es «Pagado a proveedores» (antes salía de «A pagar» y no entraba en ningún lado;
+    // cancelar sí lo listaba). Los que salieron de una cuota que sigue corriendo (su enlace «Asiento») ya están en lo pagado
+    // de las cuotas; los de una cuota anulada (cancelar, o el plan que la sacó) no: siguen siendo pagado directo (MIA-161).
+    vista.pagos ? prisma.proyectoGasto.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, pagadoEl: { not: null }, anuladoEl: null }, select: { id: true, neto: true, iva: true } }) : [],
+    vista.pagos ? prisma.proyectoCambio.findMany({ where: { tenantId: a.tenantId, proyectoId: cab.proyecto.id, entidad: "ProyectoCuota", campo: "Asiento" }, select: { entidadId: true, despues: true } }) : [],
   ]);
   // Cobrado y a cobrar, de los cobros registrados contra lo aprobado (cobranza-core); las cuotas sólo dan los vencimientos.
   const cob = cobranzas?.get(cab.proyecto.id);
   // Lo pagado en parte a proveedor sale de «A pagar» y entra en «pagado» (pago-parcial-core).
-  const netas = vista.pagos ? conPartesComoPagadas(cuotas, await pagosParcialesDeCuotas(a.tenantId, cuotas, cab.tc)) : [];
-  const finanzas = vista.pagos ? (cob ? conciliarConCobros(netas, cab.tc, cob) : resumenCuotas(netas, cab.tc)) : null;
+  const netas = plata ? conPartesComoPagadas(cuotas, vista.pagos ? await pagosParcialesDeCuotas(a.tenantId, cuotas, cab.tc) : new Map<string, number>()) : [];
+  const deCuotas = plata ? (cob ? conciliarConCobros(netas, cab.tc, cob) : resumenCuotas(netas, cab.tc)) : null;
+  const vivas = new Set(cuotas.map((c) => c.id));
+  const deCuota = new Set(asientos.filter((x) => x.entidadId && vivas.has(x.entidadId)).map((x) => x.despues));
+  const pagadoDirecto = gastosPagados.filter((g) => !deCuota.has(g.id)).reduce((x, g) => x + g.neto + g.iva, 0);
+  // MIA-224 · D3: un perdido mide su avance contra la venta original (`avanceDeCobro`).
+  const finanzas = deCuotas && { ...deCuotas, ventaOriginal: cob?.ventaOriginal ?? null, aPagar: redondear(deCuotas.aPagar + gastosSinPagar.reduce((x, g) => x + g.neto + g.iva, 0)), pagado: redondear(deCuotas.pagado + pagadoDirecto) };
   return { personas, finanzas, cantCuotas: cuotas.length, cantChecklist };
 }
 
@@ -168,11 +246,20 @@ export async function datosFicha(a: Actor, cab: Cabecera, vista: Vista) {
 }
 
 export async function datosCotizacion(a: Actor, proyectoId: string) {
-  return prisma.proyectoPresupuesto.findMany({
+  const versiones = await prisma.proyectoPresupuesto.findMany({
     where: { tenantId: a.tenantId, proyectoId },
     orderBy: { version: "desc" },
     include: { items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }] } },
   });
+  // MIA-199 · P3-2: cada versión con su total vendido congelado (foto de la aprobación), si lo tiene: el panel muestra
+  // ése como «Total sin IVA», el mismo que la propuesta y los cobros, no la suma de renglones.
+  const congelados = await totalesCongelados(prisma, a.tenantId, versiones.map((v) => v.id));
+  // MIA-249: sin la venta (`vistaDe(a).importes`: Producción, o un proyecto ajeno), la versión sale sin precio, recargo,
+  // foto, total congelado, cambio de venta ni link a la propuesta. La pestaña igual los oculta; acá no salen del servidor.
+  if (!vistaDe(a).importes) {
+    return versiones.map((v) => ({ ...v, token: "", foto: null, tcVenta: null, congelado: null, items: v.items.map((i) => ({ ...i, precio: 0, recargoPct: null })) }));
+  }
+  return versiones.map((v) => ({ ...v, congelado: congelados.get(v.id) ?? null }));
 }
 
 export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
@@ -181,36 +268,49 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const [todas, pagos, gastos, aprobada, proveedores, cobranzas, asientos] = await Promise.all([
     prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId }, include: { supplier: { select: { name: true } } }, orderBy: { venceEl: "asc" } }),
     prisma.proyectoPago.findMany({ where: { tenantId, proyectoId }, orderBy: { createdAt: "desc" }, select: COLUMNAS_PAGO }),
-    vista.costos ? prisma.proyectoGasto.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } }) : [],
-    prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { ivaPct: true, items: true } }),
+    vista.deudas ? prisma.proyectoGasto.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } }) : [],
+    prisma.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { id: true, ivaPct: true, items: true } }),
     vista.editaPagos ? prisma.supplier.findMany({ where: { tenantId, active: true }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [],
     cobranzasDelNegocio(tenantId, cab.tc, cab.config.margenPct, [proyectoId]),
     // Los gastos que salieron de una cuota (su pago o una parte): esos no pueden estar contados dos veces.
-    vista.costos ? prisma.proyectoCambio.findMany({ where: { tenantId, proyectoId, entidad: "ProyectoCuota", campo: "Asiento" }, select: { despues: true } }) : [],
+    vista.deudas ? prisma.proyectoCambio.findMany({ where: { tenantId, proyectoId, entidad: "ProyectoCuota", campo: "Asiento" }, select: { despues: true } }) : [],
   ]);
   // La fuente única de cobrado / saldo (cobranza-core): la misma cuenta que Estado financiero, clientes y reportes.
   const cob = cobranzas.get(proyectoId) ?? cobranza(0, []);
   // Cada cuota con lo que le falta y lo que entró por ella: lo cobrado a mano ya se descontó de las más viejas.
   // Y cada cuota de pago con lo pagado en parte a proveedor: le queda su monto menos esas partes (pago-parcial-core).
-  const pagados = vista.costos ? await pagosParcialesDeCuotas(tenantId, todas, cab.tc) : new Map<string, number>();
-  const reparto = conPagosParciales(todas, repartoDeCobros(todas, cab.tc, cob), pagados);
+  const pagados = vista.deudas ? await pagosParcialesDeCuotas(tenantId, todas, cab.tc) : new Map<string, number>();
+  const crudo = repartoDeCobros(todas, cab.tc, cob);
+  const reparto = conPagosParciales(todas, crudo, pagados);
   // `pagado`: lo que se pagó por una marcada tal como entró (original y pesos asentados), para mostrar; el cashflow usa `cobrado`.
   const cuotas = todas.map((c, i) => ({ ...c, pendiente: reparto.pendiente[i], cobrado: reparto.cobrado[i], pagado: pagadoDeCuota(c, cob) }));
-  // Sin permiso de costos, un pago a proveedor delata el costo: sólo se ven los cobros.
-  const visibles = vista.costos ? cuotas : cuotas.filter((c) => c.tipo === "COBRO");
+  // Sin pagos y costos (MIA-237: el productor comercial), un pago a proveedor es una deuda que no ve: sólo los cobros.
+  const visibles = vista.deudas ? cuotas : cuotas.filter((c) => c.tipo === "COBRO");
   // Una cuota de cobro cuenta lo que entró por ella más lo que le falta (pagada o no), nunca su monto: si no, se pasa del total.
-  const flujo = cashflowDelEvento(visibles, cab.tc, montoEnCashflow);
+  // Lo cobrado que ninguna cuota viva tomó (un perdido, un proyecto sin plan) también entró: el saldo arranca con eso.
+  // MIA-211 · H2: con permiso de costos, los comprobantes imputados al proyecto también salen (lo que se le paga a cada
+  // proveedor, pagado por orden o no); la cuota de pago enlazada a uno de ellos no cuenta otra vez (es la misma deuda).
+  const enFlujo = vista.deudas ? await comprobantesEnElFlujo(tenantId, proyectoId) : { comprobantes: [], cuotas: new Set<string>() };
+  const delFlujo = [...visibles.filter((c) => c.tipo === "COBRO" || !enFlujo.cuotas.has(c.id)), ...enFlujo.comprobantes];
+  const flujo = cashflowDelEvento(delFlujo, cab.tc, (c) => ("comprobanteId" in c ? c.monto : montoEnCashflow(c)), crudo.suelto);
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
-  const totalesAprobada = aprobada ? totalesEnPesos(aprobada, cab.tc, cab.config.margenPct) : null;
+  // MIA-199 · P3-2/P5-2: con foto, «Ganancia real» y los totales salen del precio vendido sin IVA, no de los renglones.
+  const congelado = aprobada ? ((await totalesCongelados(prisma, tenantId, [aprobada.id])).get(aprobada.id) ?? null) : null;
+  const totalesAprobada = aprobada ? totalesEnPesos({ ...aprobada, congelado }, cab.tc, cab.config.margenPct) : null;
   // D6: lo que falta pagar por cuotas a proveedor también es costo (y deuda): si no, la ganancia real queda inflada. Cuota
   // por cuota con el rubro de su ítem, así la tabla por rubro suma lo mismo que la Diferencia.
-  const comprometidos = vista.costos ? porPagarComoGastos(todas, pagados, cab.tc, new Map((cab.viva?.items ?? []).map((i) => [i.id, i.rubro]))) : [];
+  // O13 (MIA-50 T05): una cuota enlazada a un comprobante ya no es prevista: la cuenta su comprobante (imputado).
+  const [enlazadas, imputadas] = vista.deudas ? await Promise.all([cuotasEnlazadas(tenantId, [proyectoId]), lineasImputadasDe(tenantId, proyectoId)]) : [new Set<string>(), []];
+  const previstas = todas.filter((c) => !enlazadas.has(c.id));
+  const comprometidos = vista.deudas ? porPagarComoGastos(previstas, pagados, cab.tc, new Map((cab.viva?.items ?? []).map((i) => [i.id, i.rubro]))) : [];
   const porPagarCuotas = redondear(comprometidos.reduce((s, c) => s + c.neto, 0));
   const proveedoresConDeuda = new Set(todas.filter((c, i) => c.tipo !== "COBRO" && !c.pagadoEl && !c.anuladoEl && !c.prevista && reparto.pendiente[i] > 0 && c.supplierId).map((c) => c.supplierId!));
   const enlazados = new Set(asientos.flatMap((x) => (x.despues ? [x.despues] : [])));
   return {
     cuotas: visibles,
+    // MIA-251: sin deudas (el productor comercial), el cashflow no ofrece el filtro «Pagos»: no hay pagos que filtrar.
+    filtros: vista.deudas ? FILTROS_CASHFLOW : FILTROS_CASHFLOW.filter((f) => f.id !== "pagos"),
     flujo,
     resumen: conciliarConCobros(conPartesComoPagadas(visibles, pagados), cab.tc, cob),
     pagos,
@@ -219,10 +319,11 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
     totalAprobado: cob.total,
     cobrado: cob.cobrado,
     saldo: cob.saldo,
-    real: resultadoReal(totalesAprobada, gastos, porPagarCuotas),
+    // O13: la cuenta única del costo real (comprobantes.server), la misma que Dirección y Rentabilidad.
+    real: vista.deudas ? (await costoRealDeProyectos(tenantId, [{ id: proyectoId, t: totalesAprobada, gastos, cuotas: previstas.filter((c) => c.tipo !== "COBRO") }], cab.tc)).get(proyectoId)! : resultadoReal(totalesAprobada, [], 0),
     // Una rendición o un gasto aparte al mismo proveedor puede haber pagado una de esas cuotas: hasta cuánto (aviso).
     enDuda: costoEnDuda(gastos, enlazados, porPagarCuotas, proveedoresConDeuda),
-    rubros: desvioPorRubro(aprobadaEnPesos, [...gastos, ...comprometidos]),
+    rubros: desvioPorRubro(aprobadaEnPesos, [...gastos, ...imputadas, ...comprometidos]),
     proveedores,
   };
 }
@@ -233,8 +334,8 @@ export async function datosSeguimiento(a: Actor, cab: Cabecera, vista: Vista) {
   const [checklist, tareas, cuotas, pagos] = await Promise.all([
     prisma.proyectoChecklist.findMany({ where: { tenantId, proyectoId }, orderBy: [{ fecha: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] }),
     prisma.proyectoTarea.findMany({ where: { tenantId, proyectoId }, orderBy: [{ hechaEl: { sort: "asc", nulls: "first" } }, { venceEl: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }] }),
-    vista.pagos ? prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, tipo: "COBRO", anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, orderBy: { venceEl: "asc" } }) : [],
-    vista.pagos ? prisma.proyectoPago.findMany({ where: { tenantId, proyectoId, anuladoEl: null }, orderBy: { createdAt: "desc" }, select: COLUMNAS_PAGO }) : [],
+    vista.pagos || vista.cobros ? prisma.proyectoCuota.findMany({ where: { tenantId, proyectoId, tipo: "COBRO", anuladoEl: null, ...SIN_PREVISTAS_SIN_MARCAR }, orderBy: { venceEl: "asc" } }) : [],
+    vista.pagos || vista.cobros ? prisma.proyectoPago.findMany({ where: { tenantId, proyectoId, anuladoEl: null }, orderBy: { createdAt: "desc" }, select: COLUMNAS_PAGO }) : [],
   ]);
   return { checklist, tareas, cuotas, pagos };
 }
@@ -252,7 +353,7 @@ export async function datosArchivos(a: Actor, cab: Cabecera) {
 
 export async function datosHistorial(a: Actor, proyectoId: string, vista: Vista) {
   const filas = await prisma.proyectoCambio.findMany({ where: { tenantId: a.tenantId, proyectoId }, orderBy: { createdAt: "desc" }, take: 300 });
-  return filas.filter((c) => cambioVisible(c, { costos: vista.costos, pagos: vista.pagos }));
+  return filas.filter((c) => cambioVisible(c, { costos: vista.costos, pagos: vista.pagos, importes: vista.importes }) && (vista.plus || !c.campo.startsWith("Plus")));
 }
 
 /** Para las piezas y el armador, que siguen viviendo en la ficha. */
@@ -268,9 +369,9 @@ export async function datosDiseno(a: Actor, proyectoId: string) {
   return { stands, entregables };
 }
 
-/** Lo que sale en papel y en la planilla descargable: nunca un costo. */
+/** Lo que sale en papel y en la planilla descargable: nunca un costo. MIA-239: sólo de un proyecto cuya plata ve (la venta lo es). */
 export function planillaParaPapel(a: Actor, proyectoId: string, versionId?: string | null) {
-  return armarPapel(a.tenantId, { ...filtroDeProyectos(a), id: proyectoId }, versionId);
+  return armarPapel(a.tenantId, { ...filtroDeProyectosConVenta(a), id: proyectoId }, versionId);
 }
 
 /** El mismo papel para el cliente, con el link de su propuesta. Un borrador todavía no existe para él. */
@@ -278,7 +379,17 @@ export async function papelDeLaPropuesta(token: string) {
   if (!/^[A-Za-z0-9_-]{20,}$/.test(token)) return null;
   const tenantId = await getCurrentTenantId();
   const version = await prisma.proyectoPresupuesto.findFirst({ where: { tenantId, token, estado: { not: "BORRADOR" } }, select: { id: true, proyectoId: true } });
-  return version ? armarPapel(tenantId, { tenantId, id: version.proyectoId }, version.id) : null;
+  if (!version) return null;
+  const [papel, modo] = await Promise.all([armarPapel(tenantId, { tenantId, id: version.proyectoId }, version.id), modoDeLaPropuesta(tenantId, version)]);
+  if (!papel) return null;
+  return modo ? papelPorTotal(papel, modo) : { ...papel, porTotal: null };
+}
+
+/** O17 (MIA T07): el PDF de un negocio que cotiza por total lleva el total congelado y, según el parámetro, sin precio por ítem. */
+function papelPorTotal<P extends NonNullable<Awaited<ReturnType<typeof armarPapel>>>>(papel: P, modo: ModoPropuesta) {
+  const t = modo.neto != null && papel.moneda === "ARS" ? totalesDelNeto(modo.neto, papel.ivaPct) : { neto: papel.neto, iva: papel.iva, total: papel.total };
+  const grupos = modo.sinPrecioPorItem ? papel.grupos.map((g) => ({ ...g, subtotal: null, lineas: g.lineas.map((l) => ({ ...l, importe: null })) })) : papel.grupos;
+  return { ...papel, ...t, grupos, porTotal: { conIva: modo.conIva } };
 }
 
 async function armarPapel(tenantId: string, cual: Prisma.ProyectoWhereInput, versionId?: string | null) {

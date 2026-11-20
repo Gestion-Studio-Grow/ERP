@@ -5,8 +5,8 @@ import { buttonClasses, cn, Pestanas } from "@/components/ui";
 import { etapaLabel, etapaSiguiente, etapasDe, fechaCorta, pesos, porcentaje, waLink } from "@/lib/proyectos/core";
 import { iniciales } from "@/lib/proyectos/ficha-core";
 import { cabeceraFicha, vistaDe } from "@/lib/proyectos/ficha.server";
-import { cambioDeVenta, ventaEn } from "@/lib/proyectos/gestion-core";
-import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
+import { cambioDeVenta, costoParaMostrar, margenParaMostrar, ventaEn } from "@/lib/proyectos/gestion-core";
+import { actorDelProyecto, exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { ChatProyecto } from "../_chat";
 import { PestanaDiseno } from "../_pestana-diseno";
 import { tarjeta } from "../_vista";
@@ -15,6 +15,13 @@ import { Numero, PestanaFicha, PestanaHistorial, PestanaResumen, PestanaSeguimie
 import { ArmadorYPiezas, PestanaArchivos } from "./_pestanas-diseno-archivos";
 import { PestanaCotizacion, PestanaFinanzas } from "./_pestanas-plata";
 import { PestanaRendiciones } from "./_rendiciones";
+import { PestanaLiquidacion } from "./_liquidacion";
+import { PestanaDespiece } from "./_despiece";
+import { SeccionHoras } from "./_horas";
+import { SeccionPedidos } from "./_pedidos";
+import { tallerActivo } from "@/lib/taller-stands/datos.server";
+import { esCancelado } from "@/lib/proyectos/cancelacion-core";
+import { SeccionEtapas } from "./_etapas";
 
 export const dynamic = "force-dynamic";
 // Proponer con IA y Generar imagen esperan al proveedor desde esta pantalla.
@@ -23,13 +30,15 @@ export const metadata = { title: "Proyecto" };
 
 export default async function FichaProyecto({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   await requireApp("proyectos");
-  const a = await exigirVer("pipeline");
   const [{ id }, q] = await Promise.all([params, searchParams]);
+  // MIA-238: el actor de ESTE proyecto (el productor comercial, sin plata fuera de su cartera).
+  const a = await actorDelProyecto(await exigirVer("pipeline"), id);
   const cab = await cabeceraFicha(a, id);
   if (!cab) notFound();
   const vista = vistaDe(a);
   const { proyecto: p, codigo, totales: t, tc } = cab;
   const perdido = !!p.perdidoEl;
+  const salida = perdido && esCancelado(p.motivoPerdida) ? "Cancelado" : "Perdido"; // MIA-50 T09 · O04
   const etapas = etapasDe(p.servicio);
   const actual = etapas.indexOf(p.etapa as (typeof etapas)[number]);
   const siguiente = etapaSiguiente(p.servicio, p.etapa);
@@ -39,13 +48,19 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
   const fechas = [p.fechaEvento && fechaCorta(p.fechaEvento), p.fechaFin && p.fechaFin.getTime() !== p.fechaEvento?.getTime() && fechaCorta(p.fechaFin)].filter(Boolean).join(" al ");
 
   const verFicha = puede(a, "ficha", "ver");
+  // Taller de stands (GSG-MIA-004): sólo con flag + módulo + rubro del taller (la productora no la ve) y a quien ve costos.
+  const verDespiece = vista.cotizaciones && vista.costos && (await tallerActivo(a.tenantId));
+  // MIA-237: el taller escribe costos (`entrar`, taller-stands/acciones.ts): el productor comercial lo ve sin botones.
+  const tallerEdita = vista.editaCostos && (puede(a, "ficha", "editar") || puede(a, "cotizaciones", "editar"));
   const pestanas = [
     { id: "resumen", label: "Resumen", ve: true },
     { id: "ficha", label: "Ficha del evento", ve: verFicha },
     { id: "cotizacion", label: "Cotización", ve: vista.cotizaciones },
     { id: "diseno", label: "Diseño", ve: puede(a, "diseno", "ver") },
-    { id: "finanzas", label: "Finanzas", ve: vista.pagos },
+    { id: "despiece", label: "Despiece", ve: verDespiece },
+    { id: "finanzas", label: "Finanzas", ve: vista.pagos || vista.cobros },
     { id: "rendiciones", label: "Rendiciones", ve: puede(a, "rendiciones", "ver") },
+    { id: "liquidacion", label: "Liquidación", ve: vista.cotizaciones || puede(a, "liquidaciones", "ver") || !!a.personaId },
     { id: "seguimiento", label: "Seguimiento", ve: verFicha },
     { id: "chat", label: "Chat", ve: true },
     { id: "archivos", label: "Archivos", ve: verFicha || puede(a, "diseno", "ver") },
@@ -59,7 +74,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
 
       <header className={cn(tarjeta, "mb-4 mt-1")}>
         <p className="text-sm text-muted">
-          {[codigo, p.ciudad, p.tipoEvento, perdido ? "Perdido" : etapaLabel(p.etapa, p.servicio)].filter(Boolean).join(" · ")}
+          {[codigo, p.ciudad, p.tipoEvento, perdido ? salida : etapaLabel(p.etapa, p.servicio)].filter(Boolean).join(" · ")}
         </p>
         <h1 className="text-2xl font-bold text-strong">{p.nombre}</h1>
         <p className="text-sm">{[p.client.name, p.lugar, fechas].filter(Boolean).join(" · ")}</p>
@@ -73,9 +88,9 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
           {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>WhatsApp</a>}
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-sm sm:grid-cols-3">
-          <Numero titulo="Venta" valor={p.moneda === "ARS" ? pesos(t.venta) : `${ventaEn(t.venta, p.moneda, cambioDeVenta(p.moneda, cab.viva?.tcVenta, tc))} (≈ ${pesos(t.venta)})`} />
-          {verCosto && <Numero titulo="Costo" valor={pesos(t.costo)} />}
-          {verMargen && <Numero titulo="Margen" valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} alerta={t.margen < 0} />}
+          {vista.importes && <Numero titulo="Venta" valor={p.moneda === "ARS" ? pesos(t.venta) : `${ventaEn(t.venta, p.moneda, cambioDeVenta(p.moneda, cab.base?.tcVenta, tc))} (≈ ${pesos(t.venta)})`} />}
+          {verCosto && <Numero titulo="Costo" valor={costoParaMostrar(t)} />}
+          {verMargen && <Numero titulo="Margen" valor={margenParaMostrar(t, pesos)} alerta={t.costoCargado && t.margen < 0} />}
         </dl>
         <ol className="mt-3 flex flex-wrap gap-1.5" aria-label="Etapas">
           {etapas.map((e, i) => (
@@ -83,7 +98,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
               {etapaLabel(e, p.servicio)}
             </li>
           ))}
-          {perdido && <li aria-current="step" className="rounded-full border border-line px-3 py-1 text-xs font-medium text-danger">Perdido</li>}
+          {perdido && <li aria-current="step" className="rounded-full border border-line px-3 py-1 text-xs font-medium text-danger">{salida}</li>}
         </ol>
         {vista.pipelineEdita && (
           <div className="mt-3">
@@ -106,6 +121,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
         pestanas={pestanas.map((x) => ({ href: `/admin/proyectos/${p.id}?tab=${x.id}`, etiqueta: x.label, actual: x.id === tab }))}
       />
 
+      {tab === "resumen" && <SeccionEtapas a={a} proyecto={p} />}
       {tab === "resumen" && <PestanaResumen a={a} cab={cab} vista={vista} />}
       {tab === "ficha" && <PestanaFicha a={a} cab={cab} vista={vista} />}
       {tab === "cotizacion" && <PestanaCotizacion a={a} cab={cab} vista={vista} ver={q.ver} cambios={q.cambios} />}
@@ -115,8 +131,16 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
           <ArmadorYPiezas a={a} cab={cab} />
         </div>
       )}
+      {tab === "despiece" && (
+        <>
+          <PestanaDespiece tenantId={a.tenantId} proyectoId={p.id} edita={tallerEdita} cotiza={vista.editaCostos && puede(a, "cotizaciones", "editar")} aviso={q.aviso} />
+          <SeccionHoras tenantId={a.tenantId} proyectoId={p.id} edita={tallerEdita} />
+          <SeccionPedidos tenantId={a.tenantId} proyectoId={p.id} edita={tallerEdita} paga={puede(a, "pagos", "editar")} />
+        </>
+      )}
       {tab === "finanzas" && <PestanaFinanzas a={a} cab={cab} vista={vista} filtro={q.filtro} />}
       {tab === "rendiciones" && <PestanaRendiciones a={a} proyectoId={p.id} />}
+      {tab === "liquidacion" && <PestanaLiquidacion a={a} proyectoId={p.id} />}
       {tab === "seguimiento" && <PestanaSeguimiento a={a} cab={cab} vista={vista} />}
       {tab === "chat" && <ChatProyecto proyectoId={p.id} />}
       {tab === "archivos" && <PestanaArchivos a={a} cab={cab} tipo={q.tipo} />}

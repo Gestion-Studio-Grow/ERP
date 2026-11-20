@@ -13,7 +13,7 @@ import { Bloque, DosColumnas, Field, Franja, Input, PageHeader, Renglon, buttonC
 import { cn } from "@/components/ui/cn";
 import { fmtDateTime } from "@/lib/datetime";
 import type { Role } from "@/lib/capabilities";
-import { etiquetaDeRol, rolSinPantallas, type OpcionDeRol } from "./roles";
+import { etiquetaDeRol, rolSinPantallas, type OpcionDeAlta } from "./roles";
 import { resumenDelRol, tablaDePermisos } from "./permisos-core";
 import VincularFicha from "./VincularFicha";
 
@@ -35,9 +35,14 @@ export default function UsuariosRenglon({
   banner,
   fichas,
   matriz,
+  conProyectos = false,
+  puestos,
 }: {
   users: Usuario[];
-  roles: OpcionDeRol[];
+  roles: OpcionDeAlta[];
+  /** MIA-229: en una productora el alta ofrece puestos y cada usuario se lee por el de su ficha (`puestos`: userId → rol). */
+  conProyectos?: boolean;
+  puestos?: ReadonlyMap<string, string>;
   esMostrador: boolean;
   /** ¿El Mostrador abre Stock, Recibir y Mermas? Sólo en un mostrador del piloto (permisos-core.ts). */
   stockDelEncargado?: boolean;
@@ -78,7 +83,7 @@ export default function UsuariosRenglon({
                   key={u.id}
                   as="li"
                   className={u.active ? undefined : "opacity-75"}
-                  folio={etiquetaDeRol(u.role, esMostrador)}
+                  folio={conProyectos ? etiquetaDeRol(u.role, esMostrador, true, puestos?.get(u.id) ?? null) : etiquetaDeRol(u.role, esMostrador)}
                   titulo={
                     <>
                       {u.name}
@@ -169,10 +174,14 @@ export default function UsuariosRenglon({
                   {roles.map((r) => (
                     <label key={r.valor} className="flex min-h-11 cursor-pointer items-start gap-3 border-b border-line py-2">
                       <input type="radio" name="role" value={r.valor} required defaultChecked={r.valor === "RECEPTION"} className="mt-0.5 size-5 shrink-0 accent-accent" />
-                      <span className="min-w-0">
-                        <span className="block font-medium text-strong">{etiquetaDeRol(r.valor, esMostrador)}</span>
-                        <span className="block text-[13px] text-muted first-letter:uppercase">{resumenDelRol(r.valor, esMostrador, { stockDelEncargado })}</span>
-                      </span>
+                      {conProyectos ? (
+                        <span className="min-w-0 font-medium text-strong">{r.etiqueta}</span>
+                      ) : (
+                        <span className="min-w-0">
+                          <span className="block font-medium text-strong">{etiquetaDeRol(r.valor, esMostrador)}</span>
+                          <span className="block text-[13px] text-muted first-letter:uppercase">{resumenDelRol(r.valor as Role, esMostrador, { stockDelEncargado })}</span>
+                        </span>
+                      )}
                     </label>
                   ))}
                 </fieldset>
@@ -181,7 +190,7 @@ export default function UsuariosRenglon({
                     Crear usuario
                   </SubmitButton>
                 </div>
-                {!esMostrador && (
+                {!esMostrador && !conProyectos && (
                   <p className="text-[13px] text-muted">
                     A un Profesional, el alta le da el acceso; su agenda se le vincula aparte, desde su ficha de profesional.
                   </p>

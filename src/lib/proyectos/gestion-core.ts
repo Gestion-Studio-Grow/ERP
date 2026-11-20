@@ -2,7 +2,9 @@
 // las alertas y la liquidación. Sin base ni React, para probarlas sin nada alrededor. Especificación funcional en
 // docs/benchmark/heka-especificacion.md.
 
-import { redondear, yaVencio } from "./core";
+import { anticipoDeLaLinea, DIAS_POR_DEFECTO, type DiasDelPlan } from "./presupuesto-core";
+import { pesos, porcentaje, redondear, yaVencio } from "./core";
+import { DECISIONES_DE_PUESTOS } from "./decisiones-puestos";
 
 const DIA = 86_400_000;
 
@@ -61,11 +63,6 @@ export function aPesos(monto: number, moneda: string, tiposDeCambio: Readonly<Re
   return redondear(monto * (tiposDeCambio[moneda] ?? 0));
 }
 
-export function plataEn(monto: number, moneda: string): string {
-  const d = Number.isInteger(redondear(monto)) ? 0 : 2;
-  return new Intl.NumberFormat("es-AR", { style: "currency", currency: moneda === "USD" ? "USD" : "ARS", minimumFractionDigits: d, maximumFractionDigits: d }).format(monto);
-}
-
 /** Pesos por unidad de la moneda de venta. Enviada la versión queda fijo; antes, el de hoy. 0 si falta. PURA. */
 export function cambioDeVenta(moneda: string, tcVenta: number | null | undefined, tc: Readonly<Record<string, number>>): number {
   if (moneda === "ARS") return 1;
@@ -78,7 +75,7 @@ export function enMonedaDeVenta(enPesos: number, cambio: number): number {
 }
 
 export function ventaEn(enPesos: number, moneda: string, cambio: number): string {
-  return moneda === "ARS" || !(cambio > 0) ? plataEn(enPesos, "ARS") : plataEn(enMonedaDeVenta(enPesos, cambio), moneda);
+  return moneda === "ARS" || !(cambio > 0) ? pesos(enPesos) : pesos(enMonedaDeVenta(enPesos, cambio), moneda);
 }
 
 // ── Ficha del evento ────────────────────────────────────────────────────────
@@ -112,13 +109,50 @@ export interface TotalesFicha {
   costo: number;
   margen: number;
   margenPct: number;
+  /** ¿Algún ítem tiene costo? Sin costo, el margen sería la venta entera (100 %): no se muestra (MIA-194 · punto 2). */
+  costoCargado: boolean;
+}
+
+/** La celda «Costo»: sin costo cargado no es $ 0, es que falta. PURA. */
+export function costoParaMostrar(t: Pick<TotalesFicha, "costo" | "costoCargado">): string {
+  return t.costoCargado ? pesos(t.costo) : "Sin cargar";
+}
+
+/** La celda «Margen» con el importe en la moneda que muestre la pantalla; sin costo cargado, no hay margen. PURA. */
+export function margenParaMostrar(t: Pick<TotalesFicha, "margen" | "margenPct" | "costoCargado">, importe: (n: number) => string): string {
+  return t.costoCargado ? `${importe(t.margen)} (${porcentaje(t.margenPct)})` : "Falta el costo";
+}
+
+/** Un enlace que acompaña a un error de la ficha: el lugar donde se arregla (MIA-194 · punto 3). */
+export interface EnlaceDeArreglo {
+  href: string;
+  texto: string;
+}
+
+/**
+ * Sin tipo de cambio de la moneda de venta no se puede escribir un precio. Quien abre Administración («Empresa · ver») recibe el
+ * enlace a Monedas y gastos fijos; quien no, a quién pedírselo (un enlace que rebota no ayuda). PURA.
+ */
+export function faltaCambioDeVenta(moneda: string, abreAdministracion: boolean): { ok: false; error: string; enlace?: EnlaceDeArreglo } {
+  return abreAdministracion
+    ? { ok: false, error: `Falta el tipo de cambio de ${moneda}: cargalo en Monedas y gastos fijos.`, enlace: { href: "/admin/proyectos/administracion?tab=monedas", texto: "Ir a Monedas y gastos fijos" } }
+    : { ok: false, error: `Falta el tipo de cambio de ${moneda}: pedile a Administración que lo cargue en Monedas y gastos fijos.` };
 }
 
 export function totalesFicha(items: readonly ItemFicha[], tc: Readonly<Record<string, number>>, recargoGeneral: number): TotalesFicha {
   const venta = redondear(items.reduce((s, i) => s + ventaTotalItem(i, tc, recargoGeneral), 0));
   const costo = redondear(items.reduce((s, i) => s + costoTotalItem(i, tc), 0));
   const margen = redondear(venta - costo);
-  return { items: items.length, venta, costo, margen, margenPct: venta > 0 ? redondear((margen / venta) * 100) : 0 };
+  const costoCargado = items.some((i) => costoTotalItem(i, tc) > 0);
+  return { items: items.length, venta, costo, margen, margenPct: venta > 0 ? redondear((margen / venta) * 100) : 0, costoCargado };
+}
+
+/** MIA-199 · P3-2: con el total vendido congelado (pesos sin IVA), la venta es ésa y el margen sale de ella. PURA. */
+export function conVentaCongelada(t: TotalesFicha, congelado: number | null | undefined): TotalesFicha {
+  if (congelado == null) return t;
+  const venta = redondear(congelado);
+  const margen = redondear(venta - t.costo);
+  return { ...t, venta, margen, margenPct: venta > 0 ? redondear((margen / venta) * 100) : 0 };
 }
 
 // ── Cuotas: lo que la ficha genera sola ─────────────────────────────────────
@@ -148,6 +182,12 @@ export interface DatosPlan {
   cambioVenta?: number;
   /** % de anticipo de cada proveedor; sin dato, 50. */
   anticipoProveedor: Readonly<Record<string, number>>;
+  /** MIA T06 · O12: % de anticipo de cada línea (por id de ítem); manda sobre el del proveedor. */
+  anticipoLinea?: Readonly<Record<string, number>>;
+  /** MIA T06 · R8: los días del plan leídos del catálogo (`plan.*`). Sin esto, los de siempre. */
+  dias?: DiasDelPlan;
+  /** MIA T07 · O16: el total de venta congelado en la foto de la aprobación, en pesos sin IVA. Manda sobre los ítems. */
+  ventaCongelada?: number | null;
 }
 
 /** Un proyecto genera plata cuando está confirmado: antes es una cotización. */
@@ -158,24 +198,38 @@ export const generaCuotas = (etapa: string): boolean => (ETAPAS_CON_CUOTAS as re
 export const cuotaPrevista = (etapa: string, fechaEvento: Date | null): boolean => !generaCuotas(etapa) || !fechaEvento;
 
 /**
+ * Si la cuota es previsión. Una cuota que ya fue firme no vuelve a serlo: un retroceso de etapa o una fecha borrada no le
+ * cambia el vencimiento ni la saca de «Cobros vencidos», y al volver a confirmar no nace otra vez (MIA-089 · V1;
+ * provisional a confirmar por el dueño). PURA.
+ */
+export const previstaDeLaCuota = (prevista: boolean, previa?: { prevista: boolean }): boolean => prevista && (!previa || previa.prevista);
+
+/**
  * De cuándo es la cuota. Una fecha corregida a mano no se pisa. El anticipo del cliente vence el día que se confirma, no el
- * día que entró el lead (naceria vencido), y después queda fijo. PURA.
+ * día que entró el lead (naceria vencido), y después queda fijo. `prevista` es lo que pide el PLAN: una cuota que ya fue
+ * firme y que el plan vuelve a pedir como previsión (el proyecto volvió a Lead o se quedó sin fecha) conserva su
+ * vencimiento (MIA-089 · V1, tomado del WIP de MIA-089 por MIA-094; provisional a confirmar por el dueño). PURA.
  */
 export function venceDeLaCuota(d: { clave: string; plan: Date; prevista: boolean; hoy: Date; previa?: { venceEl: Date; venceManual: boolean; prevista: boolean } }): Date {
   if (d.previa?.venceManual) return d.previa.venceEl;
-  if (!d.clave.endsWith(":cliente:anticipo") || d.prevista) return d.plan;
-  return d.previa && !d.previa.prevista ? d.previa.venceEl : d.hoy;
+  const firme = !!d.previa && !d.previa.prevista;
+  const sena = d.clave.endsWith(":cliente:anticipo");
+  if (firme && (d.prevista || sena)) return d.previa!.venceEl;
+  if (!sena || d.prevista) return d.plan;
+  return d.hoy;
 }
 
-/** Lo que el cashflow no ve: un ítem con costo y sin proveedor no genera pago, y el saldo queda mejor de lo real. En pesos. PURA. */
-export function costoSinProveedor(items: readonly { costo: number; cantidad: number; moneda: string; supplierId: string | null }[], tc: Record<string, number>): { cuantos: number; monto: number } {
+/**
+ * Lo que el cashflow no ve: un ítem con costo y sin proveedor no genera pago, y el saldo queda mejor de lo real. En pesos.
+ * MIA-211 · H3: `imputado` (en pesos) es el costo de los comprobantes imputados al proyecto de proveedores que ningún
+ * ítem tiene: ese ya está en el cashflow (H2) y se descuenta. Cubierto todo, no hay cartel (`cuantos` 0). PURA.
+ */
+export function costoSinProveedor(items: readonly { costo: number; cantidad: number; moneda: string; supplierId: string | null }[], tc: Record<string, number>, imputado = 0): { cuantos: number; monto: number } {
   const sueltos = items.filter((i) => !i.supplierId && i.costo > 0 && i.cantidad > 0);
-  return { cuantos: sueltos.length, monto: redondear(sueltos.reduce((s, i) => s + aPesos(i.cantidad * i.costo, i.moneda, tc), 0)) };
+  const monto = redondear(Math.max(0, sueltos.reduce((s, i) => s + aPesos(i.cantidad * i.costo, i.moneda, tc), 0) - imputado));
+  return { cuantos: monto > 0 ? sueltos.length : 0, monto };
 }
 
-const DIAS_SALDO_CLIENTE_ANTES = 5;
-const DIAS_SALDO_PROVEEDOR_DESPUES = 12;
-const DIAS_ANTICIPO_PROVEEDOR_ANTES = 30;
 
 /**
  * Anticipo y saldo de cada ítem con proveedor, y anticipo y saldo del cliente. La clave identifica el tramo: regenerar
@@ -184,18 +238,19 @@ const DIAS_ANTICIPO_PROVEEDOR_ANTES = 30;
 export function planDeCuotas(items: readonly ItemFicha[], d: DatosPlan): CuotaPlaneada[] {
   // Sin fecha salen igual, como previsión: el vencimiento que llevan no se muestra (ver `cuotaPrevista`).
   const evento = (d.fechaEvento ?? d.creado).getTime();
+  const dias = d.dias ?? DIAS_POR_DEFECTO;
   const salida: CuotaPlaneada[] = [];
   for (const i of items) {
     if (!i.supplierId || !(i.costo > 0)) continue;
     const total = redondear(i.cantidad * i.costo);
-    const pct = Math.min(100, Math.max(0, d.anticipoProveedor[i.supplierId] ?? 50));
+    const pct = anticipoDeLaLinea(d.anticipoLinea?.[i.id], d.anticipoProveedor[i.supplierId]);
     const anticipo = redondear((total * pct) / 100);
     const saldo = redondear(total - anticipo);
-    const venceAnticipo = i.fechaLimite ?? new Date(evento - DIAS_ANTICIPO_PROVEEDOR_ANTES * DIA);
+    const venceAnticipo = i.fechaLimite ?? new Date(evento - dias.anticipoProveedorAntes * DIA);
     if (anticipo > 0) salida.push({ clave: `${d.proyectoId}:${i.id}:anticipo`, tipo: "PAGO", concepto: `${i.descripcion} (anticipo)`, monto: anticipo, moneda: i.moneda, venceEl: venceAnticipo, supplierId: i.supplierId });
-    if (saldo > 0) salida.push({ clave: `${d.proyectoId}:${i.id}:saldo`, tipo: "PAGO", concepto: `${i.descripcion} (saldo)`, monto: saldo, moneda: i.moneda, venceEl: new Date(evento + DIAS_SALDO_PROVEEDOR_DESPUES * DIA), supplierId: i.supplierId });
+    if (saldo > 0) salida.push({ clave: `${d.proyectoId}:${i.id}:saldo`, tipo: "PAGO", concepto: `${i.descripcion} (saldo)`, monto: saldo, moneda: i.moneda, venceEl: new Date(evento + dias.saldoProveedorDespues * DIA), supplierId: i.supplierId });
   }
-  const { venta } = totalesFicha(items, d.tiposDeCambio, d.recargoGeneral);
+  const venta = d.ventaCongelada ?? totalesFicha(items, d.tiposDeCambio, d.recargoGeneral).venta;
   if (venta > 0) {
     const pct = Math.min(100, Math.max(0, d.anticipoClientePct));
     const monedaCliente = d.monedaVenta && d.monedaVenta !== "ARS" && (d.cambioVenta ?? 0) > 0 ? d.monedaVenta : "ARS";
@@ -203,7 +258,7 @@ export function planDeCuotas(items: readonly ItemFicha[], d: DatosPlan): CuotaPl
     const anticipo = redondear((conIva * pct) / 100);
     const saldo = redondear(conIva - anticipo);
     if (anticipo > 0) salida.push({ clave: `${d.proyectoId}:cliente:anticipo`, tipo: "COBRO", concepto: `${d.nombre} — anticipo del cliente`, monto: anticipo, moneda: monedaCliente, venceEl: d.creado, supplierId: null });
-    if (saldo > 0) salida.push({ clave: `${d.proyectoId}:cliente:saldo`, tipo: "COBRO", concepto: `${d.nombre} — saldo del cliente`, monto: saldo, moneda: monedaCliente, venceEl: new Date(evento - DIAS_SALDO_CLIENTE_ANTES * DIA), supplierId: null });
+    if (saldo > 0) salida.push({ clave: `${d.proyectoId}:cliente:saldo`, tipo: "COBRO", concepto: `${d.nombre} — saldo del cliente`, monto: saldo, moneda: monedaCliente, venceEl: new Date(evento - dias.saldoClienteAntes * DIA), supplierId: null });
   }
   return salida;
 }
@@ -242,9 +297,12 @@ export interface LineaCashflow<T> {
  * `montoDe` (en la moneda de la cuota): lo que cuenta cada cuota; sin él, su monto. Una cuota de cobro ya cobrada debe
  * contar lo que entró por ella, no su monto (ver `repartoDeCobros`).
  */
-export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc: Readonly<Record<string, number>>, montoDe: (c: T) => number = (c) => c.monto): { lineas: LineaCashflow<T>[]; saldoFinal: number; maximoAFinanciar: number } {
+export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc: Readonly<Record<string, number>>, montoDe: (c: T) => number = (c) => c.monto, inicial = 0): { lineas: LineaCashflow<T>[]; inicial: number; saldoFinal: number; maximoAFinanciar: number } {
   const orden = cuotas.filter((c) => !c.anuladoEl).slice().sort((a, b) => a.venceEl.getTime() - b.venceEl.getTime() || (a.tipo === "COBRO" ? -1 : 1));
-  let saldo = 0;
+  // `inicial`: lo cobrado que no está en ninguna cuota viva (`RepartoDeCobros.suelto`). Entró igual: el saldo arranca con
+  // eso (un perdido con un cobro hecho termina en lo cobrado, no en cero; MIA-089 · V2).
+  inicial = redondear(Math.max(0, inicial));
+  let saldo = inicial;
   let minimo = 0;
   const lineas = orden.map((cuota) => {
     const pesos = aPesos(montoDe(cuota), cuota.moneda, tc);
@@ -253,7 +311,7 @@ export function cashflowDelEvento<T extends CuotaLeida>(cuotas: readonly T[], tc
     minimo = Math.min(minimo, saldo);
     return { cuota, importe, saldo };
   });
-  return { lineas, saldoFinal: saldo, maximoAFinanciar: redondear(-minimo) };
+  return { lineas, inicial, saldoFinal: saldo, maximoAFinanciar: redondear(-minimo) };
 }
 
 export interface ResumenCuotas {
@@ -375,6 +433,10 @@ export function proyeccionDeCaja(d: {
   return salida;
 }
 
+/** Lo que pesa un proyecto en el pipeline: su venta y, sin ítems todavía, lo estimado. Una sola regla para el tablero y Dirección. PURA. */
+export const ventaOEstimado = (venta: number, estimado: number | null, moneda: string, tc: Readonly<Record<string, number>>): number =>
+  venta > 0 ? venta : estimado ? aPesos(estimado, moneda, tc) : 0;
+
 export const PROBABILIDAD_PROPUESTA = 0.4;
 
 /** Las propuestas enviadas pesan 40 %. Es un escenario: no suma al saldo. */
@@ -404,12 +466,15 @@ export interface ExtraLiquidacion {
   monto: number;
 }
 
-/** El plus se cobra el mes en que el evento terminó. */
-export function extrasDelPeriodo(equipos: readonly { plus: number; proyecto: { id: string; nombre: string; fechaEvento: Date | null; fechaFin: Date | null } }[], periodo: string): ExtraLiquidacion[] {
+/**
+ * El plus se cobra el mes en que el evento terminó. T12 (O25, «no se paga dos veces»): `conReparto` son los proyectos
+ * que se liquidan por el reparto (negocio con el reparto prendido y precio aprobado con su foto); ahí el plus no entra.
+ */
+export function extrasDelPeriodo(equipos: readonly { plus: number; proyecto: { id: string; nombre: string; fechaEvento: Date | null; fechaFin: Date | null } }[], periodo: string, conReparto: ReadonlySet<string> = new Set()): ExtraLiquidacion[] {
   return equipos
     .filter((e) => {
       const f = e.proyecto.fechaFin ?? e.proyecto.fechaEvento;
-      return e.plus > 0 && !!f && claveMes(f) === periodo;
+      return e.plus > 0 && !!f && claveMes(f) === periodo && !conReparto.has(e.proyecto.id);
     })
     .map((e) => ({ proyectoId: e.proyecto.id, nombre: e.proyecto.nombre, monto: e.plus }));
 }
@@ -602,15 +667,22 @@ export function movimientoDeCuenta(d: { tipo: string; monto: number; moneda: str
   return valor === null ? null : redondear(d.tipo === "COBRO" ? valor : -valor);
 }
 
-export const ROLES_GESTION = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION"] as const;
+/**
+ * MIA-50 T11 (O47): «Producción de campo» (`PRODUCCION_CAMPO`) ve agenda, tareas, lista de control y sus gastos, y no recibe
+ * precios, márgenes ni costos ajenos. Es texto en `ProyectoPersona.rol`: sin migración.
+ */
+export const ROLES_GESTION = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "PRODUCCION_CAMPO"] as const;
 /** `SIN_FICHA` no se asigna: es quien entra sin estar cargado en el equipo, y no abre nada más que Inicio. */
 export type RolGestion = (typeof ROLES_GESTION)[number] | "SIN_FICHA";
-export const ROL_LABEL: Record<RolGestion, string> = { DIRECCION: "Dirección", ADMINISTRACION: "Administración", COMERCIAL: "Comercial", DISENO: "Diseño", PRODUCCION: "Producción", SIN_FICHA: "Sin ficha" };
+export const ROL_LABEL: Record<RolGestion, string> = { DIRECCION: "Dirección", ADMINISTRACION: "Administración", COMERCIAL: "Productor comercial", DISENO: "Diseño", PRODUCCION: "Producción", PRODUCCION_CAMPO: "Productor de campo", SIN_FICHA: "Sin ficha" };
 
 /** Sólo el dueño entra como Dirección sin ficha: tiene que poder armar el equipo. Cualquier otro espera a que lo carguen. */
-export function rolDelActor(rolDeLaFicha: string | null | undefined, rolDelErp: string): RolGestion {
+export function rolDelActor(rolDeLaFicha: string | null | undefined, rolDelErp: string, rolDeLaFichaDeBaja?: string | null): RolGestion {
   if ((ROLES_GESTION as readonly string[]).includes(rolDeLaFicha ?? "")) return rolDeLaFicha as RolGestion;
-  return rolDelErp === "OWNER" ? "DIRECCION" : "SIN_FICHA";
+  if (rolDelErp !== "OWNER") return "SIN_FICHA";
+  // MIA-238: la Dueña (puesto «Dueño/a» del alta) es la OWNER sin ficha. Una OWNER cuya ficha de otro puesto está de baja
+  // no es la Dueña: no hereda Dirección. Con una ficha de Dirección de baja, sigue Dirección (no gana nada que no tenía).
+  return rolDeLaFichaDeBaja && rolDeLaFichaDeBaja !== "DIRECCION" ? "SIN_FICHA" : "DIRECCION";
 }
 
 export const MODULOS = [
@@ -643,10 +715,15 @@ const E: Permiso = { ver: true, editar: true };
 const N: Permiso = { ver: false, editar: false };
 
 export const PERMISOS_BASE: Record<Exclude<RolGestion, "DIRECCION">, Record<ModuloGestion, Permiso>> = {
-  PRODUCCION: { pipeline: E, ficha: E, costos: E, proveedores: E, cotizaciones: E, diseno: E, pagos: E, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
+  // MIA-229 · «Producción no» (orden del dueño, 20/11): no paga órdenes ni ve plata. `pagos` a N; igual lo traba `permisoDe`.
+  PRODUCCION: { pipeline: E, ficha: E, costos: E, proveedores: E, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
   DISENO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: V, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: N },
   ADMINISTRACION: { pipeline: V, ficha: V, costos: V, proveedores: E, cotizaciones: V, diseno: N, pagos: E, empresa: E, liquidaciones: E, direccion: N, equipo: N, ia: N, rendiciones: E },
-  COMERCIAL: { pipeline: E, ficha: V, costos: N, proveedores: N, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
+  // MIA-237 · productor comercial (dueño, 20/11: «es B, ve costos tmb»): costos en «ver», fijo (`FIJOS_DEL_PUESTO`).
+  COMERCIAL: { pipeline: E, ficha: V, costos: V, proveedores: N, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
+  // O47: la ficha y el proyecto en «ver» (tareas, lista de control, agenda); «rendiciones» en ver = rinde lo propio. Nada de
+  // costos, cotizaciones, pagos, empresa ni liquidaciones: no le llegan precios, márgenes ni costos ajenos.
+  PRODUCCION_CAMPO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: N, diseno: N, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: N, rendiciones: V },
   SIN_FICHA: { pipeline: N, ficha: N, costos: N, proveedores: N, cotizaciones: N, diseno: N, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: N, rendiciones: N },
 };
 
@@ -655,8 +732,59 @@ export const PERMISOS_BASE: Record<Exclude<RolGestion, "DIRECCION">, Record<Modu
  * `E` = todo y aprobar/reintegrar. Las acciones finas no dependen de `pagos`: van por estas funciones puras.
  * DISENO no rinde (provisional a confirmar).
  */
-const ROLES_QUE_RINDEN: readonly RolGestion[] = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "PRODUCCION"];
+const ROLES_QUE_RINDEN: readonly RolGestion[] = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "PRODUCCION", "PRODUCCION_CAMPO"];
 const ROLES_QUE_APRUEBAN_RENDICIONES: readonly RolGestion[] = ["DIRECCION", "ADMINISTRACION"];
+
+/** MIA-223 · el rol de gestión que ve y mueve la plata de Proyectos (lo usa `veLaPlata`, datos.server.ts). PURA. */
+export const rolVeLaPlata = (rol: RolGestion): boolean => ROLES_QUE_APRUEBAN_RENDICIONES.includes(rol);
+
+/**
+ * MIA-237 · lo que cada puesto ve de la plata de un proyecto (dueño, 20/11 13:05Z, confirmado 13:25Z):
+ *  · Dirección y Administración: toda (`rolVeLaPlata`).
+ *  · Productor comercial: lo cobrado y lo que falta cobrar, y los costos; no los pagos ni las deudas con proveedores.
+ *  · Producción: los costos para presupuestar (P3), sin cobros ni pagos. Diseño, como estaba.
+ *  · Productor de campo y quien no tiene ficha: ningún importe, ni la venta. Rinde lo suyo igual.
+ * PURAS: las usan la vista de la ficha (`vistaDe`, ficha.server.ts) y sus lecturas.
+ */
+export const veLosCobros = (rol: RolGestion): boolean => rolVeLaPlata(rol) || rol === "COMERCIAL";
+/**
+ * MIA-238 · «ve sólo lo cobrado y lo que falta cobrar de sus proyectos» (dueño, 20/11 13:05Z, opción B). Sus proyectos: los
+ * de su equipo (`ProyectoEquipo`; quien crea el proyecto entra como «Responsable»). En los demás sigue viendo el lead, sin
+ * cobros ni costos. MIA-244 · un puesto sin importes (`veImportes`: productor de campo, sin ficha) no ve la plata de ningún
+ * proyecto, tampoco de los de su equipo («El de campo no ve plata», dueño 20/11). El resto, como estaba (su permiso). PURA.
+ */
+export const veLaPlataDelProyecto = (rol: RolGestion, estaEnEquipo: boolean): boolean => veImportes(rol) && (rol !== "COMERCIAL" || estaEnEquipo);
+/**
+ * MIA-239 · en un proyecto ajeno (`veLaPlataDelProyecto` en falso) no se ve ningún importe, tampoco la venta (lectura de
+ * ORQ-007 de la opción B, a confirmar por el dueño): se cierran costos, cotizaciones y pagos, y editar la ficha (que cambia
+ * precios). El resto (pipeline, diseño, ver la ficha sin importes) sigue con su permiso. PURA.
+ */
+const PLATA_DEL_PROYECTO: readonly ModuloGestion[] = ["costos", "cotizaciones", "pagos"];
+export const cerradoEnProyectoAjeno = (modulo: ModuloGestion, accion: "ver" | "editar"): boolean =>
+  PLATA_DEL_PROYECTO.includes(modulo) || (modulo === "ficha" && accion === "editar");
+export const veImportes = (rol: RolGestion): boolean => rol !== "PRODUCCION_CAMPO" && rol !== "SIN_FICHA";
+/**
+ * MIA-246 · «Producción: solo los costos» (dueño, 20/11 15:25Z): Producción ve los costos de sus proyectos, nunca la venta ni el
+ * margen (ficha, Pipeline, papel y exportes). Un puesto sin importes tampoco. PURAS: las usan `vistaDe` y `tableroPipeline`
+ * (ficha.server.ts), `filtroDeProyectosConVenta` (gestion.server.ts) y el precio por total.
+ */
+export const veLaVenta = (rol: RolGestion): boolean => veImportes(rol) && rol !== "PRODUCCION";
+/** MIA-256 (dueño, 20/11 17:36Z): mandar la versión, registrar la respuesta del cliente y cambiar el IVA son de quien ve la venta. */
+export const SOLO_LA_VENTA = "Enviar al cliente, registrar su respuesta y el IVA son la venta: tu puesto ve sólo los costos.";
+/**
+ * MIA-266 · PROD-DISENO A (dueño, 20/11 ~20:50Z): Producción no le manda al cliente la pieza de diseño (la sube y queda en
+ * borrador) ni escribe los textos que lee el cliente. Diseño, Comercial y Dirección sí; los puestos sin ficha, tampoco. PURA.
+ */
+export const hablaConElCliente = (rol: RolGestion): boolean => veImportes(rol) && rol !== "PRODUCCION";
+export const SOLO_DISENO_AL_CLIENTE = "Mandarle la pieza al cliente le toca a Diseño, Comercial o Dirección: tu puesto la deja en borrador.";
+export const NOTA_DEL_CLIENTE = "La nota la lee el cliente: la escriben Diseño, Comercial o Dirección. Subí la versión sin nota.";
+export const TEXTOS_DEL_CLIENTE = "La presentación y las condiciones las lee el cliente: las escribe quien ve la venta.";
+/** MIA-256 · el plus de cada integrante es sueldo: lo ven Dirección y Administración, no Comercial (que ve costos). PURA. */
+export const veElPlus = (rol: RolGestion): boolean => rol === "DIRECCION" || rol === "ADMINISTRACION";
+export const veLaVentaDelProyecto = (rol: RolGestion, estaEnEquipo: boolean): boolean => veLaPlataDelProyecto(rol, estaEnEquipo) && veLaVenta(rol);
+/** Columnas de la ficha que se cierran a quien no ve la venta, ni de fábrica ni guardadas por Dirección: el recargo es el margen en %. */
+const COLUMNAS_DE_VENTA: readonly string[] = ["venta", "margen", "recargo"];
+export const columnasSinVenta = (rol: RolGestion): readonly string[] => (veLaVenta(rol) ? [] : COLUMNAS_DE_VENTA);
 
 /** Rendir lo mío: un rol que rinde y que está en el `ProyectoEquipo` del proyecto (ver todos no alcanza). PURA. */
 export function puedeRendir(rol: RolGestion, estaEnEquipo: boolean): boolean {
@@ -681,10 +809,18 @@ const MODULOS_DE_LA_APP: Readonly<Record<string, readonly ModuloGestion[]>> = {
   "gestion-agentes": ["ia"],
   "gestion-propuesta-ia": ["ia"],
   "gestion-equipo": ["equipo"],
+  // MIA-50 T11 · Adenda 2 (decisión del dueño del 19/11, «A»): las cuentas generales y el flujo se abren con «Empresa · ver»,
+  // la misma regla que Administración de Proyectos. En el servidor lo aplica `puerta-de-gestion.server.ts` (página y acción).
+  "cuentas-a-cobrar": ["empresa"],
+  "cuentas-a-pagar": ["empresa"],
+  "flujo-de-fondos": ["empresa"],
 };
 
 export function appDeGestionVisible(appId: string, rol: RolGestion, guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean }[]): boolean {
   if (appId === "gestion-inicio") return true;
+  // CRM comercial (GSG-CRM-011): sólo llega con su interruptor prendido; quién entra lo decide la membresía del
+  // CRM (E16), no el rol del panel: un usuario de puesto del equipo de agentes no tiene ficha y entra igual.
+  if (appId === "crm-comercial") return true;
   if (rol === "SIN_FICHA") return false;
   const modulos = MODULOS_DE_LA_APP[appId];
   if (modulos) return modulos.some((m) => permisoDe(rol, m, guardados).ver);
@@ -704,12 +840,14 @@ const APPS_DEL_ERP: Partial<Record<RolGestion, readonly string[]>> = {
 /** Lo que cada rol tiene a la vista. Dirección puede abrir el resto; los demás, lo que permiten sus módulos. */
 const BARRA_DEL_ROL: Record<RolGestion, readonly string[]> = {
   // Caja a la vista de Dirección (QA MIA #6): el rol del ERP sigue siendo el techo (`appsVisibles` pide orders:read).
-  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "caja-del-dia", "reportes", "eventos-sponsors"],
-  ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
-  COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "eventos-sponsors", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
+  DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "cuentas-a-cobrar", "cuentas-a-pagar", "flujo-de-fondos", "caja-del-dia", "reportes", "eventos-sponsors", "crm-comercial"],
+  // MIA-237: «ve toda la adm y los proyectos tmb».
+  ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "proyectos", "cuentas-a-cobrar", "cuentas-a-pagar", "flujo-de-fondos", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
+  COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "eventos-sponsors", "crm-comercial", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   DISENO: ["gestion-inicio", "gestion-diseno", "proyectos", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   PRODUCCION: ["gestion-inicio", "proyectos", "gestion-proveedores", "gestion-calendario", "gestion-agentes", "gestion-mi-liquidacion"],
-  SIN_FICHA: ["gestion-inicio"],
+  PRODUCCION_CAMPO: ["gestion-inicio", "proyectos", "gestion-calendario", "gestion-mi-liquidacion"],
+  SIN_FICHA: ["gestion-inicio", "crm-comercial"],
 };
 
 export const appEnLaBarra = (appId: string, rol: RolGestion): boolean => BARRA_DEL_ROL[rol].includes(appId);
@@ -719,14 +857,83 @@ export const COLUMNAS_OCULTAS_BASE: Record<Exclude<RolGestion, "DIRECCION">, rea
   PRODUCCION: [],
   DISENO: ["costoUnit", "costoTotal", "recargo", "margen"],
   ADMINISTRACION: [],
-  COMERCIAL: ["costoUnit", "costoTotal", "recargo", "margen"],
+  COMERCIAL: [],
+  PRODUCCION_CAMPO: ["costoUnit", "costoTotal", "recargo", "margen"],
   SIN_FICHA: ["costoUnit", "costoTotal", "recargo", "margen"],
 };
 
+/**
+ * MIA-229 · los módulos que son la plata del negocio. Sólo los abre el rol que la ve (`rolVeLaPlata`: Dirección y
+ * Administración), ni de fábrica ni guardado por Dirección: así las lecturas (proveedores, Finanzas de la ficha, calendario)
+ * y las acciones (`exigirEditar("empresa" | "liquidaciones")`) que no pasan por `veLaPlata` frenan igual. Los costos de la
+ * ficha no entran mientras `costosSonPlata` sea false (P3, `decisiones-puestos.ts`). PURA.
+ */
+export const MODULOS_DE_PLATA: readonly ModuloGestion[] = ["pagos", "empresa", "liquidaciones", ...(DECISIONES_DE_PUESTOS.costosSonPlata ? (["costos"] as const) : [])];
+
+/**
+ * MIA-237 · casillas que el puesto fija, ni de fábrica ni guardadas por Dirección: el productor comercial ve los costos y no
+ * los cambia; el productor de campo no abre ningún módulo con importes; Administración no carga personas ni roles
+ * (Equipo: «no administra usuarios ni permisos»). PURA.
+ */
+const FIJOS_DEL_PUESTO: Partial<Record<RolGestion, Partial<Record<ModuloGestion, Permiso>>>> = {
+  COMERCIAL: { costos: V },
+  PRODUCCION_CAMPO: { costos: N, cotizaciones: N, proveedores: N, direccion: N },
+  ADMINISTRACION: { equipo: N },
+};
+
+/** La casilla rol × módulo no se puede cambiar: Dirección ve todo, la plata no se le da a quien no la ve y el puesto fija lo suyo. PURA. */
+export const permisoFijo = (rol: RolGestion, modulo: ModuloGestion): boolean =>
+  rol === "DIRECCION" || (!rolVeLaPlata(rol) && MODULOS_DE_PLATA.includes(modulo)) || FIJOS_DEL_PUESTO[rol]?.[modulo] !== undefined;
+
 export function permisoDe(rol: RolGestion, modulo: ModuloGestion, guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean }[]): Permiso {
   if (rol === "DIRECCION") return E;
+  const fijo = FIJOS_DEL_PUESTO[rol]?.[modulo];
+  if (fijo) return fijo;
+  if (permisoFijo(rol, modulo)) return N;
   const g = guardados.find((p) => p.rol === rol && p.modulo === modulo);
   return g ? { ver: g.ver, editar: g.editar } : PERMISOS_BASE[rol][modulo];
+}
+
+/**
+ * PRY-100: la matriz de permisos la cambia sólo Dirección (la dueña sin ficha entra como Dirección). Quien tiene «Equipo»
+ * carga y edita personas, no permisos: si no, se da a sí misma (o en dos pasos, a través de otro rol) lo que quiera.
+ * Provisional a confirmar por el dueño (plan GSG-MIA-088, pregunta 1, opción A). PURA.
+ */
+export const cambiaLosPermisos = (rol: RolGestion): boolean => rol === "DIRECCION";
+
+/**
+ * ADM-134: el permiso `rendiciones` de la matriz es el piso, en el servidor. «Ver» alcanza para rendir lo propio;
+ * revisar, reintegrar y mover anticipos piden «editar» y, además, la regla del rol (`motivoNoMuevePlata` y la del motor).
+ * PURA.
+ */
+export function motivoSinRendiciones(p: Permiso, accion: "rendir" | "revisar"): string | null {
+  if (accion === "rendir") return p.ver ? null : "No tenés acceso a Rendiciones: pedíselo a Dirección.";
+  return p.editar ? null : "Revisar rendiciones y mover anticipos pide Rendiciones en «editar»: pedíselo a Dirección.";
+}
+
+/** Ve las rendiciones de otros y los anticipos del proyecto: el rol que aprueba y Rendiciones en «editar». PURA. */
+export const revisaRendiciones = (rol: RolGestion, p: Permiso): boolean => ROLES_QUE_APRUEBAN_RENDICIONES.includes(rol) && p.editar;
+
+/** ADM-135: «Pagar liquidación» se ofrece con la misma regla que aplica `pagarLiquidacion`: el rol que mueve plata y `liquidaciones` en «editar». PURA. */
+export const pagaLiquidaciones = (rol: RolGestion, p: Permiso): boolean => ROLES_QUE_APRUEBAN_RENDICIONES.includes(rol) && p.editar;
+
+/**
+ * A1 (DIR-007, GSG-MIA-091) · LA matriz, escrita una vez: rol × módulo con lo que ve y edita cada uno (lo guardado por
+ * Dirección encima de lo de fábrica), las columnas de costo que no ve y quién puede cambiar esa fila (pregunta 1-A,
+ * confirmada por el dueño el 18/11). Dirección es la misma fila para una persona y para un agente. La fija
+ * `gestion-core-matriz.test.ts`; `docs/qa/mia-088/tabla-de-permisos.md` es su copia legible. PURA.
+ */
+export function matrizDePermisos(guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean; columnasOcultas?: unknown }[]) {
+  const nivel = (p: Permiso) => (p.editar ? "editar" : p.ver ? "ver" : "sin acceso");
+  return [...ROLES_GESTION, "SIN_FICHA" as const].map((rol) => {
+    const ficha = guardados.find((g) => g.rol === rol && g.modulo === "ficha")?.columnasOcultas;
+    return {
+      rol,
+      modulos: Object.fromEntries(MODULOS.map((m) => [m.id, nivel(permisoDe(rol, m.id, guardados))])) as Record<ModuloGestion, "editar" | "ver" | "sin acceso">,
+      columnasOcultas: rol === "DIRECCION" ? [] : Array.isArray(ficha) ? (ficha as string[]) : [...COLUMNAS_OCULTAS_BASE[rol]],
+      laCambia: cambiaLosPermisos(rol) || rol === "SIN_FICHA" ? "nadie (fija)" : "Dirección",
+    };
+  });
 }
 
 /** Dirección, Administración y Comercial ven todos los proyectos: un lead todavía no tiene equipo. El resto, sólo aquellos donde está. */
@@ -785,6 +992,8 @@ export const TIPOS_CALENDARIO = [
   { id: "TAREA", label: "Tarea" },
   { id: "CONFIRMACION", label: "Confirmación" },
   { id: "EVENTO_TENTATIVO", label: "Evento tentativo" },
+  { id: "ETAPA_PREVISTA", label: "Etapa prevista" },
+  { id: "OBLIGACION", label: "Obligación" },
 ] as const;
 
 export function cuandoEs(fecha: Date, hoy: Date = new Date()): string {

@@ -17,11 +17,12 @@
 import type { AppDescriptor, NombreIcono } from "@/apps/contract";
 import { appPermitida, type ItemMenuDeHoy, type NegocioApps } from "@/apps/visibles";
 import { appPorId } from "@/apps/registro";
-import { eventosSponsorsPrendido, vouchersPrendidos, type InterruptorId } from "@/cambios/interruptores";
+import { crmComercialPrendido, eventosSponsorsPrendido, vouchersPrendidos, type InterruptorId } from "@/cambios/interruptores";
 import {
   espacioNav,
   espacioNavDeApp,
   nombreDeEspacioNav,
+  nombrePropioDelEspacio,
   ordenDeEspacioNav,
   ordenDentroDelEspacioNav,
   type EspacioNavId,
@@ -64,7 +65,8 @@ const NOMBRE_GESTION = "Gestión";
 const APPS_DE_GESTION = new Set(["proyectos", "gestion-inicio"]);
 function nombreDelEspacio(id: EspacioNavId, apps: readonly { app: AppDeNav }[], esMostrador: boolean): string {
   if (id === "mostrador" && apps.some((a) => APPS_DE_GESTION.has(a.app.id))) return NOMBRE_GESTION;
-  return nombreDeEspacioNav(id, { esMostrador });
+  // El ARM (sólo el CRM comercial): «Comercial» (GSG-CRM-018 · V1).
+  return nombrePropioDelEspacio(id, apps.map((a) => a.app.id)) ?? nombreDeEspacioNav(id, { esMostrador });
 }
 
 function agrupar(
@@ -79,17 +81,22 @@ function agrupar(
   }
   return [...porEspacio.entries()]
     .sort(([a], [b]) => ordenDeEspacioNav(a) - ordenDeEspacioNav(b))
-    .map(([id, apps]) => ({
-      id,
-      nombre: nombreDelEspacio(id, apps, esMostrador),
-      rotulo: nombreDelEspacio(id, apps, esMostrador) === NOMBRE_GESTION ? NOMBRE_GESTION : (espacioNav(id).rotulo ?? nombreDeEspacioNav(id, { esMostrador })),
-      icono: iconoDeEspacioNav(id, esMostrador),
-      // Orden del espacio; a igual orden (dos no nombradas), el de llegada (estable).
-      apps: apps
-        .map((a, i) => ({ ...a, i }))
-        .sort((x, y) => x.orden - y.orden || x.i - y.i)
-        .map((a) => a.app),
-    }));
+    .map(([id, apps]) => {
+      const nombre = nombreDelEspacio(id, apps, esMostrador);
+      // Un nombre propio («Gestión», «Comercial») es también el rótulo corto; si no, el rótulo de siempre.
+      const propio = nombre !== nombreDeEspacioNav(id, { esMostrador });
+      return {
+        id,
+        nombre,
+        rotulo: propio ? nombre : (espacioNav(id).rotulo ?? nombre),
+        icono: iconoDeEspacioNav(id, esMostrador),
+        // Orden del espacio; a igual orden (dos no nombradas), el de llegada (estable).
+        apps: apps
+          .map((a, i) => ({ ...a, i }))
+          .sort((x, y) => x.orden - y.orden || x.i - y.i)
+          .map((a) => a.app),
+      };
+    });
 }
 
 /** Los espacios de un negocio con «Trabaja por apps»: sus apps visibles, en los diez espacios. */
@@ -126,7 +133,7 @@ export function espaciosDelMenu(menu: readonly ItemMenuDeHoy[], esMostrador: boo
 /**
  * Las apps que el registro no ofrece en el lanzador (`enLanzador: false`) porque dependen de un
  * interruptor del negocio que el registro no sabe leer. Hoy: «Vouchers de La Alameda» (CH) con el
- * interruptor «vouchers» y «Eventos y sponsors» con «eventos-sponsors», cada una sólo con su interruptor
+ * interruptor «vouchers», «Eventos y sponsors» con «eventos-sponsors» y «CRM comercial» con «crm-comercial», cada una sólo con su interruptor
  * prendido Y si la persona puede abrirla (la misma regla que `requireApp`).
  * Apagado o sin permiso: lista vacía y la navegación queda idéntica. PURA.
  */
@@ -134,9 +141,10 @@ export function appsDeInterruptores(
   interruptores: Readonly<Partial<Record<InterruptorId, { encendido: boolean }>>>,
   negocio: NegocioApps,
 ): AppDescriptor[] {
-  const ids: ("vouchers" | "eventos-sponsors")[] = [];
+  const ids: ("vouchers" | "eventos-sponsors" | "crm-comercial")[] = [];
   if (vouchersPrendidos(interruptores)) ids.push("vouchers");
   if (eventosSponsorsPrendido(interruptores)) ids.push("eventos-sponsors");
+  if (crmComercialPrendido(interruptores)) ids.push("crm-comercial");
   return ids.map((id) => appPorId(id)).filter((app) => appPermitida(app, negocio));
 }
 

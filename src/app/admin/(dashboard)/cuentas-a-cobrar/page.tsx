@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireApp } from "@/lib/require-app";
+import { exigirPuertaDeGestion } from "@/lib/proyectos/puerta-de-gestion.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { agingOf, summarizeAging } from "@/lib/cuentas/aging";
@@ -12,6 +13,8 @@ import { AvisoError, EmptyState, PageHeader, buttonClasses, fmtMoneyARS } from "
 import { DebtListTable, type DebtRowVM } from "@/components/cuentas/DebtListTable";
 import { DebtSummaryCards } from "@/components/cuentas/DebtSummaryCards";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
+import { proyectosParaCuentas } from "@/lib/proyectos/cuentas-generales.server";
+import { ProyectosEnCuentas } from "@/components/cuentas/ProyectosEnCuentas";
 import { diaDe } from "@/lib/debts/resumen-cuentas";
 import { LineaDeEstado, Marca, Plata, Renglon, atributosBoton } from "@/components/ui";
 import { diaMes } from "../caja/_renglon/fechas";
@@ -46,14 +49,19 @@ function aFila(c: CuentaACobrarConSaldo, ahora: Date): DebtRowVM {
 
 export default async function CuentasACobrarPage() {
   const user = await requireApp("cuentas-a-cobrar");
+  // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · ver» del rol de Proyectos, también sin el layout.
+  await exigirPuertaDeGestion("empresa", "ver", "cuentas-a-cobrar");
   const tenantId = await getCurrentTenantId();
   // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
   const enLibro = await cuentasCorrientesDe(tenantId);
-  const [{ cuentas, faltanTablas }, abribles, nuevo] = await Promise.all([
+  const [{ cuentas, faltanTablas }, abribles, nuevo, proyectos] = await Promise.all([
     leerCuentasACobrar(prisma, tenantId),
     appsQuePuedeAbrir(user.role, ["vender", "flujo-de-fondos"]),
     disenoNuevo(),
+    // MIA-50 · CG1: lo de Proyectos (sólo lectura). null sin la app o sin «Empresa · ver».
+    proyectosParaCuentas(tenantId),
   ]);
+  const propias = cuentas.reduce((s, c) => s + (c.saldo > 0 ? c.saldo : 0), 0);
   const ahora = new Date();
   const hoy = todayInBusinessTz();
   const conSaldo = cuentas.filter((c) => c.saldo > 0);
@@ -113,6 +121,7 @@ export default async function CuentasACobrarPage() {
             </Link>
           )}
         </header>
+        <ProyectosEnCuentas proyectos={proyectos} lado="cobrar" propias={propias} />
         {faltanTablas && (
           <AvisoError
             className="mb-6"
@@ -183,6 +192,7 @@ export default async function CuentasACobrarPage() {
         }
       />
 
+      <ProyectosEnCuentas proyectos={proyectos} lado="cobrar" propias={propias} />
       {faltanTablas && (
         <AvisoError
           className="mb-6"

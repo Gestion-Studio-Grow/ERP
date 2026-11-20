@@ -10,7 +10,7 @@ import { INACTIVIDAD_BLOQUEO_MS, INACTIVIDAD_VENCE_MS, MAX_INTENTOS_PIN } from "
 const MINUTOS_SIN_USO = Math.round(INACTIVIDAD_BLOQUEO_MS / 60_000);
 const DIAS_SIN_USO = Math.round(INACTIVIDAD_VENCE_MS / 86_400_000);
 /** Avisos del login que no son un error de lo tipeado: sin rojo ni campo marcado. */
-export const AVISOS_INFORMATIVOS: ReadonlySet<string> = new Set(["vencida", "inactiva", "pin"]);
+export const AVISOS_INFORMATIVOS: ReadonlySet<string> = new Set(["vencida", "inactiva", "pin", "agente_duenio"]);
 
 /** `informativo`: no es un error de lo tipeado (la sesión venció): sin rojo ni campo marcado. */
 export type AvisoDeIngreso = { titulo: string; detalle: string; informativo?: true };
@@ -53,6 +53,13 @@ export function avisoDeIngreso(
     return {
       titulo: `Erraste el PIN ${MAX_INTENTOS_PIN} veces.`,
       detalle: "Por seguridad, ahora hay que entrar con tu email y tu contraseña. Con eso el PIN vuelve a andar.",
+      informativo: true,
+    };
+  }
+  if (error === "agente_duenio") {
+    return {
+      titulo: "Este usuario es de un agente y tiene rol de Dueño/a.",
+      detalle: "Un agente nunca puede ser dueño: el panel no lo deja entrar. Pedile a la dueña del negocio que lo iguale con alguien del puesto en la Cuadrilla.",
       informativo: true,
     };
   }

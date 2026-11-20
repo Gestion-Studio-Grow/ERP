@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { standParaEditar } from "@/lib/proyectos/datos.server";
-import { exigirVer, proyectoVisible, puede } from "@/lib/proyectos/gestion.server";
+import { actorDelProyecto, exigirVer, proyectoVisible, puede } from "@/lib/proyectos/gestion.server";
 import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
 import ArmadorStand from "./ArmadorStand";
 
@@ -23,7 +23,7 @@ export default async function PaginaStand({ params }: { params: Promise<{ id: st
         <p className="text-sm text-muted">Proyecto #{stand.proyecto.numero} · {stand.proyecto.client.name}</p>
         <h1 className="text-2xl font-bold text-strong">{stand.proyecto.nombre}: armador de stands</h1>
       </header>
-      <ArmadorStand id={stand.id} proyectoId={id} nombreInicial={stand.nombre} disenoInicial={stand.diseno} conPlata={puede(actor, "costos", "ver")} />
+      <ArmadorStand id={stand.id} proyectoId={id} nombreInicial={stand.nombre} disenoInicial={stand.diseno} conPlata={puede(await actorDelProyecto(actor, id), "costos", "ver")} />
     </main>
   );
 }

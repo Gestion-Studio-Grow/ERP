@@ -1,12 +1,18 @@
 import Link from "next/link";
 import { buttonClasses, cn } from "@/components/ui";
 import { requireApp } from "@/lib/require-app";
-import { codigoProyecto, plataEn, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
+import { pesos } from "@/lib/proyectos/core";
+import { codigoProyecto, TIPOS_CALENDARIO } from "@/lib/proyectos/gestion-core";
 import { actorActual, puede } from "@/lib/proyectos/gestion.server";
-import { agruparPorDia, claveDia, ETIQUETA_CORTA, finDelDia, grillaDelMes, inicioDelDia, mesPedido, mesVecino, nombreDelMes, type EntradaCalendario, type TipoCalendario } from "@/lib/proyectos/gestion-lecturas-core";
-import { direccionDelCalendario, entradasCalendario, opcionesDeProyecto, reunionesDelPeriodo } from "@/lib/proyectos/gestion-lecturas.server";
-import { tarjeta } from "../_vista";
+import { agruparPorDia, claveDia, ETIQUETA_CORTA, filtroDelCalendario, finDelDia, grillaDelMes, inicioDelDia, mesPedido, mesVecino, nombreDelMes, rutaDelCalendario, type EntradaCalendario, type TipoCalendario } from "@/lib/proyectos/gestion-lecturas-core";
+import { direccionDelCalendario, entradasCalendario, opcionesDeProyecto, personasDelCalendario, reunionesDelPeriodo } from "@/lib/proyectos/gestion-lecturas.server";
+import { valorDelNegocio } from "@/lib/proyectos/parametros/leer.server";
+import { campo, etiqueta, tarjeta } from "../_vista";
 import { CancelarReunion, CopiarDireccion, FormReunion } from "./_cliente";
+import { BotonConConfirmacion, FormAccion } from "../[id]/_cliente";
+import { crearObligacion, marcarObligacionHecha } from "@/lib/proyectos/acciones-etapas";
+import { obligacionesAbiertas } from "@/lib/proyectos/etapas-m7b.server";
+import { filtroDeProyectos } from "@/lib/proyectos/gestion.server";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Calendario" };
@@ -22,6 +28,8 @@ const COLOR: Record<TipoCalendario, string> = {
   TAREA: "bg-surface-sunken text-strong",
   CONFIRMACION: "border border-line-strong bg-surface text-strong",
   EVENTO_TENTATIVO: "border border-dashed border-line-strong bg-surface text-muted",
+  ETAPA_PREVISTA: "border border-dashed border-accent bg-surface text-accent-ink",
+  OBLIGACION: "bg-warning-soft text-strong",
 };
 
 const DIAS_SEMANA = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -36,33 +44,38 @@ function Renglon({ e }: { e: EntradaCalendario }) {
   return (
     <Link href={enlace(e)} className={cn("block min-h-11 rounded-lg px-3 py-2 text-sm", COLOR[e.tipo])}>
       <span className="font-semibold">{ETIQUETA_CORTA[e.tipo]}{e.conHora && ` ${hora(e.fecha)}`}</span>: <span className="break-words">{e.titulo}</span>
-      {e.monto !== null && e.moneda && <strong className="ml-1 whitespace-nowrap">{plataEn(e.monto, e.moneda)}</strong>}
+      {e.monto !== null && e.moneda && <strong className="ml-1 whitespace-nowrap">{pesos(e.monto, e.moneda)}</strong>}
       {e.proyecto && e.proyecto !== e.titulo && <span className="block text-xs">{e.proyecto}</span>}
     </Link>
   );
 }
 
-export default async function CalendarioGestion({ searchParams }: { searchParams: Promise<{ mes?: string; mias?: string; dia?: string }> }) {
+export default async function CalendarioGestion({ searchParams }: { searchParams: Promise<{ mes?: string; mias?: string; dia?: string; persona?: string; etapa?: string; proyecto?: string }> }) {
   await requireApp("gestion-calendario");
   const a = await actorActual();
   const sp = await searchParams;
   const mes = mesPedido(sp.mes);
-  const soloMias = sp.mias === "1";
   const dias = grillaDelMes(mes);
-  const [entradas, proyectos, direccion, reuniones] = await Promise.all([
-    entradasCalendario(a, inicioDelDia(dias[0]), finDelDia(dias[dias.length - 1]), soloMias),
+  const [proyectos, personas, etapas, direccion, reuniones, obligaciones, tiposObligacion, diasAviso] = await Promise.all([
     opcionesDeProyecto(a),
+    personasDelCalendario(a),
+    valorDelNegocio(a.tenantId, "etapas.lista"),
     direccionDelCalendario(a),
     reunionesDelPeriodo(a, inicioDelDia(dias[0]), finDelDia(dias[dias.length - 1])),
+    // MIA-50 T09 · O07: obligaciones a mano (sin M7b, null) y sus parámetros.
+    obligacionesAbiertas(a.tenantId, filtroDeProyectos(a)),
+    valorDelNegocio(a.tenantId, "calendario.tiposObligacion"),
+    valorDelNegocio(a.tenantId, "calendario.diasAviso"),
   ]);
+  // O06 (MIA-50 T02): general o por proyecto, con filtro por persona y por etapa (las del parámetro del negocio).
+  const filtro = filtroDelCalendario(sp, etapas, personas, proyectos);
+  const soloMias = filtro.soloMias;
+  const entradas = await entradasCalendario(a, inicioDelDia(dias[0]), finDelDia(dias[dias.length - 1]), filtro);
   const porDia = agruparPorDia(entradas);
   const hoy = claveDia(new Date());
-  const ruta = (cambios: { mes?: string; mias?: boolean; dia?: string }) => {
-    const p = new URLSearchParams({ mes: cambios.mes ?? mes });
-    if (cambios.mias ?? soloMias) p.set("mias", "1");
-    if (cambios.dia) p.set("dia", cambios.dia);
-    return `/admin/proyectos/calendario?${p}`;
-  };
+  const actual = { mes, soloMias, persona: filtro.persona?.id ?? null, etapa: filtro.etapaId, proyecto: filtro.proyectoId };
+  const ruta = (cambios: { mes?: string; mias?: boolean; dia?: string }) => rutaDelCalendario(actual, { ...(cambios.mes ? { mes: cambios.mes } : {}), ...(cambios.mias !== undefined ? { soloMias: cambios.mias } : {}), ...(cambios.dia ? { dia: cambios.dia } : {}) });
+  const filtrado = !!(filtro.persona || filtro.etapaId || filtro.proyectoId);
   const diaPedido = sp.dia && /^\d{4}-\d{2}-\d{2}$/.test(sp.dia) && dias.includes(sp.dia) ? sp.dia : null;
   const delMes = [...porDia.entries()].filter(([clave]) => clave.startsWith(mes));
   const puedeReunir = puede(a, "pipeline", "editar") || puede(a, "diseno", "editar");
@@ -78,6 +91,36 @@ export default async function CalendarioGestion({ searchParams }: { searchParams
           <Link href={ruta({ mias: !soloMias })} aria-pressed={soloMias} className={buttonClasses(soloMias ? "solid" : "outline", "md")}>Sólo lo mío</Link>
         </nav>
       </header>
+
+      <form method="get" action="/admin/proyectos/calendario" aria-label="Filtros del calendario" className={cn(tarjeta, "grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] lg:items-end")}>
+        <input type="hidden" name="mes" value={mes} />
+        {soloMias && <input type="hidden" name="mias" value="1" />}
+        <label className={etiqueta}>
+          Persona
+          <select name="persona" defaultValue={filtro.persona?.id ?? ""} className={campo}>
+            <option value="">Todas</option>
+            {personas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+        </label>
+        <label className={etiqueta}>
+          Etapa
+          <select name="etapa" defaultValue={filtro.etapaId ?? ""} className={campo}>
+            <option value="">Todas</option>
+            {etapas.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
+          </select>
+        </label>
+        <label className={etiqueta}>
+          Proyecto
+          <select name="proyecto" defaultValue={filtro.proyectoId ?? ""} className={campo}>
+            <option value="">Todos</option>
+            {proyectos.map((p) => <option key={p.id} value={p.id}>{codigoProyecto(p.numero, p.createdAt)} {p.nombre}</option>)}
+          </select>
+        </label>
+        <div className="flex flex-wrap gap-2">
+          <button type="submit" className={cn(buttonClasses("solid", "md"), "w-full sm:w-auto")}>Filtrar</button>
+          {filtrado && <Link href={rutaDelCalendario({ ...actual, persona: null, etapa: null, proyecto: null }, {})} className={cn(buttonClasses("ghost", "md"), "w-full sm:w-auto")}>Quitar filtros</Link>}
+        </div>
+      </form>
 
       <ul aria-label="Tipos del calendario" className="flex flex-wrap gap-1.5">
         {TIPOS_CALENDARIO.map((t) => <li key={t.id} className={cn("rounded-full px-2.5 py-1 text-xs font-medium", COLOR[t.id])}>{t.label}</li>)}
@@ -125,7 +168,7 @@ export default async function CalendarioGestion({ searchParams }: { searchParams
 
       {/* En el celular, una lista por día. */}
       <section aria-label="Lista por día" className="grid gap-3 md:hidden">
-        {delMes.length === 0 && <p className={cn(tarjeta, "text-sm text-muted")}>No hay nada con fecha este mes.</p>}
+        {delMes.length === 0 && <p className={cn(tarjeta, "text-sm text-muted")}>{filtrado ? "Con estos filtros no hay nada con fecha este mes." : "No hay nada con fecha este mes."}</p>}
         {delMes.map(([clave, lista]) => (
           <div key={clave}>
             <h2 className={cn("mb-1 text-sm font-semibold first-letter:uppercase", clave === hoy ? "text-strong underline" : "text-strong")}>{diaLargo(clave)}{clave === hoy && " (hoy)"}</h2>
@@ -150,6 +193,60 @@ export default async function CalendarioGestion({ searchParams }: { searchParams
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {obligaciones && (
+        <section className={tarjeta} aria-labelledby="obligaciones">
+          <h2 id="obligaciones" className="mb-1 font-semibold text-strong">Obligaciones</h2>
+          <p className="mb-3 text-sm text-muted">Vencimientos que no salen solos de un proyecto: un seguro, un permiso, un impuesto. Al responsable le llega un aviso {diasAviso} días antes, una sola vez.</p>
+          {obligaciones.length === 0 ? (
+            <p className="mb-3 text-sm text-muted">No hay obligaciones pendientes.</p>
+          ) : (
+            <ul className="mb-3 grid gap-2">
+              {obligaciones.map((o) => (
+                <li key={o.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2 text-sm">
+                  <span className="min-w-0 break-words text-strong">
+                    <strong>{claveDia(o.venceEl).split("-").reverse().join("/")}</strong> · {o.tipo}: {o.titulo}
+                    <span className="block text-xs text-muted">{[o.responsableNombre, o.proyecto?.nombre, o.avisadaEl ? "ya avisada" : `avisa ${o.diasAviso} días antes`].filter(Boolean).join(" · ")}</span>
+                  </span>
+                  {puede(a, "pipeline", "editar") && <BotonConConfirmacion accion={marcarObligacionHecha} ocultos={{ id: o.id }} texto="Hecha" textoConfirma="Sí, está hecha" etiqueta={`Marcar hecha: ${o.titulo}`} />}
+                </li>
+              ))}
+            </ul>
+          )}
+          {puede(a, "pipeline", "editar") && (
+            <details>
+              <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium text-strong">Agendar una obligación</summary>
+              <FormAccion accion={crearObligacion} claveDeEnvio limpiar className="grid gap-3 pt-2 sm:grid-cols-2">
+                <label className={etiqueta}>
+                  Tipo
+                  <select name="tipo" required defaultValue="" className={campo}>
+                    <option value="" disabled>Elegí el tipo</option>
+                    {tiposObligacion.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </label>
+                <label className={etiqueta}>Qué hay que hacer<input name="titulo" required maxLength={160} className={campo} /></label>
+                <label className={etiqueta}>
+                  Responsable
+                  <select name="responsableId" required defaultValue="" className={campo}>
+                    <option value="" disabled>Elegí quién</option>
+                    {personas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                </label>
+                <label className={etiqueta}>Vence el<input name="venceEl" type="date" required className={campo} /></label>
+                <label className={etiqueta}>Avisar días antes<input name="diasAviso" type="number" inputMode="numeric" min={0} max={60} defaultValue={diasAviso} className={campo} /></label>
+                <label className={etiqueta}>
+                  Proyecto
+                  <select name="proyectoId" defaultValue="" className={campo}>
+                    <option value="">Sin proyecto</option>
+                    {proyectos.map((p) => <option key={p.id} value={p.id}>{codigoProyecto(p.numero, p.createdAt)} {p.nombre}</option>)}
+                  </select>
+                </label>
+                <button type="submit" className={cn(buttonClasses("solid", "md"), "justify-self-start sm:col-span-2")}>Agendar</button>
+              </FormAccion>
+            </details>
+          )}
         </section>
       )}
 

@@ -2,8 +2,9 @@ import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
 import { prisma } from "@/lib/prisma";
 import { buttonClasses, cn, EmptyState, Pestanas } from "@/components/ui";
-import { TOPE_TABLERO, tableroPipeline } from "@/lib/proyectos/ficha.server";
+import { TOPE_TABLERO, tableroConIndicadores } from "@/lib/proyectos/ficha.server";
 import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
+import { valorDelNegocio } from "@/lib/proyectos/parametros/leer.server";
 import { Pipeline } from "./_pipeline";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export default async function TableroProyectos({ searchParams }: { searchParams:
   await requireApp("proyectos");
   const a = await exigirVer("pipeline");
   const { vista } = await searchParams;
-  const tarjetas = await tableroPipeline(a);
+  const [{ tarjetas, ventaPorAprobar }, etapas] = await Promise.all([tableroConIndicadores(a), valorDelNegocio(a.tenantId, "etapas.lista")]);
   const edita = puede(a, "pipeline", "editar");
   const esLista = vista === "lista";
   const consultasPendientes = await prisma.consulta.count({ where: { tenantId: a.tenantId, estado: { in: ["NUEVA", "PARA_PERSONA"] } } });
@@ -36,14 +37,14 @@ export default async function TableroProyectos({ searchParams }: { searchParams:
         conRaya
         className="mb-4"
         pestanas={[
-          { href: "/admin/proyectos", etiqueta: "Kanban", actual: !esLista },
+          { href: "/admin/proyectos", etiqueta: "Tablero", actual: !esLista },
           { href: "/admin/proyectos?vista=lista", etiqueta: "Lista", actual: esLista },
         ]}
       />
       {tarjetas.length === 0 ? (
         <EmptyState title="Todavía no hay proyectos" description="Cargá el primer lead para empezar." />
       ) : (
-        <Pipeline tarjetas={tarjetas} vista={esLista ? "lista" : "kanban"} edita={edita} />
+        <Pipeline tarjetas={tarjetas} etapas={etapas} vista={esLista ? "lista" : "tablero"} edita={edita} conVenta={ventaPorAprobar !== null} />
       )}
     </main>
   );

@@ -269,7 +269,12 @@ export const CAPACIDADES_POR_USUARIO: readonly Capability[] = [
   "cash:manage",
 ] as const;
 
-export type PermisoOverride = { capability: string; allowed: boolean };
+/**
+ * `porPuesto`: la negación la puso la sesión por el techo de puesto (MIA-237), no la base. Una fila de
+ * `userPermissionOverride` nunca lo trae (se lee sólo `capability` y `allowed`), así que una fila de la base no apaga
+ * lo que no es una casilla (el candado, riesgo 1).
+ */
+export type PermisoOverride = { capability: string; allowed: boolean; porPuesto?: true };
 
 /** Lo mínimo que necesita el resolvedor: un `SessionUser` lo cumple. */
 export type UsuarioConPermisos = {
@@ -281,8 +286,19 @@ export function esCapacidadPorUsuario(cap: string): cap is Capability {
   return (CAPACIDADES_POR_USUARIO as readonly string[]).includes(cap);
 }
 
-/** Override si existe y la capability está en la matriz; si no, el default del rol. */
+/**
+ * MIA-237 · capacidades que el PUESTO puede apagar aunque el rol del ERP las traiga (techo de puesto): Administración
+ * entra como OWNER por Facturación pero no administra usuarios ni permisos (`DECISIONES_DE_PUESTOS.capacidadesNegadas`).
+ * Sólo apagan, y sólo con `porPuesto: true`: un `allowed: true` de estas no prende nada y una negación guardada en la
+ * base tampoco apaga (sigue el candado de la matriz; MIA-267).
+ */
+export const CAPACIDADES_NEGABLES_POR_PUESTO: readonly Capability[] = ["users:manage"] as const;
+
+/** Override si existe y la capability está en la matriz; si no, el default del rol. Una negación de puesto gana. */
 export function permisoEfectivo(user: UsuarioConPermisos, cap: Capability): boolean {
+  if ((CAPACIDADES_NEGABLES_POR_PUESTO as readonly string[]).includes(cap) && (user.overrides ?? []).some((o) => o.capability === cap && o.allowed === false && o.porPuesto === true)) {
+    return false;
+  }
   if (esCapacidadPorUsuario(cap)) {
     // `?? []`: el tipo lo exige, pero un usuario armado a mano (fixture, cast) sin la lista no puede
     // tumbar la autorización: vale el rol.

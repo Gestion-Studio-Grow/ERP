@@ -3,7 +3,6 @@
 // moneda muestra además el equivalente en la suya, con el cambio de hoy que usa la propia cobranza.
 
 import { pesos, redondear } from "./core";
-import { plataEn } from "./gestion-core";
 import { nombreDelComprobante } from "@/lib/factura-de-prueba";
 import type { Cobranza } from "./cobranza-core";
 
@@ -11,23 +10,43 @@ import type { Cobranza } from "./cobranza-core";
 export function pesosConEquivalente(enPesos: number, cob: Pick<Cobranza, "enMoneda"> | null | undefined): string {
   const m = cob?.enMoneda;
   if (!m || m.moneda === "ARS" || !(m.tc > 0)) return pesos(enPesos);
-  return `${pesos(enPesos)} (${plataEn(redondear(enPesos / m.tc), m.moneda)})`;
+  return `${pesos(enPesos)} (${pesos(redondear(enPesos / m.tc), m.moneda)})`;
 }
 
 /** El cartel de éxito de «Marcar cobrado» / «Marcar pagado». */
-export function listoMarcada(esCobro: boolean, importeEnPesos: number): string {
-  return `Listo: cuota marcada como ${esCobro ? "cobrada" : "pagada"} (${pesos(importeEnPesos)}).`;
+/** Una cuota de pago enlazada a un comprobante se paga con una orden de pago, no a mano (CERT-4 y M4c). */
+export const CUOTA_ENLAZADA = "Esta cuota está enlazada a un comprobante del proveedor: se paga con una orden de pago, en Proveedores › Órdenes de pago.";
+
+/** MIA-211 · S1: una cuota que pagó una orden de pago no se anula desde la cuota (la plata salió por la orden). */
+export function cuotaPagadaPorOrden(orden: string | null | undefined): string {
+  return `Esta cuota la pagó ${orden ? `la orden de pago ${orden}` : "una orden de pago"}: para devolver la plata, anulá la orden en Proveedores › Órdenes de pago.`;
+}
+
+/** MIA-216 · C2: una cuota con una orden de pago viva (pendiente) no se anula ni se quita: la orden la pagaría igual. */
+export function cuotaEnOrdenPendiente(orden: string | null | undefined): string {
+  return `Esta cuota está en ${orden ? `la orden de pago ${orden}` : "una orden de pago"}, todavía sin pagar: anulá primero la orden en Proveedores › Órdenes de pago.`;
+}
+
+/** MIA-216 · C2: una orden con una cuota anulada no se aprueba ni se paga (dejaba la cuota anulada y pagada). */
+export const ORDEN_CON_CUOTA_ANULADA = "Una cuota de esta orden está anulada: no se paga. Anulá la orden y, si corresponde, hacé una nueva.";
+
+export function listoMarcada(esCobro: boolean, importeEnPesos: number, cuota?: { monto: number; cobra: number; moneda: string }): string {
+  const listo = `Listo: cuota marcada como ${esCobro ? "cobrada" : "pagada"} (${pesos(importeEnPesos)}).`;
+  // P-06: una cuota de cobro que se marca por menos que su importe lo dice, con la diferencia y por qué no se cobra.
+  const resto = cuota ? redondear(cuota.monto - cuota.cobra) : 0;
+  if (!esCobro || !cuota || !(resto > 0.005)) return listo;
+  return `${listo} La cuota era de ${pesos(cuota.monto, cuota.moneda)}: los ${pesos(resto, cuota.moneda)} restantes no se cobraron porque ya los cubren cobros registrados aparte o pasan lo que falta cobrar del presupuesto aprobado.`;
 }
 
 /** El cartel de éxito de «una parte» (cobro o pago a proveedor): lo que se asentó y lo que le sigue faltando a la cuota, en su moneda. */
 export function listoParcial(importeEnPesos: number, falta: number, moneda: string, esCobro = true): string {
-  return `Listo: se ${esCobro ? "cobró" : "pagó"} una parte (${pesos(importeEnPesos)}). A la cuota le faltan ${plataEn(redondear(falta), moneda)}.`;
+  return `Listo: se ${esCobro ? "cobró" : "pagó"} una parte (${pesos(importeEnPesos)}). A la cuota le faltan ${pesos(redondear(falta), moneda)}.`;
 }
 
 /** «Una parte» por más de lo que le falta a la cuota: nunca se cobra ni se paga de más. */
 export function avisoMasQueLaCuota(falta: number, moneda: string, esCobro = true): string {
   const verbo = esCobro ? "cobrar" : "pagar";
-  return `No se puede ${verbo} más de lo que le falta a la cuota (${plataEn(redondear(falta), moneda)}). Para ${verbo} todo, dejá el monto vacío.`;
+  return `No se puede ${verbo} más de lo que le falta a la cuota (${pesos(redondear(falta), moneda)}). Para ${verbo} todo, dejá el monto vacío.`;
 }
 
 /**
@@ -39,8 +58,8 @@ export function avisoSaldoCambio(antes: number, ahora: number, moneda: string, e
   // La causa no se conoce: también la mueve un cambio del plan (otro anticipo, otro costo). Se nombra la probable y esa.
   const porque = `${ahora > antes ? `se anuló un ${que}` : `entró otro ${que}`} o cambió el plan de cuotas`;
   // Cubierta mientras tanto: «le faltan $ 0» no dice nada. Dice qué pasó y que ya no hay nada para asentar.
-  if (redondear(ahora) <= 0) return `No se asentó nada: a esta cuota le faltaban ${plataEn(redondear(antes), moneda)} y ya no le falta nada (${porque} mientras tanto). Recargá la página para verla al día.`;
-  return `No se asentó nada: a esta cuota le faltaban ${plataEn(redondear(antes), moneda)} y ahora le faltan ${plataEn(redondear(ahora), moneda)} (${porque} mientras tanto). Si querés asentar lo que falta ahora, escribí el monto y confirmá, o recargá la página.`;
+  if (redondear(ahora) <= 0) return `No se asentó nada: a esta cuota le faltaban ${pesos(redondear(antes), moneda)} y ya no le falta nada (${porque} mientras tanto). Recargá la página para verla al día.`;
+  return `No se asentó nada: a esta cuota le faltaban ${pesos(redondear(antes), moneda)} y ahora le faltan ${pesos(redondear(ahora), moneda)} (${porque} mientras tanto). Si querés asentar lo que falta ahora, escribí el monto y confirmá, o recargá la página.`;
 }
 
 /** El cartel de éxito al anular un cobro o un pago: la plata vuelve y la cuota, si salió de una, recupera su saldo. */

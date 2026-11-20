@@ -12,15 +12,23 @@ import { tenantTransaction } from "@/lib/rls";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability } from "@/lib/authz";
+import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { basePrisma } from "@/lib/prisma-base";
+import { esNegocioArm } from "@/lib/crm-comercial/arm";
 import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
-import { configProyectos } from "./datos.server";
-import { venceDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { configProyectos, veLaPlata } from "./datos.server";
+import { getCurrentUser } from "@/lib/session";
+import { venceDeLaCuota, previstaDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, cerradoEnProyectoAjeno, veLaPlataDelProyecto, veLaVenta, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
+import { tomarCuotas } from "./comprobantes.server";
 import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_CON_PARTES } from "./pago-parcial-core";
+import { adicionalesDelProyecto, detallesDeLineas, diasDelPlan } from "./presupuesto-m2.server";
+import { cuotasDeAdicionales } from "./presupuesto-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { totalAMano, totalesCongelados } from "./precio-foto.server";
+import { planQueSigue } from "./ficha-core";
 
 export interface Actor {
   user: SessionUser;
@@ -29,22 +37,62 @@ export interface Actor {
   nombre: string;
   rol: RolGestion;
   permisos: { rol: string; modulo: string; ver: boolean; editar: boolean; columnasOcultas: unknown }[];
+  /** MIA-238/239 · el actor en un proyecto que no es de su cartera (`actorDelProyecto`): sin ningún importe ni cotizaciones. */
+  ajeno?: boolean;
 }
 
 /** El dueño entra sin que nadie lo cargue; cualquier otro usuario sin ficha no abre nada hasta que lo sumen al equipo. */
 export async function actorActual(): Promise<Actor> {
   const user = await requireCapability("agenda:read");
   const tenantId = await getCurrentTenantId();
+  // GSG-CRM-017 (V1): el ARM tiene sólo el CRM. Proyectos (y sus consultas, cuotas, pagos) no corre ahí: el proyecto
+  // nace en el negocio vinculado (`PROYECTOS_NO_EN_ARM`, arm.ts). Se corta acá, que es por donde pasan todas las pantallas y acciones de Proyectos.
+  const negocio = await basePrisma.tenant.findUnique({ where: { id: tenantId }, select: { blueprintId: true } });
+  // `redirect` corta igual una pantalla y una acción (no se escribe nada) y lleva al CRM.
+  if (esNegocioArm(negocio?.blueprintId)) redirect("/admin/crm");
   const [persona, permisos] = await Promise.all([
     prisma.proyectoPersona.findFirst({ where: { tenantId, userId: user.id, activa: true }, select: { id: true, rol: true, nombre: true } }),
     prisma.proyectoPermiso.findMany({ where: { tenantId }, select: { rol: true, modulo: true, ver: true, editar: true, columnasOcultas: true } }),
   ]);
-  const rol = rolDelActor(persona?.rol, user.role);
+  // MIA-238: una OWNER sin ficha activa es la Dueña sólo si no tiene una ficha de otro puesto de baja.
+  const deBaja = !persona && user.role === "OWNER"
+    ? await prisma.proyectoPersona.findFirst({ where: { tenantId, userId: user.id, activa: false, rol: { not: "DIRECCION" } }, select: { rol: true } })
+    : null;
+  const rol = rolDelActor(persona?.rol, user.role, deBaja?.rol);
   return { user, tenantId, personaId: persona?.id ?? null, nombre: persona?.nombre ?? user.name, rol, permisos };
 }
 
 export function puede(a: Actor, modulo: ModuloGestion, accion: "ver" | "editar"): boolean {
+  if (a.ajeno && cerradoEnProyectoAjeno(modulo, accion)) return false;
   return permisoDe(a.rol, modulo, a.permisos)[accion];
+}
+
+/**
+ * MIA-238 · el actor dentro de UN proyecto: el productor comercial ve la plata (cobros y costos) sólo de los proyectos de su
+ * equipo (`veLaPlataDelProyecto`). Toda pantalla o acción de un proyecto que muestre costos o cobros pasa por acá.
+ */
+export async function actorDelProyecto(a: Actor, proyectoId: string): Promise<Actor> {
+  if (a.rol !== "COMERCIAL") return a;
+  const enEquipo = !!a.personaId && !!(await prisma.proyectoEquipo.findFirst({ where: { tenantId: a.tenantId, proyectoId, personaId: a.personaId }, select: { id: true } }));
+  return veLaPlataDelProyecto(a.rol, enEquipo) ? a : { ...a, ajeno: true };
+}
+
+/**
+ * MIA-239 · el filtro de los proyectos cuya plata ve esta persona: el de `filtroDeProyectos`, y para el productor comercial
+ * sólo los de su equipo (el mismo control que `actorDelProyecto`, como filtro de Prisma para listas y sumas).
+ */
+export function filtroDeProyectosConPlata(a: Actor): Prisma.ProyectoWhereInput {
+  const visibles = filtroDeProyectos(a);
+  if (veLaPlataDelProyecto(a.rol, false)) return visibles;
+  // MIA-244: un puesto sin importes no ve la plata de ningún proyecto, tampoco de su equipo (`id` lo pisa quien llama: va en AND).
+  if (!veLaPlataDelProyecto(a.rol, true)) return { ...visibles, AND: [{ id: { in: [] } }] };
+  return { ...visibles, equipo: { some: { personaId: a.personaId ?? "-" } } };
+}
+
+/** MIA-246 · el de `filtroDeProyectosConPlata`, y nada para quien no ve la venta (Producción): el papel y los exportes la llevan. */
+export function filtroDeProyectosConVenta(a: Actor): Prisma.ProyectoWhereInput {
+  const conPlata = filtroDeProyectosConPlata(a);
+  return veLaVenta(a.rol) ? conPlata : { ...conPlata, AND: [{ id: { in: [] } }] };
 }
 
 /** Para las pantallas: sin permiso, de vuelta a Inicio. */
@@ -58,6 +106,19 @@ export async function exigirVer(modulo: ModuloGestion): Promise<Actor> {
 export async function exigirEditar(modulo: ModuloGestion): Promise<Actor> {
   const a = await actorActual();
   if (!puede(a, modulo, "editar")) throw new Error("No tenés permiso para hacer esto.");
+  return a;
+}
+
+/**
+ * Rentabilidad, Proveedores con gastos y Configuración de propuestas (PRY-099 y ADM-140): decide el rol de gestión, no la
+ * capability del ERP. Las ve Dirección y a quien Dirección le abra el módulo `direccion` («ver» para leer, «editar» para
+ * guardar). El techo del ERP sigue: sin `agenda:manage` fuera de la agenda, no entra aunque tenga el módulo. Para pantallas
+ * y acciones: sin permiso, de vuelta a Inicio. Pregunta 2-A del plan GSG-MIA-088, confirmada por el dueño el 18/11.
+ */
+export async function exigirPlataDeDireccion(accion: "ver" | "editar"): Promise<Actor> {
+  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  const a = await actorActual();
+  if (!puede(a, "direccion", accion)) redirect("/admin/proyectos/inicio");
   return a;
 }
 
@@ -210,9 +271,21 @@ async function programarMails(d: { tenantId: string; tipo: string; texto: string
   }
 }
 
-/** La última versión del presupuesto es la ficha viva: de ahí salen planilla, cuotas y deadlines. */
+const CON_ITEMS = { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { id: true, name: true } } } } } as const;
+
+/** La última versión del presupuesto es la ficha viva: de ahí salen la planilla que se edita y los deadlines. */
 export async function versionViva(tenantId: string, proyectoId: string, db: Prisma.TransactionClient = prisma) {
-  return db.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId }, orderBy: { version: "desc" }, include: { items: { orderBy: { posicion: "asc" }, include: { supplier: { select: { id: true, name: true } } } } } });
+  return db.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId }, orderBy: { version: "desc" }, include: CON_ITEMS });
+}
+
+/**
+ * La versión de la que sale la PLATA (cuotas, tope y cabecera): la última aprobada. Un borrador abierto encima no mueve
+ * ninguna cuota hasta que se aprueba (P-06, MIA-049 hallazgo 2). Sin ninguna aprobada, la viva: el plan queda previsto
+ * como siempre (`cuotaPrevista`). El índice que garantiza una sola base aprobada llega con O10 (T06).
+ */
+export async function versionDeLaPlata(tenantId: string, proyectoId: string, db: Prisma.TransactionClient = prisma) {
+  const aprobada = await db.proyectoPresupuesto.findFirst({ where: { tenantId, proyectoId, estado: "APROBADO" }, orderBy: { version: "desc" }, include: CON_ITEMS });
+  return aprobada ?? versionViva(tenantId, proyectoId, db);
 }
 
 export const aItemFicha = (i: { id: string; descripcion: string; rubro: string; cantidad: number; costo: number; moneda: string; recargoPct: number | null; precio: number; fechaLimite: Date | null; supplierId: string | null }): ItemFicha => ({
@@ -243,58 +316,172 @@ export async function regenerarCuotas(tenantId: string, proyectoId: string): Pro
   // «Marcar cobrado», cobros, cuotas a mano). La ficha se lee y el plan se calcula ADENTRO del candado: el último en
   // entrar calcula con la ficha vigente y nadie revive una cuota que la ficha nueva ya no tiene. Ningún llamador lo
   // invoca con el candado tomado en otra transacción (todos después de cerrar la suya), así que no se espera a sí mismo.
-  const cerro = await tenantTransaction(
-    async (tx) => {
-      await trabarCobranza(tx, tenantId, proyectoId);
+  const pagos = await rehaceLosPagos();
+  const cerro = await tenantTransaction((tx) => regenerarCuotasTx(tx, tenantId, proyectoId, pagos), { tenantId, timeoutMs: 15_000 });
+  if (!cerro) logger.warn("proyectos", "el plan de cobros no cerró: se marcaron cuotas mientras se ajustaba", { tenantId, proyectoId });
+}
+
+/**
+ * `regenerarCuotas` adentro de una transacción ya abierta (toma el candado de la cobranza): así un cambio de etapa y sus
+ * cuotas van juntos o no va ninguno (MIA-089 · V1). Devuelve `false` si el plan no cerró en tres vueltas. `pagos`: lo que
+ * decidió `rehaceLosPagos` antes de abrir la transacción (MIA-243 · 2A).
+ */
+export async function regenerarCuotasTx(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, pagos: boolean): Promise<boolean> {
+  await trabarCobranza(tx, tenantId, proyectoId);
+  const vigente = await planVigente(tx, tenantId, proyectoId);
+  if (!vigente) return true;
+  // `aplicarPlan` toma además el candado de cada cuota que puede escribir (`tomarCuotas`). Si igual una se marcó en
+  // el medio (un camino que no lo tome), no se le pisa nada y el plan se vuelve a ajustar con ella.
+  for (let vuelta = 0; vuelta < 3; vuelta++) {
+    if (!(await aplicarPlan(tx, tenantId, proyectoId, vigente.plan, vigente.prevista, vigente.tc, pagos))) return true;
+  }
+  return false;
+}
+
+/**
+ * MIA-243 · 2A del dueño (20/11): «las cuotas a proveedores sólo las rehace alguien con permiso de plata. Quien arma
+ * presupuestos sin ese permiso puede guardar la línea, pero no toca los pagos». Se decide ACÁ, una vez por regeneración, para
+ * todos los llamadores (ficha, presupuesto, despiece, etapas, precio, la aprobación del link): con un usuario que no ve la
+ * plata (`veLaPlata`), o en un pedido sin usuario (el cliente en su link), se rehacen sólo los cobros; los pagos quedan como
+ * estaban y quien ve la plata los ve «por revisar» (`pagosPorRevisar`). Fuera de un pedido (un script, un test del motor) no
+ * hay actor: el plan entero, como siempre. Se llama ANTES de abrir la transacción: adentro de una la sesión no se lee (da
+ * «sin usuario»), por eso `regenerarCuotasTx` recibe la decisión tomada.
+ */
+export async function rehaceLosPagos(): Promise<boolean> {
+  try {
+    await headers();
+  } catch {
+    return true;
+  }
+  const user = await getCurrentUser();
+  return !!user && (await veLaPlata(user));
+}
+
+/** El plan que pide hoy la versión de la plata, sin escribir nada. `null`: no hay proyecto o no hay versión. */
+async function planVigente(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string) {
       const [p, viva, config, tc] = await Promise.all([
-        tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true } }),
-        versionViva(tenantId, proyectoId, tx),
+        tx.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true, nombre: true, moneda: true, etapa: true, fechaEvento: true, createdAt: true, anticipoClientePct: true, perdidoEl: true, motivoPerdida: true } }),
+        versionDeLaPlata(tenantId, proyectoId, tx),
         configProyectos(tenantId, tx),
         tiposDeCambio(tenantId, tx),
       ]);
-      if (!p || !viva) return true;
+      if (!p || !viva) return null;
       const items = viva.items.map(aItemFicha);
-      const proveedores = [...new Set(items.map((i) => i.supplierId).filter((s): s is string => !!s))];
+      // MIA T06: el % de cada línea, los adicionales aprobados (sin M2, ninguno) y los días del catálogo (R8).
+      const [detalles, adicionales, dias, congelados] = await Promise.all([
+        detallesDeLineas(tx, tenantId, items.map((i) => i.id)),
+        adicionalesDelProyecto(tx, tenantId, proyectoId),
+        diasDelPlan(tenantId, tx),
+        // MIA T07 · O16: aprobada con foto, el cobro del cliente sale del total congelado. MIA-199: antes de aprobar, del
+        // total escrito a mano (precio por total), si lo hay; si no, de la suma de renglones.
+        viva.estado === "APROBADO" ? totalesCongelados(tx, tenantId, [viva.id]) : p?.moneda === "ARS" ? totalAMano(tx, tenantId, proyectoId, viva.id) : new Map<string, number>(),
+      ]);
+      const proveedores = [...new Set([...items.map((i) => i.supplierId), ...adicionales.flatMap((a) => a.lineas.map((l) => l.supplierId))].filter((s): s is string => !!s))];
       const fichas = await tx.proyectoProveedorFicha.findMany({ where: { tenantId, supplierId: { in: proveedores } }, select: { supplierId: true, anticipoPct: true } });
-      const planDeLaFicha =
-        !p.perdidoEl
-          ? planDeCuotas(items, {
-              proyectoId,
-              nombre: p.nombre,
-              fechaEvento: p.fechaEvento,
-              creado: p.createdAt,
-              anticipoClientePct: p.anticipoClientePct,
-              ivaPct: viva.ivaPct,
-              recargoGeneral: config.margenPct,
-              tiposDeCambio: tc,
-              monedaVenta: p.moneda,
-              cambioVenta: cambioDeVenta(p.moneda, viva.tcVenta, tc),
-              anticipoProveedor: Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct])),
-            })
-          : [];
-      const prevista = cuotaPrevista(p.etapa, p.fechaEvento);
-      // Una cuota de pago se puede marcar sin este candado: si se marca mientras se ajusta el plan, no se le pisa nada y
-      // el plan se vuelve a ajustar con ella.
-      for (let vuelta = 0; vuelta < 3; vuelta++) {
-        if (!(await aplicarPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista, tc))) return true;
-      }
-      return false;
-    },
-    { tenantId, timeoutMs: 15_000 },
-  );
-  if (!cerro) logger.warn("proyectos", "el plan de cobros no cerró: se marcaron cuotas mientras se ajustaba", { tenantId, proyectoId });
+      const anticipoProveedor = Object.fromEntries(fichas.map((f) => [f.supplierId, f.anticipoPct]));
+      const anticipoLinea = Object.fromEntries([...detalles].filter(([, d]) => d.anticipoPct != null).map(([id, d]) => [id, d.anticipoPct!]));
+      // MIA-224 · D2: un perdido conserva sus cuotas al proveedor (siguen en «A pagar» y se pagan sin reabrir); las del
+      // cliente se anulan. Cancelado, ninguna (`planQueSigue`).
+      const planDeLaFicha = planQueSigue(
+        [...planDeCuotas(items, {
+          proyectoId,
+          nombre: p.nombre,
+          fechaEvento: p.fechaEvento,
+          creado: p.createdAt,
+          anticipoClientePct: p.anticipoClientePct,
+          ivaPct: viva.ivaPct,
+          recargoGeneral: config.margenPct,
+          tiposDeCambio: tc,
+          monedaVenta: p.moneda,
+          cambioVenta: cambioDeVenta(p.moneda, viva.tcVenta, tc),
+          anticipoProveedor,
+          anticipoLinea,
+          dias,
+          ventaCongelada: congelados.get(viva.id) ?? null,
+        }), ...cuotasDeAdicionales(adicionales, { proyectoId, nombre: p.nombre, fechaEvento: p.fechaEvento, creado: p.createdAt, anticipoClientePct: p.anticipoClientePct, dias, anticipoProveedor })],
+        p,
+      );
+      return { plan: planDeLaFicha, prevista: cuotaPrevista(p.etapa, p.fechaEvento), tc };
+}
+
+/**
+ * MIA-243 · 2A: cuántas cuotas automáticas de PAGO no están como las pide hoy la versión de la plata (una regeneración de
+ * alguien sin la plata las dejó como estaban, o falta crearlas o anularlas). Calculado con el mismo ajuste que las escribe
+ * (`ajusteDelPlan`), sin columna nueva ni candado: es una lectura. La ficha se lo muestra a quien ve la plata, con el botón
+ * que las rehace (`recalcularCuotas`).
+ */
+export async function pagosPorRevisar(tenantId: string, proyectoId: string): Promise<number> {
+  return tenantTransaction(async (tx) => {
+    const vigente = await planVigente(tx, tenantId, proyectoId);
+    if (!vigente) return 0;
+    const { escrituras, sobran } = await ajusteDelPlan(tx, tenantId, proyectoId, vigente.plan, vigente.prevista, vigente.tc);
+    const distinta = ({ previa, datos, saldada }: (typeof escrituras)[number]) =>
+      !previa || !!previa.anuladoEl || saldada || previa.tipo !== datos.tipo || previa.monto !== datos.monto || previa.moneda !== datos.moneda ||
+      previa.concepto !== datos.concepto || previa.supplierId !== datos.supplierId || previa.prevista !== datos.prevista || previa.venceEl.getTime() !== datos.venceEl.getTime();
+    return escrituras.filter((e) => e.datos.tipo !== "COBRO" && distinta(e)).length + sobran.filter((c) => c.tipo !== "COBRO").length;
+  }, { tenantId });
+}
+
+/** Las cuotas (de estas) atadas a un comprobante o a una orden de pago viva. Sin M1, ninguna: `to_regclass` no aborta la transacción (Gate 2). */
+async function cuotasEnlazadas(tx: Prisma.TransactionClient, tenantId: string, ids: readonly string[]): Promise<Set<string>> {
+  if (ids.length === 0) return new Set();
+  const hay = await tx.$queryRaw<{ ok: boolean }[]>`SELECT to_regclass('"ProyectoCuotaComprobante"') IS NOT NULL AS ok`;
+  if (!hay[0]?.ok) return new Set();
+  const filas = await tx.proyectoCuotaComprobante.findMany({ where: { tenantId, cuotaId: { in: [...ids] } }, select: { cuotaId: true } });
+  // MIA-216 · C2: también las que tiene una orden de pago viva (aunque se hayan desenlazado en una carrera): anularla
+  // dejaba que la orden la pagara anulada.
+  const enOrden = await tx.proyectoOrdenPagoLinea.findMany({ where: { tenantId, cuotaId: { in: [...ids] }, orden: { estado: { not: "ANULADA" } } }, select: { cuotaId: true } });
+  return new Set([...filas.map((f) => f.cuotaId), ...enOrden.flatMap((f) => (f.cuotaId ? [f.cuotaId] : []))]);
 }
 
 /**
  * Una pasada de `regenerarCuotas`: lee las cuotas, ajusta el plan a lo marcado y lo escribe.
  * Devuelve `true` si una cuota se marcó mientras tanto (el plan quedó calculado con lo viejo).
  */
-async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean, tc: Readonly<Record<string, number>>): Promise<boolean> {
-  const actuales = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, tipo: true, moneda: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true } });
+async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean, tc: Readonly<Record<string, number>>, pagos: boolean): Promise<boolean> {
+  // MIA-219 (P1): el candado de la cuota (`tomarCuotas`: el de enlazar, pagar y armar la orden) ANTES de leer las cuotas y sus
+  // enlaces. Sin él, una cuota que sobra se enlazaba y entraba en una orden entre la lectura y la anulación, y quedaba anulada
+  // dentro de una orden viva (la orden ya no se podía pagar); y a una que se enlazaba en el medio se le pisaba el monto. Se
+  // traban las que el ajuste puede escribir (las automáticas sin pagar), por id, después del candado de la cobranza: el
+  // mismo orden que todos los caminos (cobranza → comprobante → cuota). Las automáticas sólo las crea este ajuste, que va
+  // en fila por el candado de la cobranza: ninguna aparece entre esta lectura y el candado.
+  const sinPagar = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true, pagadoEl: null }, select: { id: true } });
+  await tomarCuotas(tx, tenantId, sinPagar.map((c) => c.id));
+  const { escrituras, sobran } = await ajusteDelPlan(tx, tenantId, proyectoId, planDeLaFicha, prevista, tc);
+  // MIA-243 · 2A: sin la plata (`rehaceLosPagos`), ninguna cuota de PAGO se crea, se cambia ni se anula: quedan como estaban.
+  const toca = (tipo: string) => pagos || tipo === "COBRO";
+  let choco = false;
+  for (const { previa, clave, concepto, datos, saldada } of escrituras) {
+    if (!toca(datos.tipo) || (previa && !toca(previa.tipo))) continue;
+    // Sólo si sigue sin marcar: una cuota marcada mientras se ajustaba queda congelada (no se le pisa monto ni `prevista`)
+    // y el plan se vuelve a calcular con ella. (El candado de la factura de cuota es de la Etapa 2 · T2.)
+    if (previa) {
+      const r = await tx.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos });
+      choco = r.count === 0 || choco;
+      if (saldada && r.count > 0) await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: previa.id, campo: `Pagado · ${concepto}`, antes: "Pendiente", despues: SALDADA_CON_PARTES, autor: "Sistema" });
+    } else await tx.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave } });
+  }
+  const anular = sobran.filter((c) => toca(c.tipo)).map((c) => c.id);
+  if (anular.length > 0) {
+    const r = await tx.proyectoCuota.updateMany({ where: { tenantId, id: { in: anular }, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
+    // Si una de las que sobran se marcó en el medio, el plan se calculó sin descontarla: otra pasada.
+    choco = r.count < anular.length || choco;
+  }
+  return choco;
+}
+
+/** Lo que el plan de la ficha le haría a las cuotas automáticas, sin escribir: lo escriben `aplicarPlan` y lo cuenta `pagosPorRevisar`. */
+async function ajusteDelPlan(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, planDeLaFicha: ReturnType<typeof planDeCuotas>, prevista: boolean, tc: Readonly<Record<string, number>>) {
+  const actuales = await tx.proyectoCuota.findMany({ where: { tenantId, proyectoId, auto: true }, select: { id: true, clave: true, tipo: true, moneda: true, monto: true, pagadoEl: true, anuladoEl: true, venceEl: true, venceManual: true, prevista: true, concepto: true, supplierId: true } });
   const marcadas = actuales.filter((c) => c.pagadoEl && !c.anuladoEl);
+  // MIA T07 (obs. de T05 sobre esta función): una cuota impaga ENLAZADA a un comprobante (M1) queda fija como lo pagado. Si el
+  // plan le cambiara el monto, las enlazadas pasarían el total del comprobante (la invariante de `enlazarCuota`); si la anulara,
+  // la factura quedaría atada a nada. La diferencia va a las otras cuotas del ítem (`ajustarAPagado`).
+  const enlazadas = await cuotasEnlazadas(tx, tenantId, actuales.filter((c) => !c.pagadoEl && !c.anuladoEl).map((c) => c.id));
+  const fijas = actuales.filter((c) => !c.anuladoEl && (c.pagadoEl || enlazadas.has(c.id)));
   // Lo pagado en parte (pago a proveedor) también es pagado: el plan nuevo no se lo vuelve a pedir (también si la cuota se va).
   const partes = await pagosParcialesDeCuotas(tenantId, actuales, tc, tx, true);
-  const ajustado = ajustarAPagado(planDeLaFicha, marcadas.map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
+  const ajustado = ajustarAPagado(planDeLaFicha, fijas.map((c) => ({ clave: c.clave ?? "", monto: c.monto })));
   // En la moneda que el plan nuevo le da a cada ítem (el ítem pudo cambiar de pesos a dólares o al revés).
   const partesDelPlan = partesEnMonedaDelPlan(actuales, partes, ajustado, tc);
   const plan = descontarPartes(ajustado, partesDelPlan, new Set(marcadas.map((c) => c.clave ?? "")));
@@ -304,13 +491,14 @@ async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proye
   const porClave = new Map(actuales.map((c) => [c.clave, c]));
   const vigentes = new Set(plan.map((c) => c.clave));
   const hoy = new Date();
-  let choco = false;
-  for (const c of plan) {
+  const escrituras = plan.flatMap((c) => {
     const previa = porClave.get(c.clave);
-    if (previa?.pagadoEl) continue;
+    if (previa?.pagadoEl || (previa && enlazadas.has(previa.id))) return [];
     const saldada = cubiertas.has(c.clave) && !!previa;
+    // Una cuota que ya fue firme no vuelve a ser previsión (MIA-089 · V1): ir y volver de etapa no le toca nada.
+    const laPrevista = previstaDeLaCuota(prevista, previa);
     const datos = {
-      prevista,
+      prevista: laPrevista,
       tipo: c.tipo,
       concepto: c.concepto,
       monto: c.monto,
@@ -320,19 +508,8 @@ async function aplicarPlan(tx: Prisma.TransactionClient, tenantId: string, proye
       anuladoEl: null,
       ...(saldada && { pagadoEl: hoy, pagadoPor: SALDADA_CON_PARTES }),
     };
-    // Sólo si sigue sin marcar: una cuota marcada mientras se ajustaba queda congelada (no se le pisa monto ni `prevista`)
-    // y el plan se vuelve a calcular con ella. (El candado de la factura de cuota es de la Etapa 2 · T2.)
-    if (previa) {
-      const r = await tx.proyectoCuota.updateMany({ where: { id: previa.id, tenantId, pagadoEl: null }, data: datos });
-      choco = r.count === 0 || choco;
-      if (saldada && r.count > 0) await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: previa.id, campo: `Pagado · ${c.concepto}`, antes: "Pendiente", despues: SALDADA_CON_PARTES, autor: "Sistema" });
-    } else await tx.proyectoCuota.create({ data: { ...datos, tenantId, proyectoId, auto: true, clave: c.clave } });
-  }
-  const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl).map((c) => c.id);
-  if (sobran.length > 0) {
-    const r = await tx.proyectoCuota.updateMany({ where: { tenantId, id: { in: sobran }, pagadoEl: null, anuladoEl: null }, data: { anuladoEl: new Date() } });
-    // Si una de las que sobran se marcó en el medio, el plan se calculó sin descontarla: otra pasada.
-    choco = r.count < sobran.length || choco;
-  }
-  return choco;
+    return [{ previa, clave: c.clave, concepto: c.concepto, datos, saldada }];
+  });
+  const sobran = actuales.filter((c) => c.clave && !vigentes.has(c.clave) && !c.pagadoEl && !c.anuladoEl && !enlazadas.has(c.id)).map((c) => ({ id: c.id, tipo: c.tipo }));
+  return { escrituras, sobran };
 }

@@ -17,7 +17,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { leerCuentasACobrar, leerCuentasAPagar } from "@/lib/debts/cuentas-lectura";
 import { aNumero } from "@/lib/debts/resumen-cuentas";
-import { calcularFlujo, saldoDelLibro, type FlujoDeFondos, type Horizonte } from "./flujo";
+import { calcularFlujo, saldoDelLibro, type EntradaFlujo, type FlujoDeFondos, type Horizonte } from "./flujo";
 
 /** Todo el libro de caja del negocio (el saldo de hoy es la suma de toda su historia). */
 export function whereLibroCompleto(tenantId: string) {
@@ -45,6 +45,8 @@ export async function leerFlujo(
   tenantId: string,
   hoy: string,
   horizonte: Horizonte,
+  /** MIA-50 · CG8: renglones ya leídos de otra app (las cuotas de Proyectos con fecha). Por defecto, ninguno. */
+  extra: Pick<EntradaFlujo, "aCobrar" | "aPagar"> = { aCobrar: [], aPagar: [] },
 ): Promise<LecturaFlujo> {
   const [saldoLibro, aCobrar, aPagar] = await Promise.all([
     leerSaldoDelLibro(db, tenantId),
@@ -55,8 +57,8 @@ export async function leerFlujo(
     hoy,
     horizonte,
     saldoLibro,
-    aCobrar: aCobrar.cuentas.map((c) => ({ ...c, quien: c.cliente })),
-    aPagar: aPagar.cuentas.map((c) => ({ ...c, quien: c.proveedor })),
+    aCobrar: [...aCobrar.cuentas.map((c) => ({ ...c, quien: c.cliente })), ...extra.aCobrar],
+    aPagar: [...aPagar.cuentas.map((c) => ({ ...c, quien: c.proveedor })), ...extra.aPagar],
   });
   return { flujo, sinCuentasCorrientes: aCobrar.faltanTablas || aPagar.faltanTablas };
 }

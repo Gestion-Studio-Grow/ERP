@@ -250,6 +250,11 @@ async function filasDelMes(tenantId: string, start: Date, end: Date): Promise<Fi
           tallerPagoId: true,
           collectionId: columnas.includes("collectionId"),
           paymentId: columnas.includes("paymentId"),
+          // A-06: lo que asentó Proyectos tampoco se ofrece borrar.
+          proyectoPagoId: true,
+          proyectoGastoId: true,
+          proyectoLiquidacionId: true,
+          proyectoAnticipoId: true,
         },
       });
       // Una columna que no se pidió no viene (undefined): queda en null, fila sin esa referencia.
@@ -539,14 +544,14 @@ export async function deleteLibroEntry(
     borrado = await tenantTransaction(async (tx) => {
       const found = await tx.cashMovement.findFirst({
         where: { tenantId, id },
-        select: { id: true, type: true, method: true, amount: true, reason: true, orderId: true, createdBy: true, tallerPagoId: true, occurredAt: true },
+        select: { id: true, type: true, method: true, amount: true, reason: true, orderId: true, createdBy: true, tallerPagoId: true, occurredAt: true, proyectoPagoId: true, proyectoGastoId: true, proyectoLiquidacionId: true, proyectoAnticipoId: true },
       });
       if (!found) throw new Error("Ese movimiento ya no existe.");
       // Lo que escribió el SISTEMA no se borra desde el libro (dirección única): venta, turno
       // cobrado, caja del mostrador, corte inicial, diferencias de cierre y de arqueo, anulación
       // de un cobro, comisión, compra, reintegro de una devolución a proveedor y cobro o pago
       // de cuenta corriente. La regla, con cada porqué, es `motivoParaNoBorrar` (libro-caja.ts).
-      const bloqueo = motivoParaNoBorrar({ type: found.type as CashMovementType, orderId: found.orderId, createdBy: found.createdBy, tallerPagoId: found.tallerPagoId });
+      const bloqueo = motivoParaNoBorrar({ proyectoPagoId: found.proyectoPagoId, proyectoGastoId: found.proyectoGastoId, proyectoLiquidacionId: found.proyectoLiquidacionId, proyectoAnticipoId: found.proyectoAnticipoId, type: found.type as CashMovementType, orderId: found.orderId, createdBy: found.createdBy, tallerPagoId: found.tallerPagoId });
       if (bloqueo) throw new Error(bloqueo);
       // Mismo candado que el alta: un día ya cerrado no se toca. Borrar hacia atrás
       // desbalancearía el saldo operativo contra lo que se contó.

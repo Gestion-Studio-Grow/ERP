@@ -5,6 +5,7 @@ import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { fichaEntregable } from "@/lib/proyectos/datos.server";
 import { exigirVer, proyectoVisible } from "@/lib/proyectos/gestion.server";
+import { hablaConElCliente } from "@/lib/proyectos/gestion-core";
 import { anularEntregable, descartarBorrador, enviarVersion, guardarEntregable } from "@/lib/proyectos/acciones";
 import { ayudaEspecificacion, ESTADO_ENTREGABLE_LABEL, estadoDelEntregable, fechaCorta, fechaParaInput, type EstadoEntregable } from "@/lib/proyectos/core";
 import { campo, etiqueta, tarjeta } from "../../../_vista";
@@ -34,6 +35,7 @@ export default async function FichaEntregable({ params, searchParams }: { params
   const { entregable: e } = data;
   const estado = estadoDelEntregable(e.versiones);
   const borrador = e.versiones.find((v) => v.estado === "BORRADOR");
+  const alCliente = hablaConElCliente(actor.rol);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
@@ -71,10 +73,15 @@ export default async function FichaEntregable({ params, searchParams }: { params
               )}
               {v.estado === "BORRADOR" && (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <form action={enviarVersion}>
-                    <input type="hidden" name="id" value={v.id} />
-                    <SubmitButton className={buttonClasses("solid", "md")}>Enviar al cliente</SubmitButton>
-                  </form>
+                  {/* MIA-266 · PROD-DISENO A: Producción sube el borrador; lo manda Diseño, Comercial o Dirección (`enviarVersion` lo rechaza). */}
+                  {alCliente ? (
+                    <form action={enviarVersion}>
+                      <input type="hidden" name="id" value={v.id} />
+                      <SubmitButton className={buttonClasses("solid", "md")}>Enviar al cliente</SubmitButton>
+                    </form>
+                  ) : (
+                    <p className="basis-full text-sm text-muted">Mandarle la pieza al cliente le toca a Diseño, Comercial o Dirección. Queda en borrador hasta que la envíen.</p>
+                  )}
                   <form action={descartarBorrador}>
                     <input type="hidden" name="id" value={v.id} />
                     <button type="submit" className={buttonClasses("ghost", "md")}>Descartar</button>
@@ -88,7 +95,7 @@ export default async function FichaEntregable({ params, searchParams }: { params
 
       <section className={cn(tarjeta, "mb-4")} aria-label="Subir versión">
         <h2 className="mb-3 font-semibold text-strong">{borrador ? "Cambiar el borrador" : "Subir una versión"}</h2>
-        <SubirVersion entregableId={e.id} hayBorrador={!!borrador} />
+        <SubirVersion entregableId={e.id} hayBorrador={!!borrador} escribeLaNota={alCliente} />
       </section>
 
       <section className={cn(tarjeta, "mb-4")} aria-label="Datos de la pieza">

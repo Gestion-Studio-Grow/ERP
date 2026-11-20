@@ -8,18 +8,21 @@ import { headers } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { leerOverridesTolerante } from "@/lib/permisos-overrides";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { permisoEfectivo, permisoFueraDeLaAgenda } from "@/lib/capabilities";
+import { permisoEfectivo } from "@/lib/capabilities";
 import type { Prisma } from "@/generated/prisma/client";
 import { datosDelNegocio } from "./datos.server";
 import { leerRef } from "./diseno-core";
-import { aPesos, generaCuotas } from "./gestion-core";
+import { aPesos, generaCuotas, rolDelActor } from "./gestion-core";
 import { filtroDeProyectos, puede, tiposDeCambio, type Actor } from "./gestion.server";
-import { claveDia, diasDelRango, enlaceSeguro, laminasPublicas, mediodia, paginacion, tokenDeCalendario, usuarioDelToken, versionesVivas, type EntradaCalendario, type TipoCalendario } from "./gestion-lecturas-core";
+import { claveDia, diasDelRango, enlaceSeguro, laminasPublicas, mediodia, paginacion, tokenDeCalendario, usuarioDelToken, versionesVivas, type EntradaCalendario, type FiltroCalendario, type TipoCalendario } from "./gestion-lecturas-core";
 import { redondear } from "./core";
 import { faltaDelPago } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import type { ModuloGestion, RolGestion } from "./gestion-core";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
+import { aPagarSinCuotas } from "./comprobantes.server";
+import { obligacionesEntre, previstasEntre } from "./etapas-m7b.server";
+import { valorDelNegocio } from "./parametros/leer.server";
 
 const DIA = 86_400_000;
 
@@ -28,11 +31,19 @@ const proyectoActivo = { perdidoEl: null, etapa: { not: "CIERRE" } } satisfies P
 
 // ── Calendario ──────────────────────────────────────────────────────────────
 
+/** La persona por la que se filtra: la ficha (si tiene) y el nombre con que figura como responsable. */
+type Quien = { personaId: string | null; nombre: string };
+
+/** Las personas activas del negocio, para el filtro «Persona» del calendario. */
+export function personasDelCalendario(a: Actor) {
+  return prisma.proyectoPersona.findMany({ where: { tenantId: a.tenantId, activa: true }, orderBy: { nombre: "asc" }, select: { id: true, nombre: true }, take: 200 });
+}
+
 /** Los proyectos donde la persona trabaja: en el equipo o como responsable. Es lo que significa «Sólo lo mío». */
-async function idsDeMisProyectos(a: Actor): Promise<Set<string>> {
+async function idsDeProyectosDe(tenantId: string, quien: Quien): Promise<Set<string>> {
   const [equipo, responsable] = await Promise.all([
-    a.personaId ? prisma.proyectoEquipo.findMany({ where: { tenantId: a.tenantId, personaId: a.personaId }, select: { proyectoId: true } }) : [],
-    prisma.proyecto.findMany({ where: { tenantId: a.tenantId, responsable: a.nombre }, select: { id: true }, take: 500 }),
+    quien.personaId ? prisma.proyectoEquipo.findMany({ where: { tenantId, personaId: quien.personaId }, select: { proyectoId: true } }) : [],
+    prisma.proyecto.findMany({ where: { tenantId, responsable: quien.nombre }, select: { id: true }, take: 500 }),
   ]);
   return new Set([...equipo.map((e) => e.proyectoId), ...responsable.map((p) => p.id)]);
 }
@@ -51,23 +62,28 @@ export function reunionesDelPeriodo(a: Actor, desde: Date, hasta: Date) {
  * Todo lo que tiene fecha entre `desde` y `hasta`, según lo que la persona puede ver. Los pagos y cobros sólo se consultan
  * con permiso `pagos`: sin él, no salen de la base. Lo ya hecho (ítem entregado, tarea cerrada, cuota pagada) no se muestra.
  */
-export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, soloMias: boolean): Promise<EntradaCalendario[]> {
+export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, filtro: boolean | FiltroCalendario): Promise<EntradaCalendario[]> {
   const { tenantId } = a;
-  const visibles = filtroDeProyectos(a);
+  const f: FiltroCalendario = typeof filtro === "boolean" ? { soloMias: filtro, persona: null, etapaId: null, estados: null, proyectoId: null } : filtro;
+  // O06: por persona (otra o yo), por etapa (sus estados) y por proyecto. Lo que no es de un proyecto sale si no se acota.
+  const quien: Quien | null = f.persona ? { personaId: f.persona.id, nombre: f.persona.nombre } : f.soloMias ? { personaId: a.personaId, nombre: a.nombre } : null;
+  const soloMias = !!quien;
+  const acotado = !!(f.estados || f.proyectoId);
+  const visibles: Prisma.ProyectoWhereInput = { ...filtroDeProyectos(a), ...(f.estados ? { etapa: { in: [...f.estados] } } : {}), ...(f.proyectoId ? { id: f.proyectoId } : {}) };
   const rango = { gte: desde, lte: hasta };
   const verPagos = puede(a, "pagos", "ver");
   const verEmpresa = puede(a, "empresa", "ver");
   const verFicha = puede(a, "ficha", "ver");
   const verDiseno = puede(a, "diseno", "ver");
 
-  const [proyectos, reuniones, tareas, checklist, cuotas, items, mios] = await Promise.all([
+  const [proyectos, reuniones, tareas, checklist, cuotas, items, mios, previstas, obligaciones, etapas] = await Promise.all([
     prisma.proyecto.findMany({
       where: { ...visibles, perdidoEl: null, OR: [{ fechaEvento: rango }, { fechaFin: rango }, { fechaArmado: rango }, { fechaDesarme: rango }, { fechaEvento: { lte: hasta }, fechaFin: { gte: desde } }] },
       select: { id: true, nombre: true, etapa: true, fechaEvento: true, fechaFin: true, fechaArmado: true, fechaDesarme: true },
       take: 500,
     }),
     prisma.proyectoReunion.findMany({
-      where: { tenantId, fecha: rango, OR: [{ proyectoId: null }, { proyecto: visibles }] },
+      where: { tenantId, fecha: rango, OR: [...(acotado ? [] : [{ proyectoId: null }]), { proyecto: visibles }] },
       select: { id: true, titulo: true, tipo: true, fecha: true, lugar: true, creadaPor: true, proyectoId: true, proyecto: { select: { nombre: true } } },
       take: 500,
     }),
@@ -83,7 +99,7 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, sol
     }),
     verPagos
       ? prisma.proyectoCuota.findMany({
-          where: { tenantId, venceEl: rango, pagadoEl: null, anuladoEl: null, prevista: false, OR: [{ proyecto: visibles }, ...(verEmpresa ? [{ proyectoId: null }] : [])] },
+          where: { tenantId, venceEl: rango, pagadoEl: null, anuladoEl: null, prevista: false, OR: [{ proyecto: visibles }, ...(verEmpresa && !acotado ? [{ proyectoId: null }] : [])] },
           select: { id: true, tipo: true, concepto: true, monto: true, moneda: true, venceEl: true, proyectoId: true, proyecto: { select: { nombre: true } } },
           take: 800,
         })
@@ -95,7 +111,11 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, sol
           take: 800,
         })
       : [],
-    soloMias ? idsDeMisProyectos(a) : new Set<string>(),
+    quien ? idsDeProyectosDe(tenantId, quien) : new Set<string>(),
+    // MIA-50 T09 · O05 y O07: fechas previstas de etapa y obligaciones a mano (sin M7b, ninguna).
+    previstasEntre(tenantId, desde, hasta, visibles),
+    obligacionesEntre(tenantId, desde, hasta, visibles, !acotado),
+    valorDelNegocio(tenantId, "etapas.lista"),
   ]);
 
   // Sólo la ficha viva: una versión vieja repetiría las mismas fechas.
@@ -122,13 +142,14 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, sol
     if (p.fechaDesarme && dentro(p.fechaDesarme)) sumar(`desarme-${p.id}`, "MONTAJE", `Desarme: ${p.nombre}`, p.fechaDesarme, p.id, p.nombre);
   }
   for (const r of reuniones) {
-    if (soloMias && r.creadaPor !== a.nombre && !(r.proyectoId && mios.has(r.proyectoId))) continue;
+    if (quien && r.creadaPor !== quien.nombre && !(r.proyectoId && mios.has(r.proyectoId))) continue;
     const tipo = (["REUNION", "MONTAJE", "EVENTO_TENTATIVO"] as const).find((t) => t === r.tipo) ?? "REUNION";
     sumar(`reunion-${r.id}`, tipo, r.lugar ? `${r.titulo} (${r.lugar})` : r.titulo, r.fecha, r.proyectoId, r.proyecto?.nombre ?? null, { conHora: true });
   }
   for (const t of tareas) {
     const suya = (!!a.personaId && t.personaId === a.personaId) || t.responsable === a.nombre;
-    if (soloMias && !suya) continue;
+    const deQuien = !quien || (!!quien.personaId && t.personaId === quien.personaId) || t.responsable === quien.nombre;
+    if (!deQuien) continue;
     if (t.area === "DISENO" && !verDiseno && !suya) continue;
     sumar(`tarea-${t.id}`, "TAREA", t.titulo, t.venceEl!, t.proyectoId, t.proyecto.nombre);
   }
@@ -141,6 +162,15 @@ export async function entradasCalendario(a: Actor, desde: Date, hasta: Date, sol
     const { proyectoId, version, proyecto } = i.presupuesto;
     if (version !== versiones.get(proyectoId) || !esMio(proyectoId)) continue;
     sumar(`item-${i.id}`, "DEADLINE", i.descripcion, i.fechaLimite!, proyectoId, proyecto.nombre);
+  }
+  for (const e of previstas) {
+    if (!esMio(e.proyectoId)) continue;
+    const nombre = etapas.find((x) => x.id === e.etapaId)?.nombre;
+    if (nombre) sumar(`prevista-${e.id}`, "ETAPA_PREVISTA", `${nombre} (prevista)`, e.prevista!, e.proyectoId, e.proyecto.nombre);
+  }
+  for (const o of obligaciones) {
+    if (quien && o.responsableId !== quien.personaId && !(o.proyectoId && mios.has(o.proyectoId))) continue;
+    sumar(`obligacion-${o.id}`, "OBLIGACION", `${o.tipo}: ${o.titulo} (${o.responsableNombre})`, o.venceEl, o.proyectoId, o.proyecto?.nombre ?? null);
   }
   return salida.sort((x, y) => x.fecha.getTime() - y.fecha.getTime());
 }
@@ -158,7 +188,10 @@ export async function actorDeUsuario(tenantId: string, userId: string): Promise<
   ]);
   const user = fila ? { ...fila, overrides } : null;
   if (!user || !permisoEfectivo(user, "agenda:read")) return null;
-  const rol = (persona?.rol as RolGestion | undefined) ?? (permisoFueraDeLaAgenda(user, "agenda:manage") ? "DIRECCION" : "DISENO");
+  // PRY-099: el mismo rol que en la sesión (`rolDelActor`): sin ficha, sólo la dueña es Dirección; el resto no abre nada,
+  // así que tampoco tiene calendario (antes, `agenda:manage` sin ficha daba Dirección).
+  const rol = rolDelActor(persona?.rol, user.role);
+  if (rol === "SIN_FICHA") return null;
   return { user, tenantId, personaId: persona?.id ?? null, nombre: persona?.nombre ?? user.name, rol, permisos };
 }
 
@@ -274,7 +307,7 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
   });
   const verPlata = puede(a, "pagos", "ver");
   const ids = proveedores.map((p) => p.id);
-  const [eventos, cuotas, gastos, tc] = await Promise.all([
+  const [eventos, cuotas, gastos, tc, sinCuotas] = await Promise.all([
     eventosPorProveedor(a, ids),
     verPlata ? prisma.proyectoCuota.findMany({ where: { tenantId, tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false, supplierId: { in: ids }, ...filtroCuotasVisibles(a) }, select: { id: true, tipo: true, supplierId: true, monto: true, moneda: true }, take: 5000 }) : [],
     verPlata
@@ -286,6 +319,8 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
         })
       : [],
     verPlata ? tiposDeCambio(tenantId) : ({} as Record<string, number>),
+    // MIA-199 (P5-1): los comprobantes cargados sin cuotas también se deben al proveedor.
+    verPlata ? aPagarSinCuotas(tenantId) : { total: 0, porProveedor: new Map<string, number>() },
   ]);
   const deuda = new Map<string, number>();
   const sumar = (id: string | null, monto: number) => {
@@ -296,11 +331,13 @@ export async function listaDeProveedores(a: Actor, f: { rubro?: string; q?: stri
   const falta = (c: (typeof cuotas)[number]) => aPesos(faltaDelPago(c.monto, pagados.get(c.id) ?? 0), c.moneda, tc);
   for (const c of cuotas) sumar(c.supplierId, falta(c));
   for (const g of gastos) sumar(g.supplierId, g.neto + g.iva);
+  for (const [id, monto] of sinCuotas.porProveedor) sumar(id, monto);
   return {
     verPlata,
     pendientes: gastos,
     porPagar: redondear(gastos.reduce((s, g) => s + g.neto + g.iva, 0)),
     porPagarCuotas: redondear(cuotas.reduce((s, c) => s + falta(c), 0)),
+    porPagarComprobantes: redondear(sinCuotas.total),
     proveedores: proveedores.map((p) => ({ ...p, eventos: eventos.get(p.id) ?? 0, debe: deuda.get(p.id) ?? 0 })),
   };
 }

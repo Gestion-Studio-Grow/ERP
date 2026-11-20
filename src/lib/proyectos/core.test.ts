@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ayudaEspecificacion, clientePuedeResponder, desvioPorRubro, estadoDelEntregable, resultadoReal, resumenEntregables, totalDelGasto, leerNumero, etapaAlAprobar, etapaLabel, etapaSiguiente, etapasDe, metodoDeCaja, pesos, porcentaje, porRubro, precioConMargen, sePuedeEditar, totales, ultimaEnviada, waLink } from "./core";
+import { ventaEn } from "./gestion-core";
 import { computar, costosVigentes, dentroDelLote, disenoInicial, normalizarDiseno, paredesDe, superficieParedes } from "./stand";
 
 const v = (numero: number, estado: string) => ({ numero, estado });
@@ -123,6 +124,29 @@ test("los pesos muestran los centavos sólo si los hay", () => {
   assert.match(pesos(1500.75), /1.500,75/);
   assert.doesNotMatch(pesos(2000), /,/);
 });
+
+// MIA-50 adenda 1 § A (V3-a): una sola regla de decimales. Se redondea al centavo y se formatea el redondeado; sin
+// centavos si el redondeado es entero. Tabla hecha a mano; entre el signo y la cifra va U+00A0.
+const NB = "\u00a0";
+const TABLA_V3: ReadonlyArray<[number, string | undefined, string]> = [
+  [2000, undefined, `$${NB}2.000`],
+  [1500.75, undefined, `$${NB}1.500,75`],
+  [1500.004, undefined, `$${NB}1.500`],
+  [1.005, undefined, `$${NB}1,01`],
+  [-42258.06, undefined, `-$${NB}42.258,06`],
+  [107258.06, undefined, `$${NB}107.258,06`],
+  [150, "USD", `US$${NB}150`],
+];
+
+for (const [n, moneda, esperado] of TABLA_V3) {
+  test(`V3-a · pesos(${n}${moneda ? `, ${moneda}` : ""}) da ${esperado}`, () => {
+    assert.equal(moneda ? pesos(n, moneda) : pesos(n), esperado);
+  });
+  // V3-c (T12): el formateador viejo ya no existe; `ventaEn` (cambio 1) da lo mismo que la tabla porque llama a `pesos`.
+  test(`V3-c · ventaEn sigue la regla de pesos para ${n}${moneda ? ` ${moneda}` : ""}`, () => {
+    assert.equal(ventaEn(n, moneda ?? "ARS", 1), esperado);
+  });
+}
 
 test("porRubro respeta el orden en que aparece cada rubro", () => {
   const g = porRubro([{ rubro: "B" }, { rubro: "A" }, { rubro: "B" }]);

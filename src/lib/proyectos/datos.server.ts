@@ -7,23 +7,43 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { getCurrentTenantId } from "@/lib/tenant";
-import { requireCapability, requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { requireCapability } from "@/lib/authz";
 import { permisoFueraDeLaAgenda } from "@/lib/capabilities";
 import { enmascararContacto } from "@/lib/clientes/telefono";
 import { criterioDeContacto, wherePorContacto } from "@/lib/clientes/busqueda-por-contacto";
 import type { SessionUser } from "@/lib/session";
 import { getLocation } from "@/lib/settings";
-import { desvioPorRubro, redondear, resultadoReal, totales, ultimaEnviada } from "./core";
+import { desvioPorRubro, redondear, totales, ultimaEnviada } from "./core";
 import { costosVigentes, normalizarDiseno } from "./stand";
 import { SIN_COMPROBANTES } from "./rendiciones-core";
-import { cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
+import { anotarCongelados, cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
 import { totalesEnPesos } from "./cobranza-core";
-import { aPesos } from "./gestion-core";
+import { topeDeAdicionalesPorProyecto } from "./presupuesto-m2.server";
+import { aPesos, rolDelActor, rolVeLaPlata } from "./gestion-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
-import { porPagarDeCuotas } from "./pago-parcial-core";
-import { pagosParcialesDeCuotas } from "./pago-parcial.server";
+import { costoRealDeProyectos } from "./comprobantes.server";
+import { modoDeLaPropuesta } from "./precio-proyecto.server";
+import { itemsParaElCliente, totalesDelNeto } from "./precio-proyecto-core";
 
-export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
+/**
+ * MIA-223 · la plata de Proyectos (ver costos, márgenes y cobros; cobrar, pagar, órdenes, comprobantes) la ven y la mueven
+ * Dirección y Administración, y nadie más: el rol de gestión (la ficha del equipo; la dueña sin ficha entra como
+ * Dirección) además del techo del ERP («agenda:manage» fuera de la agenda). Producción no ve ni mueve plata aunque su
+ * usuario del ERP sea RECEPTION u OWNER (decisión de ORQ-007 con el «avanzá» del dueño, 20/11; reversible).
+ * No es el único lugar: las pantallas y acciones que piden un módulo de plata (`pagos`, `empresa`, `liquidaciones`) sin
+ * pasar por acá —proveedores, Finanzas de la ficha, calendario, Administración › Cuentas— frenan por `permisoDe`
+ * (`permisoFijo`, gestion-core.ts, MIA-229): esos módulos no se le dan a un rol que no ve la plata, ni guardados.
+ */
+export async function veLaPlata(u: SessionUser): Promise<boolean> {
+  if (!permisoFueraDeLaAgenda(u, "agenda:manage")) return false;
+  const tenantId = await getCurrentTenantId();
+  const persona = await prisma.proyectoPersona.findFirst({ where: { tenantId, userId: u.id, activa: true }, select: { rol: true } });
+  // MIA-241: la misma ficha de baja que `actorActual` (MIA-238): una OWNER sin ficha activa con una de otro puesto de baja no es la Dueña.
+  const deBaja = !persona && u.role === "OWNER"
+    ? await prisma.proyectoPersona.findFirst({ where: { tenantId, userId: u.id, activa: false, rol: { not: "DIRECCION" } }, select: { rol: true } })
+    : null;
+  return rolVeLaPlata(rolDelActor(persona?.rol, u.role, deBaja?.rol));
+}
 
 export async function configProyectos(tenantId: string, db: Prisma.TransactionClient = prisma) {
   const c = await db.proyectoConfig.findUnique({ where: { tenantId } });
@@ -73,14 +93,14 @@ export async function tableroProyectos() {
       entregables: { where: { anuladoEl: null }, select: { versiones: { select: { numero: true, estado: true } } } },
     },
   });
-  return { conPlata: veLaPlata(user), proyectos };
+  return { conPlata: (await veLaPlata(user)), proyectos };
 }
 
 /** La ficha completa. Las imágenes viajan aparte: acá sólo su ficha, para no bajar megas de más. */
 export async function fichaProyecto(id: string) {
   const user = await requireCapability("agenda:read");
   const tenantId = await getCurrentTenantId();
-  const conPlata = veLaPlata(user);
+  const conPlata = await veLaPlata(user);
   const proyecto = await prisma.proyecto.findFirst({
     where: { id, tenantId },
     include: {
@@ -91,6 +111,8 @@ export async function fichaProyecto(id: string) {
       presupuestos: { orderBy: { version: "desc" }, include: { items: { orderBy: [{ posicion: "asc" }, { createdAt: "asc" }] } } },
       pagos: { orderBy: { createdAt: "desc" }, select: COLUMNAS_PAGO },
       gastos: { orderBy: [{ fecha: "desc" }, { createdAt: "desc" }], include: { supplier: { select: { name: true } } } },
+      // O13: lo previsto por cuotas de pago también es costo real (la misma cuenta que la ficha y Dirección).
+      cuotas: { where: { tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false }, select: { id: true, tipo: true, monto: true, moneda: true, pagadoEl: true, anuladoEl: true, prevista: true } },
       entregables: {
         where: { anuladoEl: null },
         orderBy: { createdAt: "asc" },
@@ -106,14 +128,18 @@ export async function fichaProyecto(id: string) {
     tiposDeCambio(tenantId),
   ]);
   const vigente = proyecto.presupuestos.find((p) => p.estado === "APROBADO") ?? null;
+  // MIA-199 · P5-2: el total vendido congelado (la foto) antes de calcular: la ganancia real sale de él, no de los renglones.
+  if (vigente) await anotarCongelados(prisma, tenantId, [{ presupuestos: [vigente] }]);
   const totalesVigente = vigente ? totalesEnPesos(vigente, tc, config.margenPct) : null;
-  const real = resultadoReal(totalesVigente, proyecto.gastos);
+  const real = (await costoRealDeProyectos(tenantId, [{ id: proyecto.id, t: totalesVigente, gastos: proyecto.gastos, cuotas: proyecto.cuotas }], tc)).get(proyecto.id)!;
   // El costo presupuestado por rubro, en pesos: así se compara contra los gastos.
   const rubros = desvioPorRubro(vigente?.items.map((i) => ({ ...i, costo: aPesos(i.costo, i.moneda, tc) })) ?? [], proyecto.gastos);
   // Cobrado y saldo: la fuente única (cobranza-core), igual que la caja «Cobros» y las listas.
   const pagosVivos = proyecto.pagos.filter((x) => !x.anuladoEl);
-  const delProyecto = { moneda: proyecto.moneda, presupuestos: vigente ? [vigente] : [], pagos: pagosVivos };
-  const { total: totalAprobado, cobrado, saldo } = cobranzaDe(delProyecto, tc, config.margenPct, await originalesDeCobros(tenantId, [delProyecto]));
+  const delProyecto = { moneda: proyecto.moneda, perdidoEl: proyecto.perdidoEl, presupuestos: vigente ? [vigente] : [], pagos: pagosVivos };
+  // MIA T06 · O11: los adicionales aprobados suman al total, igual que al tope del cobro.
+  const [originales, adicionales] = await Promise.all([originalesDeCobros(tenantId, [delProyecto]), topeDeAdicionalesPorProyecto(prisma, tenantId, [proyecto.id])]);
+  const { total: totalAprobado, cobrado, saldo } = cobranzaDe(delProyecto, tc, config.margenPct, originales, adicionales.get(proyecto.id) ?? 0);
   return { user, conPlata, proyecto, config, negocio, totalAprobado, cobrado, saldo, totalesVigente, real, rubros, proveedores: proveedores.map((s) => s.name) };
 }
 
@@ -156,7 +182,8 @@ export async function clientesDelNegocio() {
 }
 
 export async function reporteProyectos() {
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  // PRY-099: decide el rol de gestión (módulo `direccion`), con el techo del ERP adentro. Import dinámico: gestion.server importa este archivo.
+  await (await import("./gestion.server")).exigirPlataDeDireccion("ver");
   const tenantId = await getCurrentTenantId();
   const [config, tc] = await Promise.all([configProyectos(tenantId), tiposDeCambio(tenantId)]);
   const proyectos = await prisma.proyecto.findMany({
@@ -171,25 +198,25 @@ export async function reporteProyectos() {
       etapa: true,
       client: { select: { name: true } },
       ...SELECT_COBRANZA,
-      gastos: { where: { anuladoEl: null }, select: { rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
+      gastos: { where: { anuladoEl: null }, select: { id: true, rubro: true, neto: true, iva: true, pagadoEl: true, anuladoEl: true } },
       cuotas: { where: { tipo: "PAGO", pagadoEl: null, anuladoEl: null, prevista: false }, select: { id: true, tipo: true, monto: true, moneda: true, pagadoEl: true, anuladoEl: true, prevista: true } },
     },
   });
-  const originales = await originalesDeCobros(tenantId, proyectos);
-  // D6: lo que falta pagar por cuotas a proveedor (menos lo pagado en parte) entra al costo real y a «Por pagar».
-  const pagados = await pagosParcialesDeCuotas(tenantId, proyectos.flatMap((p) => p.cuotas), tc);
-  return proyectos.map((p) => {
-    const a = p.presupuestos[0];
-    const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
+  const [originales] = await Promise.all([originalesDeCobros(tenantId, proyectos), anotarCongelados(prisma, tenantId, proyectos)]);
+  const conTotales = proyectos.map((p) => ({ ...p, t: p.presupuestos[0] ? totalesEnPesos(p.presupuestos[0], tc, config.margenPct) : null }));
+  // O13 · la cuenta única del costo real (comprobantes.server): lo imputado, los gastos y lo previsto por cuotas (D6).
+  const reales = await costoRealDeProyectos(tenantId, conTotales, tc);
+  return conTotales.map((p) => {
     // `porCobrar` sale de la fuente única: la pantalla sólo lo suma, no lo recalcula del saldo.
     const { cobrado, saldo, porCobrar } = cobranzaDe(p, tc, config.margenPct, originales);
-    return { ...p, t, cobrado, saldo, porCobrar, real: resultadoReal(t, p.gastos, porPagarDeCuotas(p.cuotas, pagados, tc)) };
+    return { ...p, cobrado, saldo, porCobrar, real: reales.get(p.id)! };
   });
 }
 
 /** Los proveedores con lo gastado en proyectos, y lo que queda por pagar. */
 export async function proveedoresConGastos() {
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  // PRY-099: decide el rol de gestión (módulo `direccion`), con el techo del ERP adentro. Import dinámico: gestion.server importa este archivo.
+  await (await import("./gestion.server")).exigirPlataDeDireccion("ver");
   const tenantId = await getCurrentTenantId();
   const [proveedores, gastos] = await Promise.all([
     prisma.supplier.findMany({ where: { tenantId }, orderBy: [{ active: "desc" }, { name: "asc" }], take: 500, select: { id: true, name: true, taxId: true, phone: true, email: true, active: true } }),
@@ -243,7 +270,7 @@ export async function clientesConProyectos(q: string) {
       },
     },
   });
-  const originales = await originalesDeCobros(tenantId, clientes.flatMap((c) => c.proyectos));
+  const [originales] = await Promise.all([originalesDeCobros(tenantId, clientes.flatMap((c) => c.proyectos)), anotarCongelados(prisma, tenantId, clientes.flatMap((c) => c.proyectos))]);
   return clientes.map(({ proyectos, ...c }) => ({
     ...enmascararContacto(c, user),
     total: proyectos.length,
@@ -270,7 +297,7 @@ export async function proyectosDelCliente(clientId: string) {
       ...SELECT_COBRANZA,
     },
   });
-  const originales = await originalesDeCobros(tenantId, proyectos);
+  const [originales] = await Promise.all([originalesDeCobros(tenantId, proyectos), anotarCongelados(prisma, tenantId, proyectos)]);
   return proyectos.map((p) => {
     const a = p.presupuestos[0];
     const t = a ? totalesEnPesos(a, tc, config.margenPct) : null;
@@ -350,23 +377,17 @@ export async function propuestaPublica(token: string) {
     },
   });
   if (!presupuesto) return null;
-  const t = totales(presupuesto.items, presupuesto.ivaPct);
-  const negocio = await datosDelNegocio(tenantId);
+  // O17 (MIA T07): un negocio que cotiza por total muestra el total congelado y, según su parámetro, sin precio por ítem.
+  const [negocio, modo] = await Promise.all([datosDelNegocio(tenantId), modoDeLaPropuesta(tenantId, presupuesto)]);
+  const t = modo?.neto != null ? totalesDelNeto(modo.neto, presupuesto.ivaPct) : totales(presupuesto.items, presupuesto.ivaPct);
   // Lo interno no sale del servidor: ni notas, ni la foto de la versión, ni quién aprobó adentro.
   const { foto: _foto, nota: _nota, creadoPor: _creadoPor, aprobadoInternoPor: _aprobadoPor, aprobadoInternoEl: _aprobadoEl, ...publico } = presupuesto;
-  // Un ítem oculto no se detalla, pero se cobra: suma a «Otros conceptos» de su rubro, y el total sigue cerrando.
-  const otros = new Map<string, number>();
-  for (const i of presupuesto.items) if (!i.visibleCliente) otros.set(i.rubro, redondear((otros.get(i.rubro) ?? 0) + i.cantidad * i.precio));
   return {
     negocio,
-    presupuesto: {
-      ...publico,
-      // El costo y el proveedor son internos: del servidor sale sólo lo que el cliente puede ver.
-      items: [
-        ...presupuesto.items.filter((i) => i.visibleCliente).map(({ id, rubro, descripcion, unidad, cantidad, precio }) => ({ id, rubro, descripcion, unidad, cantidad, precio })),
-        ...[...otros].map(([rubro, precio]) => ({ id: `otros:${rubro}`, rubro, descripcion: "Otros conceptos", unidad: "global", cantidad: 1, precio })),
-      ],
-    },
+    // El costo y el proveedor son internos: del servidor sale sólo lo que el cliente puede ver.
+    presupuesto: { ...publico, items: itemsParaElCliente(presupuesto.items, modo) },
     totales: { neto: t.neto, iva: t.iva, total: t.total },
+    /** null = por ítems, como siempre. */
+    porTotal: modo ? { conIva: modo.conIva, sinPrecioPorItem: modo.sinPrecioPorItem } : null,
   };
 }

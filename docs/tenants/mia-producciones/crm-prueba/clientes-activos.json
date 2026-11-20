@@ -1,0 +1,50 @@
+{
+  "_nota": "Datos ficticios para la prueba a ciegas del CRM. Marcas, personas y dominios inventados (.example). Fecha de corte: 16/11/2026.",
+  "clientes": [
+    {
+      "id": "C01",
+      "marca": "Cervecería Lobo Turquesa",
+      "dominio": "loboturquesa.example",
+      "rubro": "bebidas: cerveza artesanal",
+      "responsable_de_cuenta": "Paula Ibarguren (comercial de la agencia)",
+      "proyecto_en_curso": {
+        "descripcion": "Stand a medida 8x6 con barra de canillas y escenario chico",
+        "evento": "Festival Cervecero del Paraná 2027",
+        "fecha_evento": "19 al 21/02/2027",
+        "lugar": "Paraná, Entre Ríos",
+        "estado": "en producción (diseño aprobado, carpintería en curso)"
+      },
+      "notas": "Cliente desde 2025. Paula lleva la relación y concentra todo contacto con la marca."
+    },
+    {
+      "id": "C02",
+      "marca": "Lácteos Ventisquero Azul",
+      "dominio": "ventisqueroazul.example",
+      "rubro": "alimentos: lácteos (quesos, yogures, dulce de leche)",
+      "responsable_de_cuenta": "Tomás Echeverz (comercial de la agencia)",
+      "proyecto_en_curso": {
+        "descripcion": "Stand isla 10x8 con sala de degustación",
+        "evento": "Feria Agro Pampa 2027",
+        "fecha_evento": "03 al 06/03/2027",
+        "lugar": "Predio ferial de Junín, Buenos Aires",
+        "estado": "diseño aprobado, presupuesto final en revisión"
+      },
+      "notas": "En la reunión de arranque el cliente pidió que la agencia no trabaje para otra marca de lácteos en esa misma feria. No hay cláusula de exclusividad firmada."
+    },
+    {
+      "id": "C03",
+      "marca": "Neumáticos Rodacor",
+      "dominio": "rodacor.example",
+      "rubro": "automotor: neumáticos para autos y motos",
+      "responsable_de_cuenta": "Lucía Quintar (comercial de la agencia)",
+      "proyecto_en_curso": {
+        "descripcion": "Activación con simulador de frenado en piso mojado",
+        "evento": "Salón Moto Austral 2027",
+        "fecha_evento": "07 al 10/10/2027",
+        "lugar": "Complejo ferial Costa Verde, Córdoba",
+        "estado": "propuesta aprobada, seña cobrada"
+      },
+      "notas": "Sin pedido de exclusividad."
+    }
+  ]
+}

@@ -65,6 +65,16 @@ ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
 ALTER DEFAULT PRIVILEGES FOR ROLE neondb_owner IN SCHEMA public
   GRANT USAGE, SELECT                  ON SEQUENCES TO app_rls;
 
+-- Tablas de PLATAFORMA que la app sólo lee (las escribe GSG como dueño). El GRANT general de arriba se las daría:
+-- se le sacan acá, así correr este script de nuevo no las reabre. Si la tabla todavía no existe, no hay nada que sacar.
+--   · "VinculoNegocio" (GSG-CRM-017): el vínculo ARM → destino lo carga sólo GSG.
+DO $$
+BEGIN
+  IF to_regclass('"VinculoNegocio"') IS NOT NULL THEN
+    REVOKE INSERT, UPDATE, DELETE ON "VinculoNegocio" FROM app_rls;
+  END IF;
+END $$;
+
 COMMIT;
 
 -- Verificación rápida (debe devolver rolbypassrls = false):

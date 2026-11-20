@@ -12,7 +12,7 @@ import NuevaFicha from "./NuevaFicha";
 
 export default async function ClientesProductora({ user, q }: { user: SessionUser; q: string }) {
   const clientes = await clientesConProyectos(q);
-  const conPlata = veLaPlata(user);
+  const conPlata = await veLaPlata(user);
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-5">

@@ -35,7 +35,7 @@
  */
 import { pesos, redondear, totales, type Totales } from "./core";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
-import { aPesos, costoTotalItem, enMonedaDeVenta, plataEn, resumenCuotas, ventaTotalItem, type CuotaLeida, type ResumenCuotas } from "./gestion-core";
+import { aPesos, costoTotalItem, enMonedaDeVenta, resumenCuotas, ventaTotalItem, type CuotaLeida, type ResumenCuotas } from "./gestion-core";
 
 /** Una cuota como la lee la cobranza: con `prevista` si se la leyó (las lecturas de Administración ya las filtran). */
 export type CuotaDeCobranza = CuotaLeida & { prevista?: boolean | null };
@@ -64,12 +64,23 @@ export interface ItemVendible {
 export interface PresupuestoAprobado {
   ivaPct: number;
   items: readonly ItemVendible[];
+  /** MIA T07 · O16: el total vendido congelado en la foto de la aprobación, en pesos sin IVA (`anotarCongelados`). */
+  congelado?: number | null;
 }
 
-/** Costo, neto, IVA y ganancia del presupuesto, todo en pesos de hoy: un costo en dólares no se suma como si fueran pesos. PURA. */
+/**
+ * Costo, neto, IVA y ganancia del presupuesto, todo en pesos de hoy: un costo en dólares no se suma como si fueran pesos.
+ * MIA-199 · P3-2/P5-2: con el total vendido congelado, el neto es ése (lo que se le vendió al cliente), no la suma de los
+ * renglones; la ganancia es ese neto menos el costo. PURA.
+ */
 export function totalesEnPesos(aprobado: PresupuestoAprobado, tc: Readonly<Record<string, number>>, recargoGeneral: number): Totales {
   const enPesos = aprobado.items.map((i) => ({ cantidad: 1, costo: costoTotalItem(i, tc), precio: ventaTotalItem(i, tc, recargoGeneral) }));
-  return totales(enPesos, aprobado.ivaPct);
+  const t = totales(enPesos, aprobado.ivaPct);
+  if (aprobado.congelado == null) return t;
+  const neto = redondear(aprobado.congelado);
+  const iva = redondear((neto * aprobado.ivaPct) / 100);
+  const ganancia = redondear(neto - t.costo);
+  return { costo: t.costo, neto, iva, total: redondear(neto + iva), ganancia, margenPct: neto > 0 ? redondear((ganancia / neto) * 100) : 0 };
 }
 
 /** El total con IVA, en pesos, del presupuesto aprobado; 0 si no hay. Mismo cálculo que la caja «Cobros». PURA. */
@@ -113,6 +124,8 @@ export interface Cobranza {
   sueltos: number;
   /** Lo cobrado por cada cuota marcada, por id de cuota (sólo si hay alguno). */
   deCuotas?: Readonly<Record<string, CobroDeCuota>>;
+  /** Sólo en un perdido: el total aprobado antes de perderlo, en pesos (contra eso se mide su avance, MIA-224 · D3). */
+  ventaOriginal?: number;
 }
 
 /** Cobros sueltos y cobros por cuota de una lista de cobros registrados; `hoyDe`: lo que vale cada uno en H. PURA. */
@@ -178,6 +191,18 @@ export function cobranzaEnMoneda(totalEnPesos: number, cobros: readonly CobroReg
 }
 
 /**
+ * La cobranza de un proyecto PERDIDO (pregunta 2 = A, provisional a confirmar por el dueño): no se le debe nada y lo
+ * cobrado sigue cobrado. El total baja a lo cobrado, así `total − cobrado = saldo` sigue valiendo y ninguna pantalla
+ * (ficha, Finanzas, Rentabilidad, clientes) muestra un saldo que no se cobra. Un saldo a favor del cliente (se cobró de
+ * más) se conserva: devolverlo es otra operación. Idea del WIP de MIA-089, tomada por MIA-094. La venta de antes queda en
+ * `ventaOriginal`, para medir el avance de cobro (decisión 3 = B, MIA-224). PURA.
+ */
+export function cobranzaDePerdido(c: Cobranza): Cobranza {
+  const conMoneda = c.enMoneda && { enMoneda: { ...c.enMoneda, total: Math.min(c.enMoneda.total, c.enMoneda.cobrado), saldo: Math.min(0, c.enMoneda.saldo) } };
+  return { ...c, total: Math.min(c.total, c.cobrado), saldo: Math.min(0, c.saldo), porCobrar: 0, ventaOriginal: c.total, ...conMoneda };
+}
+
+/**
  * Por cuota, alineado con las cuotas y en la moneda de cada una: lo que le falta y lo que ya entró por ella. `cobrado` de
  * una cuota de cobro es lo que VALE hoy lo que entró (H pasado a su moneda con el cambio de hoy): una cuota en USD de un
  * proyecto en pesos, cobrada con el dólar a 1000 y leída con el dólar a 1500, muestra los pesos que entraron en USD de hoy.
@@ -185,6 +210,12 @@ export function cobranzaEnMoneda(totalEnPesos: number, cobros: readonly CobroReg
 export interface RepartoDeCobros {
   pendiente: number[];
   cobrado: number[];
+  /**
+   * Lo cobrado (en pesos de hoy) que ninguna cuota viva tomó: un cobro sin cuota en un proyecto sin plan, o el de un
+   * perdido (sus cuotas pendientes se anularon). Entró igual: el cashflow de la ficha arranca con eso (MIA-089 · V2).
+   * Sólo está si hay.
+   */
+  suelto?: number;
 }
 
 /**
@@ -241,7 +272,7 @@ export function repartoDeCobros(cuotas: readonly CuotaDeCobranza[], tc: Readonly
     // De vuelta a su moneda con el cambio de hoy, al centavo para abajo: pasado a pesos no supera lo que entró.
     cobrado[i] = !(enPesos[i] > 0) ? enSuMoneda : q.moneda === "ARS" ? valeH : alCentavoAbajo((q.monto * valeH) / enPesos[i]);
   }
-  if (!(c.total > 0)) return { pendiente, cobrado };
+  if (!(c.total > 0)) return { pendiente, cobrado, ...(suelta > 0 && { suelto: suelta }) };
   const pendientes = deCobro.filter((i) => !cuotas[i].pagadoEl && enPesos[i] > 0);
   // 2) Lo suelto que sobra, contra las pendientes más viejas: lo que les queda, en H.
   const bruto = new Map<number, number>();
@@ -262,7 +293,7 @@ export function repartoDeCobros(cuotas: readonly CuotaDeCobranza[], tc: Readonly
     if (!esPrevista(cuotas[i]) || !(enPesos[i] > 0)) continue;
     pendiente[i] = pendienteDeCuota(cuotas[i], enPesos[i], enPesos[i], tope, tc);
   }
-  return { pendiente, cobrado };
+  return { pendiente, cobrado, ...(suelta > 0 && { suelto: suelta }) };
 }
 
 /** Lo que queda del tope del reparto: en H (`restoH`) y en la moneda del proyecto (`queda`, con su cambio de hoy `tc`). */
@@ -349,7 +380,7 @@ export function pagadoDeCuota(q: { id?: string | null; tipo: string; moneda: str
 
 /** «US$ 100 · $ 100.000»: lo pagado, y los pesos asentados si fue en otra moneda. PURA. */
 export function textoPagado(p: PagadoDeCuota): string {
-  return p.pesos === null ? plataEn(p.monto, p.moneda) : `${plataEn(p.monto, p.moneda)} · ${pesos(p.pesos)}`;
+  return p.pesos === null ? pesos(p.monto, p.moneda) : `${pesos(p.monto, p.moneda)} · ${pesos(p.pesos)}`;
 }
 
 /** Lo que falta cobrar de cada cuota, en su moneda (ver `repartoDeCobros`). PURA. */

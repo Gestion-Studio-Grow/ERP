@@ -111,3 +111,24 @@ test("varios detalles", () => {
   assert.equal(entre(NaN, 1, 5, 4), 4);
   assert.equal(versionesVivas([{ proyectoId: "a", version: 1 }, { proyectoId: "a", version: 3 }, { proyectoId: "b", version: 2 }]).get("a"), 3);
 });
+
+// ── MIA-50 T02 · O06: filtros del calendario (persona, etapa, proyecto). Esperados a mano. ──
+import { filtroDelCalendario, rutaDelCalendario } from "./gestion-lecturas-core";
+import { defDe as defDeT02 } from "./parametros/catalogo";
+
+test("O06 · el filtro sólo acepta valores que existen; la etapa se traduce a sus estados del parámetro", () => {
+  const etapas = defDeT02("etapas.lista").rubro;
+  const personas = [{ id: "p1", nombre: "Ana" }];
+  const proyectos = [{ id: "x1" }];
+  assert.deepEqual(filtroDelCalendario({ persona: "p1", etapa: "PRODUCCION", proyecto: "x1", mias: "1" }, etapas, personas, proyectos), {
+    soloMias: true, persona: { id: "p1", nombre: "Ana" }, etapaId: "PRODUCCION", estados: ["APROBADO", "PRODUCCION", "ARMADO", "DESARME"], proyectoId: "x1",
+  });
+  assert.deepEqual(filtroDelCalendario({ persona: "otra", etapa: "NO", proyecto: "y" }, etapas, personas, proyectos), { soloMias: false, persona: null, etapaId: null, estados: null, proyectoId: null });
+});
+
+test("O06 · la ruta conserva los filtros y cambia sólo lo pedido", () => {
+  const base = { mes: "2026-11", soloMias: false, persona: "p1", etapa: "COMERCIAL", proyecto: null };
+  assert.equal(rutaDelCalendario(base, {}), "/admin/proyectos/calendario?mes=2026-11&persona=p1&etapa=COMERCIAL");
+  assert.equal(rutaDelCalendario(base, { mes: "2026-12", etapa: null, dia: "2026-12-03" }), "/admin/proyectos/calendario?mes=2026-12&persona=p1&dia=2026-12-03");
+  assert.equal(rutaDelCalendario(base, { soloMias: true, proyecto: "x1" }), "/admin/proyectos/calendario?mes=2026-11&mias=1&persona=p1&etapa=COMERCIAL&proyecto=x1");
+});

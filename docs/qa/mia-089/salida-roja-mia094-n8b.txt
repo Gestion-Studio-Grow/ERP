@@ -1,0 +1,9 @@
+# MIA-094 · N8b: salida ROJA antes del freno (rama mia-094/plata-cierre, antes del arreglo)
+# node --import tsx --test --test-name-pattern='N8b \(MIA-094\)' src/lib/proyectos/mia089-plata-postgres.test.ts
+not ok 1 - N8b (MIA-094) · un gasto a mano sin pagar del proveedor que ya tiene una cuota de pago pendiente frena: con «es otra deuda» se graba y deja rastro; una cuota prevista o otro proveedor no frenan
+  error: |-
+    la misma deuda no se carga dos veces
+  expected: false
+  actual: true
+# pass 0
+# fail 1

@@ -6,14 +6,18 @@ import SubmitButton from "@/components/SubmitButton";
 import { agregarTarea, alternarTarea, borrarTarea } from "@/lib/proyectos/acciones";
 import { agregarChecklist, alternarChecklist, asignarEquipo, borrarChecklist, cargarPlantillaChecklist, generarPortal, guardarDatos, nuevaVersion, quitarEquipo, revocarPortal } from "@/lib/proyectos/acciones-ficha";
 import { fechaCorta, fechaParaInput, MEDIO_LABEL, pesos, porcentaje, sePuedeEditar, yaVencio, type MedioPago } from "@/lib/proyectos/core";
-import { conteoPorEstado } from "@/lib/proyectos/ficha-core";
-import { cambioDeVenta, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, plataEn, TIPOS_EVENTO, ventaEn } from "@/lib/proyectos/gestion-core";
+import { avanceDeCobro, contar, conteoPorEstado } from "@/lib/proyectos/ficha-core";
+import { ofreceNuevaVersion } from "@/lib/proyectos/presupuesto-vista-core";
+import { cambioDeVenta, costoParaMostrar, margenParaMostrar, ESTADOS_ITEM, ESTADO_ITEM_LABEL, MONEDAS, TIPOS_EVENTO } from "@/lib/proyectos/gestion-core";
 import { datosFicha, datosHistorial, datosResumen, datosSeguimiento, type Cabecera, type Vista } from "@/lib/proyectos/ficha.server";
 import { prisma } from "@/lib/prisma";
 import { puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
+import { cabezaMovil, celdaMovil, cssTarjetas, cuerpoMovil, etiquetasFicha, filaMovil, importe, importeDeVenta, tablaMovil } from "../_tabla";
 import { BotonConConfirmacion, FormAccion } from "./_cliente";
 import { CopiarLink } from "./_piezas";
+import { valorDelNegocio } from "@/lib/proyectos/parametros/leer.server";
+import { PLUS_APAGADO, proyectosConReparto } from "@/lib/proyectos/liquidacion-proyecto.server";
 import { etapa2ActivaPara } from "@/lib/proyectos/etapa2.server";
 import { TablaFicha } from "./_tabla-ficha";
 
@@ -38,8 +42,12 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
   const { personas, finanzas, cantCuotas, cantChecklist } = await datosResumen(a, cab, vista);
   // Etapa 2: el portal del cliente se prende por negocio (apagado por defecto): si está apagado, no se ofrece el link.
   const conPortal = await etapa2ActivaPara(a.tenantId, "portal");
-  const avance = finanzas && finanzas.cobrado + finanzas.aCobrar > 0 ? (finanzas.cobrado / (finanzas.cobrado + finanzas.aCobrar)) * 100 : 0;
+  const avance = avanceDeCobro(finanzas, !!p.perdidoEl);
   const libres = personas.filter((x) => !p.equipo.some((e) => e.personaId === x.id));
+  // MIA T07: las funciones del negocio (catálogo de parámetros): con ellas se cobra la comisión del precio por total.
+  const funciones = await valorDelNegocio(a.tenantId, "equipo.funciones");
+  // T12 (O25): con el reparto prendido y el precio aprobado con su foto, el plus no se paga: lo dice al lado de la persona.
+  const plusApagado = vista.plus && p.equipo.some((e) => e.plus > 0) && (await proyectosConReparto(prisma, a.tenantId, [p.id])).has(p.id);
   const clientes = vista.pipelineEdita ? await prisma.client.findMany({ where: { tenantId: a.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [];
 
   return (
@@ -52,8 +60,8 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
           <div className={dato}><dt className="text-xs text-muted">Invitados</dt><dd className="text-strong">{p.invitados?.toLocaleString("es-AR") ?? "—"}</dd></div>
           <div className={dato}><dt className="text-xs text-muted">Moneda de venta</dt><dd className="text-strong">{p.moneda}</dd></div>
           <div className={dato}><dt className="text-xs text-muted">Responsable</dt><dd className="text-strong">{p.responsable || "—"}</dd></div>
-          <div className={dato}><dt className="text-xs text-muted">Anticipo del cliente</dt><dd className="text-strong">{porcentaje(p.anticipoClientePct)}</dd></div>
-          <div className={dato}><dt className="text-xs text-muted">Presupuesto estimado</dt><dd className="text-strong">{p.presupuestoEstimado != null ? plataEn(p.presupuestoEstimado, p.moneda) : "—"}</dd></div>
+          {vista.importes && (<div className={dato}><dt className="text-xs text-muted">Anticipo del cliente</dt><dd className="text-strong">{porcentaje(p.anticipoClientePct)}</dd></div>)}
+          {vista.importes && (<div className={dato}><dt className="text-xs text-muted">Presupuesto estimado</dt><dd className="text-strong">{p.presupuestoEstimado != null ? importe(p.presupuestoEstimado, p.moneda) : "—"}</dd></div>)}
           <div className={dato}><dt className="text-xs text-muted">Creado</dt><dd className="text-strong">{fechaCorta(p.createdAt)}</dd></div>
           {p.evento && <div className={dato}><dt className="text-xs text-muted">Feria o marco</dt><dd className="text-strong">{p.evento}</dd></div>}
         </dl>
@@ -87,8 +95,8 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
                 <label className={etiqueta}>Moneda de venta
                   <select name="moneda" defaultValue={p.moneda} className={campo}>{MONEDAS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
                 </label>
-                <label className={etiqueta}>Presupuesto estimado<input name="presupuestoEstimado" inputMode="decimal" defaultValue={p.presupuestoEstimado ?? ""} className={campo} /></label>
-                <label className={etiqueta}>Anticipo del cliente %<input name="anticipoClientePct" inputMode="decimal" defaultValue={p.anticipoClientePct} className={campo} /></label>
+                {vista.importes && (<label className={etiqueta}>Presupuesto estimado<input name="presupuestoEstimado" inputMode="decimal" defaultValue={p.presupuestoEstimado ?? ""} className={campo} /></label>)}
+                {vista.importes && (<label className={etiqueta}>Anticipo del cliente %<input name="anticipoClientePct" inputMode="decimal" defaultValue={p.anticipoClientePct} className={campo} /></label>)}
                 <label className={etiqueta}>Responsable<input name="responsable" maxLength={80} defaultValue={p.responsable ?? ""} className={campo} /></label>
                 <label className={etiqueta}>Contacto del cliente<input name="contactoNombre" maxLength={120} defaultValue={p.contactoNombre ?? ""} className={campo} /></label>
                 <label className={etiqueta}>Mail del contacto<input name="contactoEmail" type="email" maxLength={160} defaultValue={p.contactoEmail ?? ""} className={campo} /></label>
@@ -107,13 +115,21 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
             <dl className="grid grid-cols-2 gap-3 text-sm">
               <Numero titulo="Cobrado" valor={pesos(finanzas.cobrado)} />
               <Numero titulo="A cobrar" valor={pesos(finanzas.aCobrar)} alerta={finanzas.cantCobrosVencidos > 0} />
-              {vista.costos && <Numero titulo="Pagado a proveedores" valor={pesos(finanzas.pagado)} />}
-              {vista.costos && <Numero titulo="A pagar" valor={pesos(finanzas.aPagar)} alerta={finanzas.cantPagosVencidos > 0} />}
+              {vista.deudas && <Numero titulo="Pagado a proveedores" valor={pesos(finanzas.pagado)} />}
+              {vista.deudas && <Numero titulo="A pagar" valor={pesos(finanzas.aPagar)} alerta={finanzas.cantPagosVencidos > 0} />}
             </dl>
-            <p className="mt-3 text-xs text-muted">Avance de cobro: {porcentaje(Math.round(avance))}</p>
-            <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface" role="progressbar" aria-valuenow={Math.round(avance)} aria-valuemin={0} aria-valuemax={100} aria-label="Avance de cobro">
-              <div className="h-full bg-accent" style={{ width: `${Math.min(100, avance)}%` }} />
-            </div>
+            {p.perdidoEl && <p className="mt-3 text-xs text-muted">Proyecto perdido: no se le cobra más. Lo cobrado queda como cobrado.</p>}
+            {avance !== null && (
+              <>
+                <p className="mt-3 text-xs text-muted">
+                  Avance de cobro: {porcentaje(Math.round(avance))}
+                  {p.perdidoEl && finanzas.ventaOriginal ? ` de la venta original (${pesos(finanzas.ventaOriginal)})` : ""}
+                </p>
+                <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface" role="progressbar" aria-valuenow={Math.round(avance)} aria-valuemin={0} aria-valuemax={100} aria-label="Avance de cobro">
+                  <div className="h-full bg-accent" style={{ width: `${Math.min(100, avance)}%` }} />
+                </div>
+              </>
+            )}
           </section>
         )}
 
@@ -121,9 +137,9 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
           <h2 className="mb-1 font-semibold text-strong">Se carga una vez, sale en todos lados</h2>
           <p className="mb-2 text-sm text-muted">Con los ítems de la ficha se arman solos la planilla de venta, los cobros, los pagos y las fechas de la agenda.</p>
           <ul className="grid gap-1 text-sm">
-            <li><Link className="flex min-h-11 items-center underline" href={`?tab=ficha`}>{cab.totales.items} ítems en la ficha</Link></li>
-            {vista.pagos && <li><Link className="flex min-h-11 items-center underline" href={`?tab=finanzas`}>{cantCuotas} movimientos en el cashflow</Link></li>}
-            <li><Link className="flex min-h-11 items-center underline" href={`?tab=seguimiento`}>{cantChecklist} puntos en el checklist</Link></li>
+            <li><Link className="flex min-h-11 items-center underline" href={`?tab=ficha`}>{contar(cab.totales.items, "ítem", "ítems")} en la ficha</Link></li>
+            {(vista.pagos || vista.cobros) && <li><Link className="flex min-h-11 items-center underline" href={`?tab=finanzas`}>{contar(cantCuotas, "movimiento", "movimientos")} en el cashflow</Link></li>}
+            <li><Link className="flex min-h-11 items-center underline" href={`?tab=seguimiento`}>{contar(cantChecklist, "punto", "puntos")} en el checklist</Link></li>
           </ul>
         </section>
       </div>
@@ -134,10 +150,10 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
         {p.equipo.length === 0 && <p className="mb-3 text-sm text-muted">Sin personas asignadas.</p>}
         <ul className="mb-3 grid gap-1">
           {p.equipo.map((e) => (
-            <li key={e.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-1 text-sm">
-              <span className="min-w-0">
+            <li key={e.id} className="flex items-center justify-between gap-2 border-t border-line py-1 text-sm">
+              <span className="min-w-0 flex-1">
                 <span className="font-medium text-strong">{e.persona.nombre}</span>
-                <span className="block text-xs text-muted">{[e.funcion || e.persona.puesto, vista.costos && e.plus > 0 ? `plus ${pesos(e.plus)}` : null].filter(Boolean).join(" · ")}</span>
+                <span className="block text-xs text-muted">{[(e.funcion && funciones.find((f) => f.id === e.funcion)?.nombre) || e.funcion || e.persona.puesto, vista.plus && e.plus > 0 ? (plusApagado ? `plus ${pesos(e.plus)}: ${PLUS_APAGADO}` : `plus ${pesos(e.plus)}`) : null].filter(Boolean).join(" · ")}</span>
               </span>
               {vista.pipelineEdita && <BotonConConfirmacion accion={quitarEquipo} ocultos={{ id: e.id, proyectoId: p.id }} texto="Quitar" textoConfirma="Quitar" etiqueta={`Quitar a ${e.persona.nombre}`} />}
             </li>
@@ -153,8 +169,11 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
                 <option value="" disabled>Persona</option>
                 {libres.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
               </select>
-              <input name="funcion" maxLength={80} aria-label="Función" placeholder="Función" className={campo} />
-              {vista.editaCostos && <input name="plus" inputMode="decimal" aria-label="Plus por evento" placeholder="Plus por evento" className={campo} />}
+              <select name="funcion" aria-label="Función" defaultValue="" className={campo}>
+                <option value="">Sin función que cobre</option>
+                {funciones.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
+              </select>
+              {vista.editaCostos && vista.plus && <input name="plus" inputMode="decimal" aria-label="Plus por evento" placeholder="Plus por evento" className={campo} />}
               <SubmitButton className={buttonClasses("outline", "md")}>Asignar</SubmitButton>
             </FormAccion>
           )
@@ -189,47 +208,56 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
 // ── Ficha del evento ────────────────────────────────────────────────────────
 
 export async function PestanaFicha({ a, cab, vista }: { a: Actor; cab: Cabecera; vista: Vista }) {
-  const { viva, totales: t, faltanCambio, config, proyecto } = cab;
+  // La ficha muestra el borrador que se edita (P-06): sus totales, no los de la versión aprobada que cuentan las cuotas.
+  const { viva, totalesViva: t, faltanCambio, config, proyecto } = cab;
   const { filas, proveedores } = await datosFicha(a, cab, vista);
   const enBorrador = !viva || sePuedeEditar(viva.estado);
+  const baseAprobada = cab.base?.estado === "APROBADO";
   const verCosto = !vista.ocultas.has("costoTotal");
   const verMargen = !vista.ocultas.has("margen");
   const cambioVenta = cambioDeVenta(proyecto.moneda, viva?.tcVenta, cab.tc);
+  const columnas = { costoUnit: !vista.ocultas.has("costoUnit"), costoTotal: verCosto, recargo: !vista.ocultas.has("recargo"), margen: verMargen, venta: vista.importes };
+  const editable = vista.fichaEdita && !!viva && enBorrador;
   return (
     <section className={tarjeta} aria-label="Ficha del evento">
       <dl className="mb-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <Numero titulo="Ítems" valor={String(t.items)} />
-        <Numero titulo="Venta total" valor={ventaEn(t.venta, proyecto.moneda, cambioVenta)} />
-        {verCosto && <Numero titulo="Costo total" valor={pesos(t.costo)} />}
-        {verMargen && <Numero titulo="Margen" valor={`${pesos(t.margen)} (${porcentaje(t.margenPct)})`} alerta={t.margen < 0} />}
+        {vista.importes && <Numero titulo="Venta total" valor={importeDeVenta(t.venta, proyecto.moneda, cambioVenta)} />}
+        {verCosto && <Numero titulo="Costo total" valor={costoParaMostrar(t)} />}
+        {verMargen && <Numero titulo="Margen" valor={margenParaMostrar(t, pesos)} alerta={t.costoCargado && t.margen < 0} />}
       </dl>
       {faltanCambio.length > 0 && <p role="alert" className="mb-3 rounded-lg border border-line p-3 text-sm font-medium text-danger">Falta el tipo de cambio de {faltanCambio.join(", ")}: esos ítems están valiendo cero. Cargalo en Administración, Monedas y gastos fijos.</p>}
       {!viva && <p className="mb-3 text-sm text-muted">Este proyecto todavía no tiene ficha.</p>}
       {!enBorrador && (
         <div className="mb-3 rounded-lg border border-line p-3">
           <p className="text-sm font-medium text-strong">La versión {viva?.version} ya se envió al cliente: lo que vio no se reescribe.</p>
-          {vista.fichaEdita && <p className="mb-2 text-sm text-muted">Para cambiar algo, abrí una versión nueva. Copia todos los ítems y lo ya pagado no vuelve a aparecer como deuda.</p>}
+          {vista.fichaEdita && baseAprobada && <p className="text-sm text-muted">El cliente ya la aprobó, así que no se abre otra versión: un cambio va como adicional, en Cotización.</p>}
+          {vista.fichaEdita && !baseAprobada && <p className="mb-2 text-sm text-muted">Para cambiar algo, abrí una versión nueva. Copia todos los ítems y lo ya pagado no vuelve a aparecer como deuda.</p>}
         </div>
       )}
-      {vista.fichaEdita && (!viva || !enBorrador) && (
+      {vista.fichaEdita && ofreceNuevaVersion({ baseAprobada, hayBorrador: !!viva && enBorrador }) && (
         <FormAccion accion={nuevaVersion} className="mb-3 flex flex-wrap items-center gap-2">
           <input type="hidden" name="proyectoId" value={proyecto.id} />
           <input name="nota" maxLength={300} aria-label="Nota de la versión" placeholder="Qué cambia en esta versión" className={cn(campo, "min-w-0 flex-1 sm:max-w-md")} />
           <SubmitButton className={buttonClasses("solid", "md")}>{viva ? "Nueva versión" : "Empezar ficha"}</SubmitButton>
         </FormAccion>
       )}
-      <TablaFicha
-        proyectoId={proyecto.id}
-        presupuestoId={viva?.id ?? null}
-        filas={filas}
-        proveedores={proveedores}
-        columnas={{ costoUnit: !vista.ocultas.has("costoUnit"), costoTotal: verCosto, recargo: !vista.ocultas.has("recargo"), margen: verMargen }}
-        editable={vista.fichaEdita && !!viva && enBorrador}
-        editaCostos={vista.editaCostos}
-        recargoGeneral={config.margenPct}
-        moneda={proyecto.moneda}
-        cambio={cambioVenta}
-      />
+      {/* A menos de 768 px cada ítem es una tarjeta con todas sus columnas a la vista (MIA-50 § 2.2 bis, V2). */}
+      <style>{cssTarjetas("ficha", etiquetasFicha(columnas, editable, proyecto.moneda))}</style>
+      <div data-tarjetas="ficha">
+        <TablaFicha
+          proyectoId={proyecto.id}
+          presupuestoId={viva?.id ?? null}
+          filas={filas}
+          proveedores={proveedores}
+          columnas={columnas}
+          editable={editable}
+          editaCostos={vista.editaCostos}
+          recargoGeneral={config.margenPct}
+          moneda={proyecto.moneda}
+          cambio={cambioVenta}
+        />
+      </div>
       <p className="mt-3 text-sm text-muted">Al guardar se regeneran solos los pagos a proveedores, los cobros al cliente y las fechas límite. Lo ya pagado no se toca.</p>
     </section>
   );
@@ -293,7 +321,7 @@ export async function PestanaSeguimiento({ a, cab, vista }: { a: Actor; cab: Cab
           </ul>
         </section>
 
-        {vista.pagos && (
+        {(vista.pagos || vista.cobros) && (
           <section className={tarjeta} aria-label="Pagos del cliente">
             <h2 className="mb-2 font-semibold text-strong">Pagos del cliente</h2>
             {cuotas.length === 0 && pagos.length === 0 && <p className="text-sm text-muted">Los cobros aparecen cuando el proyecto se confirma.</p>}
@@ -301,7 +329,7 @@ export async function PestanaSeguimiento({ a, cab, vista }: { a: Actor; cab: Cab
               {cuotas.map((c) => (
                 <li key={c.id} className="flex flex-wrap justify-between gap-2 border-t border-line py-1">
                   <span className="min-w-0">{c.concepto}<span className="block text-xs text-muted">Vence {fechaCorta(c.venceEl)}{c.pagadoEl ? ` · cobrado ${fechaCorta(c.pagadoEl)}` : ""}</span></span>
-                  <strong className={cn("tabular-nums", !c.pagadoEl && yaVencio(c.venceEl) ? "text-danger" : "text-strong")}>{plataEn(c.monto, c.moneda)}</strong>
+                  <strong className={cn("tabular-nums", !c.pagadoEl && yaVencio(c.venceEl) ? "text-danger" : "text-strong")}>{importe(c.monto, c.moneda)}</strong>
                 </li>
               ))}
             </ul>
@@ -363,18 +391,18 @@ export async function PestanaHistorial({ a, cab, vista }: { a: Actor; cab: Cabec
         <p className="text-sm text-muted">Sin cambios registrados todavía.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead className="text-left text-xs text-muted">
+          <table className={cn("w-full text-sm md:min-w-[640px]", tablaMovil)}>
+            <thead className={cn("text-left text-xs text-muted", cabezaMovil)}>
               <tr><th className="py-1 pr-2 font-medium">Cuándo</th><th className="pr-2 font-medium">Quién</th><th className="pr-2 font-medium">Qué</th><th className="pr-2 font-medium">Antes</th><th className="font-medium">Después</th></tr>
             </thead>
-            <tbody>
+            <tbody className={cuerpoMovil}>
               {cambios.map((c) => (
-                <tr key={c.id} className="border-t border-line align-top">
-                  <td className="py-1.5 pr-2 whitespace-nowrap">{CUANDO.format(c.createdAt)}</td>
-                  <td className="pr-2">{c.autor}</td>
-                  <td className="pr-2">{c.campo}</td>
-                  <td className="pr-2 text-muted">{c.antes ?? "—"}</td>
-                  <td className="font-medium text-strong">{c.despues ?? "—"}</td>
+                <tr key={c.id} className={cn("border-t border-line align-top", filaMovil)}>
+                  <td data-label="Cuándo" className={cn("py-1.5 pr-2 whitespace-nowrap", celdaMovil)}>{CUANDO.format(c.createdAt)}</td>
+                  <td data-label="Quién" className={cn("pr-2", celdaMovil)}>{c.autor}</td>
+                  <td data-label="Qué" className={cn("pr-2", celdaMovil)}>{c.campo}</td>
+                  <td data-label="Antes" className={cn("pr-2 text-muted [overflow-wrap:anywhere]", celdaMovil)}>{c.antes ?? "—"}</td>
+                  <td data-label="Después" className={cn("font-medium text-strong [overflow-wrap:anywhere]", celdaMovil)}>{c.despues ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

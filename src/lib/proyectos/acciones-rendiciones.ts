@@ -17,7 +17,9 @@ import { formatearPesos } from "@/lib/rendiciones/dinero";
 import type { Prisma } from "@/generated/prisma/client";
 import { actorActual, avisar, proyectoVisible, registrarCambio, usuariosDeLaPlata, type Actor } from "./gestion.server";
 import { cierreDeAnticipo, leerMontoArgentino, motivoNoMuevePlata, rendicionDelMotor } from "./rendiciones-core";
+import { motivoSinRendiciones, permisoDe } from "./gestion-core";
 import { COMPROBANTE_DE_RENDICION, MEDIOS, metodoDeCaja, type MedioPago } from "./core";
+import { asentarEnCajaTx, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { transferenciaEnElLibroTx } from "@/lib/caja/transferencia-en-el-libro";
 import type { RolActor } from "@/lib/rendiciones/tipos";
@@ -52,9 +54,14 @@ async function conMigracion(fn: () => Promise<ResultadoRendicion>): Promise<Resu
     return await fn();
   } catch (e) {
     if (faltaLaMigracion(e)) return { ok: false, error: SIN_MIGRACION };
+    // O40: el día de caja cerrado (o el mes congelado) deshizo la transacción entera; se dice qué hacer.
+    if (e instanceof PeriodoCerradoError) return { ok: false, error: e.message };
     throw e;
   }
 }
+
+/** ADM-134: el permiso `rendiciones` de la matriz es el piso, en el servidor; la regla del rol sigue después (las dos). */
+const sinRendiciones = (a: Actor, accion: "rendir" | "revisar") => motivoSinRendiciones(permisoDe(a.rol, "rendiciones", a.permisos), accion);
 
 /**
  * Rendir un gasto propio: crea el gasto del proyecto YA PAGADO por la persona (sin egreso de caja: no salió de la
@@ -63,6 +70,8 @@ async function conMigracion(fn: () => Promise<ResultadoRendicion>): Promise<Resu
  */
 export async function rendirGasto(formData: FormData): Promise<ResultadoRendicion> {
   const a = await actorActual();
+  const sinPermiso = sinRendiciones(a, "rendir");
+  if (sinPermiso) return { ok: false, error: sinPermiso };
   const { tenantId, user } = a;
   const proyectoId = txt(formData.get("proyectoId"));
   if (!(await proyectoVisible(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
@@ -163,6 +172,8 @@ export async function rendirGasto(formData: FormData): Promise<ResultadoRendicio
 
 async function revisar(accion: AccionDeRevision, formData: FormData): Promise<ResultadoRendicion> {
   const a: Actor = await actorActual();
+  const sinPermiso = sinRendiciones(a, "revisar");
+  if (sinPermiso) return { ok: false, error: sinPermiso };
   const { tenantId, user } = a;
   const id = txt(formData.get("id"));
   const comentario = txt(formData.get("comentario")).slice(0, 500);
@@ -224,24 +235,24 @@ const medioDelForm = (v: FormDataEntryValue | null): MedioPago | null => {
 
 async function asentarTx(tx: Prisma.TransactionClient, tenantId: string, d: { type: "EGRESO" | "INGRESO"; medio: MedioPago; centavos: number; reason: string; marca: string; proyectoGastoId?: string; proyectoAnticipoId?: string }) {
   const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
-  await tx.cashMovement.create({
-    data: {
-      tenantId,
-      sessionId: session?.id ?? null,
-      type: d.type,
-      method: metodoDeCaja(d.medio, await transferenciaEnElLibroTx(tx)),
-      amount: d.centavos / 100,
-      reason: d.reason,
-      createdBy: marcaDeGastoProyecto(d.marca),
-      ...(d.proyectoGastoId ? { proyectoGastoId: d.proyectoGastoId } : {}),
-      ...(d.proyectoAnticipoId ? { proyectoAnticipoId: d.proyectoAnticipoId } : {}),
-    },
+  await asentarEnCajaTx(tx, "rendición", {
+    tenantId,
+    sessionId: session?.id ?? null,
+    type: d.type,
+    method: metodoDeCaja(d.medio, await transferenciaEnElLibroTx(tx)),
+    amount: d.centavos / 100,
+    reason: d.reason,
+    createdBy: marcaDeGastoProyecto(d.marca),
+    ...(d.proyectoGastoId ? { proyectoGastoId: d.proyectoGastoId } : {}),
+    ...(d.proyectoAnticipoId ? { proyectoAnticipoId: d.proyectoAnticipoId } : {}),
   });
 }
 
 /** Reintegrar ahora una rendición aprobada de su bolsillo, sin esperar la liquidación. Un egreso con `proyectoGastoId`. */
 export async function reintegrarDirecto(formData: FormData): Promise<ResultadoRendicion> {
   const a = await actorActual();
+  const sinPermiso = sinRendiciones(a, "revisar");
+  if (sinPermiso) return { ok: false, error: sinPermiso };
   const { tenantId, user } = a;
   const id = txt(formData.get("id"));
   const medio = medioDelForm(formData.get("medio"));
@@ -258,7 +269,7 @@ export async function reintegrarDirecto(formData: FormData): Promise<ResultadoRe
     const ahora = new Date();
     const res = aplicarAccion(rendicionDelMotor(f), "reintegrar", { fecha: ahora.toISOString(), actorId: actorDelMotor({ personaId: a.personaId, userId: user.id }), rolActor: a.rol as RolActor, comentario: "Reintegro directo" });
     if (!res.ok) return { ok: false, error: `${res.motivo}.` };
-    const hecho = await tenantTransaction(async (tx) => {
+    const hecho = await transaccionQueAsienta(async (tx) => {
       // El claim compartido con la liquidación: si una la reclamó (o otro clic la reintegró), acá no pasa nada.
       const r = await tx.proyectoRendicion.updateMany({
         where: { id, tenantId, medio: "PROPIO", estado: "aprobada", liquidacionId: null, reintegradoEl: null },
@@ -283,6 +294,8 @@ export async function reintegrarDirecto(formData: FormData): Promise<ResultadoRe
  */
 export async function entregarAnticipo(formData: FormData): Promise<ResultadoRendicion> {
   const a = await actorActual();
+  const sinPermiso = sinRendiciones(a, "revisar");
+  if (sinPermiso) return { ok: false, error: sinPermiso };
   const { tenantId, user } = a;
   const personaId = txt(formData.get("personaId"));
   const proyectoId = txt(formData.get("proyectoId")) || null;
@@ -300,7 +313,7 @@ export async function entregarAnticipo(formData: FormData): Promise<ResultadoRen
     if (proyectoId && !(await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { id: true } }))) return { ok: false, error: "Ese proyecto no existe." };
     if (await prisma.proyectoAnticipo.findFirst({ where: { id, tenantId }, select: { id: true } })) return { ok: true, repetida: true };
     try {
-      await tenantTransaction(async (tx) => {
+      await transaccionQueAsienta(async (tx) => {
         await tx.proyectoAnticipo.create({ data: { id, tenantId, personaId: p.id, proyectoId, montoCentavos } });
         await asentarTx(tx, tenantId, { type: "EGRESO", medio, centavos: montoCentavos, reason: `Anticipo · ${p.nombre}`, marca: `anticipo-${id}`, proyectoAnticipoId: id });
         await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoAnticipo", entidadId: id, campo: "Anticipo", despues: `${p.nombre} · ${formatearPesos(montoCentavos)} · entregado`, autor: a.nombre });
@@ -323,6 +336,8 @@ export async function entregarAnticipo(formData: FormData): Promise<ResultadoRen
  */
 export async function cerrarAnticipo(formData: FormData): Promise<ResultadoRendicion> {
   const a = await actorActual();
+  const sinPermiso = sinRendiciones(a, "revisar");
+  if (sinPermiso) return { ok: false, error: sinPermiso };
   const { tenantId, user } = a;
   const id = txt(formData.get("id"));
   const medio = medioDelForm(formData.get("medio"));
@@ -333,7 +348,7 @@ export async function cerrarAnticipo(formData: FormData): Promise<ResultadoRendi
     const noMueve = motivoNoMuevePlata(a.rol, { personaId: a.personaId, userId: user.id }, { personaId: an.personaId, userId: an.persona.userId });
     if (noMueve) return { ok: false, error: noMueve };
     if (an.estado === "CERRADO") return { ok: false, error: "Este anticipo ya está cerrado." };
-    const resultado = await tenantTransaction(async (tx) => {
+    const resultado = await transaccionQueAsienta(async (tx) => {
       // Toma el anticipo: mientras tanto nadie rinde contra él ni lo cierra otra vez.
       const r = await tx.proyectoAnticipo.updateMany({ where: { id, tenantId, estado: { not: "CERRADO" } }, data: { estado: "CERRADO" } });
       if (r.count === 0) return { ok: false as const, error: "Este anticipo ya está cerrado." };

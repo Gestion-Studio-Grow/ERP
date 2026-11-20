@@ -22,7 +22,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { AppDescriptor } from "@/apps/contract";
-import type { EspacioId } from "@/apps/espacios";
+import { nombrePropioDelEspacio, type EspacioId } from "@/apps/espacios";
 import { IconoApp } from "@/components/iconos-apps";
 import { espacioDeRuta, espaciosDeLaBarra } from "./secciones";
 
@@ -36,8 +36,12 @@ export default function BarraInferior({
   onBuscar: () => void;
 }) {
   const pathname = usePathname();
-  // Una productora no tiene recepción: sus apps de gestión van bajo «Gestión».
-  const espacios = espaciosDeLaBarra(apps, { esMostrador }).map((e) => (e.nombre === "Recepción" && apps.some((a) => a.id === "gestion-inicio") ? { ...e, nombre: "Gestión", rotulo: "Gestión" } : e));
+  // Una productora no tiene recepción: sus apps de gestión van bajo «Gestión». El ARM (sólo el CRM), «Comercial».
+  const espacios = espaciosDeLaBarra(apps, { esMostrador }).map((e) => {
+    if (e.nombre === "Recepción" && apps.some((a) => a.id === "gestion-inicio")) return { ...e, nombre: "Gestión", rotulo: "Gestión" };
+    const propio = nombrePropioDelEspacio(e.id, e.apps.map((a) => a.id));
+    return propio ? { ...e, nombre: propio, rotulo: propio } : e;
+  });
   const actual = espacioDeRuta(pathname, apps);
   const [abierto, setAbierto] = useState<EspacioId | null>(null);
   const botones = useRef(new Map<EspacioId, HTMLButtonElement>());

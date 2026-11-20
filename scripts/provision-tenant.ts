@@ -119,6 +119,8 @@ export interface ProvisionResult {
   tenantCreated: boolean;
   ownerEmail: string;
   ownerCreated: boolean;
+  /** true si el alta creó la ficha de Dirección del dueño (módulo de proyectos, MIA-50 T12 · 3(b)). */
+  ownerFichaCreated: boolean;
   settingsCreated: boolean;
   /** Id del blueprint aplicado (vertical del tenant). */
   blueprintId: string;
@@ -151,7 +153,7 @@ export function assertValidEmail(email: string): void {
 // ¿Está activo RLS (ADR-018) sobre las tablas de negocio? pg_class.relrowsecurity
 // es true cuando la tabla tiene ENABLE ROW LEVEL SECURITY. Requerimos que TODAS
 // las centinela lo tengan; si falta una, el aislamiento no está garantizado.
-async function isRlsActive(tx: Tx): Promise<boolean> {
+export async function isRlsActive(tx: Tx): Promise<boolean> {
   const rows = await tx.$queryRaw<{ relname: string; relrowsecurity: boolean }[]>`
     SELECT relname, relrowsecurity
     FROM pg_class
@@ -238,8 +240,8 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
     // soloNuevo + negocio inexistente: `create` (un choque de carrera da P2002, nunca el negocio ajeno).
     const tenant =
       params.soloNuevo && isNewTenant
-        ? await tx.tenant.create({ data: datosNuevos, select: { id: true } })
-        : await tx.tenant.upsert({ where: { slug }, update: {}, create: datosNuevos });
+        ? await tx.tenant.create({ data: datosNuevos, select: { id: true, modules: true } })
+        : await tx.tenant.upsert({ where: { slug }, update: {}, create: datosNuevos, select: { id: true, modules: true } });
     const tenantId = tenant.id;
     // Desde acá todo es del negocio nuevo: se para la transacción en él (ADR-018). Con RLS, sin
     // esto el OWNER no pasa la policy («new row violates row-level security policy for table
@@ -255,9 +257,10 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
       select: { id: true },
     });
     let ownerCreated = false;
+    let ownerFichaCreated = false;
     if (!existingOwner) {
       const passwordHash = await hashPassword(ownerPassword);
-      await tx.user.create({
+      const owner = await tx.user.create({
         // La contraseña del alta es PROVISORIA siempre (la generó el sistema o la eligió quien da el alta: la conoce
         // otro). Regla del dueño: nunca una provisoria sin cambio obligatorio (GSG-SEG-013). Va en la MISMA escritura:
         // si la columna no está, el alta entera vuelve atrás en vez de dejar una provisoria eterna.
@@ -265,6 +268,20 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
         select: { id: true },
       });
       ownerCreated = true;
+      // MIA-50 T12 · 3(b), decisión del dueño (19/11, opción A): con el módulo de proyectos, el dueño nace con su ficha de
+      // Dirección vinculada. Sin ficha no aprueba liquidaciones (MIA-179, falla cerrado) y nadie vincula una ficha a su propia
+      // cuenta (E7), así que un negocio con una sola persona de Dirección no aprobaba nunca. La crea el alta, no el dueño: no
+      // es autovincularse. Sólo con un OWNER nuevo (re-provisionar no toca negocios vivos) y sueldo 0 (lo fija otra persona).
+      if (tenant.modules?.includes("proyectos")) {
+        const ficha = await tx.proyectoPersona.create({
+          data: { tenantId, userId: owner.id, nombre: ownerName, email: ownerEmail, rol: "DIRECCION", puesto: "Dirección" },
+          select: { id: true },
+        });
+        await tx.proyectoCambio.create({
+          data: { tenantId, entidad: "Persona", entidadId: ficha.id, campo: "alta", despues: `${ownerName} (Dirección, cuenta del dueño, alta del negocio)`, autor: "Alta del negocio" },
+        });
+        ownerFichaCreated = true;
+      }
     }
 
     // --- BusinessSettings: branding/localización (módulo Localización) ---
@@ -318,6 +335,7 @@ export async function provisionTenant(prisma: PrismaClient, params: ProvisionPar
       tenantCreated: isNewTenant,
       ownerEmail,
       ownerCreated,
+      ownerFichaCreated,
       settingsCreated,
       blueprintId: blueprint.id,
       catalogSeeded,

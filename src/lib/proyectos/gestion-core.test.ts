@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { pesos } from "./core";
 import {
   appDeGestionVisible,
   calendarioIcs,
@@ -21,6 +22,9 @@ import {
   proyeccionDeCaja,
   resumenCuotas,
   totalesFicha,
+  costoParaMostrar,
+  margenParaMostrar,
+  faltaCambioDeVenta,
   ventaTotalItem,
   type ItemFicha,
   mailDeAviso,
@@ -28,6 +32,7 @@ import {
   cambioDeVenta,
   costoSinProveedor,
   cuotaPrevista,
+  previstaDeLaCuota, ventaOEstimado,
   venceDeLaCuota,
   enMonedaDeVenta,
   appEnLaBarra,
@@ -52,7 +57,7 @@ test("sin recargo propio usa el general; un precio fijado a mano manda", () => {
 
 test("totales de la ficha", () => {
   const t = totalesFicha([item({}), item({ id: "i2", costo: 200, recargoPct: 0 })], TC, 35);
-  assert.deepEqual(t, { items: 2, venta: 350, costo: 300, margen: 50, margenPct: 14.29 });
+  assert.deepEqual(t, { items: 2, venta: 350, costo: 300, margen: 50, margenPct: 14.29, costoCargado: true });
 });
 
 test("el plan genera anticipo y saldo del proveedor y del cliente", () => {
@@ -207,7 +212,9 @@ test("la barra muestra cada app sólo a quien puede abrirla", () => {
   assert.equal(appDeGestionVisible("gestion-diseno", "DISENO", []), true);
   assert.equal(appDeGestionVisible("gestion-mi-liquidacion", "DISENO", []), true);
   assert.equal(appDeGestionVisible("gestion-administracion", "DIRECCION", []), true);
-  assert.equal(appDeGestionVisible("gestion-administracion", "DISENO", [{ rol: "DISENO", modulo: "pagos", ver: true, editar: false }]), true);
+  // MIA-229: «Pagos» guardado a un puesto que no ve la plata no le abre Administración; a Administración, sí.
+  assert.equal(appDeGestionVisible("gestion-administracion", "DISENO", [{ rol: "DISENO", modulo: "pagos", ver: true, editar: false }]), false);
+  assert.equal(appDeGestionVisible("gestion-administracion", "ADMINISTRACION", []), true);
   assert.equal(appDeGestionVisible("clientes", "DISENO", []), false);
 });
 
@@ -266,8 +273,10 @@ test("cada rol ve su mapa y ninguna app de la barra le rebota", () => {
   for (const [rol, apps] of Object.entries(barra)) for (const app of apps) assert.equal(appDeGestionVisible(app, rol as "DISENO", []), true, `${rol} ${app}`);
 });
 
-test("Comercial y Diseño no ven costos ni márgenes", () => {
-  assert.equal(permisoDe("COMERCIAL", "costos", []).ver, false);
+// MIA-237 (dueño, 20/11: «el productor comercial es B, ve costos tmb»): Comercial ve costos y no los edita; Diseño, igual.
+test("Comercial ve costos sin editarlos; Diseño no ve costos ni márgenes", () => {
+  assert.equal(permisoDe("COMERCIAL", "costos", []).ver, true);
+  assert.equal(permisoDe("COMERCIAL", "costos", []).editar, false);
   assert.equal(permisoDe("COMERCIAL", "cotizaciones", []).editar, true);
   assert.equal(permisoDe("DISENO", "cotizaciones", []).ver, true);
   assert.equal(permisoDe("DISENO", "costos", []).ver, false);
@@ -335,6 +344,17 @@ test("el anticipo del cliente vence al confirmar y queda fijo; una fecha a mano 
   assert.equal(venceDeLaCuota({ clave: "p:i:saldo", plan, prevista: false, hoy, previa: { venceEl: antes, venceManual: true, prevista: false } }), antes);
 });
 
+test("MIA-094 · V1: una cuota firme que el plan vuelve a pedir como previsión (fecha del evento borrada, vuelta a Lead) conserva su vencimiento", () => {
+  const plan = new Date("2026-01-01T12:00:00Z");
+  const hoy = new Date("2026-03-01T12:00:00Z");
+  const firme = { venceEl: new Date("2026-10-26T12:00:00Z"), venceManual: false, prevista: false };
+  // `prevista` es lo que pide el plan; la cuota ya fue firme: no se corre a la fecha del plan.
+  for (const clave of ["p:cliente:saldo", "p:i:saldo", "p:cliente:anticipo"]) assert.equal(venceDeLaCuota({ clave, plan, prevista: true, hoy, previa: firme }), firme.venceEl, clave);
+  // Una previsión que nunca fue firme sigue al plan, y una firme con el plan firme también (el evento se movió).
+  assert.equal(venceDeLaCuota({ clave: "p:cliente:saldo", plan, prevista: true, hoy, previa: { ...firme, prevista: true } }), plan);
+  assert.equal(venceDeLaCuota({ clave: "p:cliente:saldo", plan, prevista: false, hoy, previa: firme }), plan);
+});
+
 test("el costo sin proveedor se cuenta en pesos, y lo que tiene proveedor no", () => {
   const items = [
     { costo: 100, cantidad: 2, moneda: "ARS", supplierId: null },
@@ -343,6 +363,13 @@ test("el costo sin proveedor se cuenta en pesos, y lo que tiene proveedor no", (
     { costo: 0, cantidad: 1, moneda: "ARS", supplierId: null },
   ];
   assert.deepEqual(costoSinProveedor(items, { USD: 1000 }), { cuantos: 2, monto: 10200 });
+});
+
+test("MIA-211 · H3: lo ya imputado se descuenta del costo sin proveedor; cubierto todo, no hay cartel", () => {
+  const items = [{ costo: 2_000_000, cantidad: 1, moneda: "ARS", supplierId: null }];
+  assert.deepEqual(costoSinProveedor(items, {}, 1_700_000), { cuantos: 1, monto: 300_000 });
+  assert.deepEqual(costoSinProveedor(items, {}, 2_000_000), { cuantos: 0, monto: 0 });
+  assert.deepEqual(costoSinProveedor(items, {}, 2_500_000), { cuantos: 0, monto: 0 });
 });
 
 test("el motivo de pérdida suma por lo de la lista, sin el detalle", () => {
@@ -394,4 +421,116 @@ test("Rendí: matriz de rendiciones (plan MIA §2)", async () => {
   assert.equal(puedeReintegrarRendicion("ADMINISTRACION", "a1", "c2"), true);
   assert.deepEqual(permisoDe("ADMINISTRACION", "rendiciones", []), { ver: true, editar: true });
   assert.deepEqual(permisoDe("COMERCIAL", "rendiciones", []), { ver: true, editar: false });
+});
+
+test("MIA-089 · V1: una cuota que ya fue firme no vuelve a ser previsión; una nueva o prevista sigue la etapa", () => {
+  assert.equal(previstaDeLaCuota(true), true, "nueva en un lead: previsión");
+  assert.equal(previstaDeLaCuota(true, { prevista: true }), true, "previsión que sigue en un lead");
+  assert.equal(previstaDeLaCuota(true, { prevista: false }), false, "firme y el proyecto vuelve a lead: sigue firme");
+  assert.equal(previstaDeLaCuota(false, { prevista: true }), false, "se confirma: firme");
+  assert.equal(previstaDeLaCuota(false), false);
+});
+
+test("MIA-089 · T: el pipeline pesa la venta y, sin ítems, lo estimado (la misma regla en el tablero y en Dirección)", () => {
+  assert.equal(ventaOEstimado(1210, 1_000_000, "ARS", {}), 1210, "con ítems manda la venta");
+  assert.equal(ventaOEstimado(0, 1_000_000, "ARS", {}), 1_000_000, "un lead sin ítems pesa lo estimado: era la diferencia de 1.000.000");
+  assert.equal(ventaOEstimado(0, 1000, "USD", { USD: 1250 }), 1_250_000, "en dólares, al cambio");
+  assert.equal(ventaOEstimado(0, null, "ARS", {}), 0);
+});
+
+// MIA-194 · punto 2 (recorrido MIA-193): venta $ 1.000 sin ningún costo cargado daba «Costo $ 0» y «Margen $ 1.000 (100%)».
+// Sin costo cargado no hay margen que mostrar. Esperados a mano.
+test("MIA-194 · sin costo cargado no se muestra un margen; con un costo, sí", () => {
+  const sinCosto = totalesFicha([item({ costo: 0, precio: 1000 })], TC, 35);
+  assert.equal(sinCosto.venta, 1000);
+  assert.equal(sinCosto.costoCargado, false);
+  assert.equal(costoParaMostrar(sinCosto), "Sin cargar");
+  assert.equal(margenParaMostrar(sinCosto, (n) => `$ ${n}`), "Falta el costo");
+  // En USD, igual: sin costo, no hay margen.
+  const enUsd = totalesFicha([item({ costo: 0, moneda: "USD", precio: 2 })], TC, 35);
+  assert.equal(margenParaMostrar(enUsd, (n) => `US$ ${n}`), "Falta el costo");
+  // Un solo ítem con costo alcanza: ese es el margen que se ve (1.000 − 400 = 600, 60 %).
+  const conCosto = totalesFicha([item({ costo: 0, precio: 600 }), item({ id: "i2", costo: 400, precio: 400 })], TC, 35);
+  assert.equal(conCosto.costoCargado, true);
+  assert.equal(costoParaMostrar(conCosto), pesos(400));
+  assert.equal(margenParaMostrar(conCosto, (n) => `$ ${n}`), "$ 600 (60%)");
+  // Sin ítems, tampoco.
+  assert.equal(margenParaMostrar(totalesFicha([], TC, 35), (n) => `$ ${n}`), "Falta el costo");
+});
+
+// MIA-194 · punto 3 (recorrido MIA-193): «Falta el tipo de cambio de USD: cargalo en Monedas y gastos fijos.» no llevaba a ningún
+// lado. Quien abre Administración recibe el enlace a la pestaña; quien no, a quién pedírselo. Esperados a mano.
+test("MIA-194 · sin tipo de cambio, el aviso lleva a Monedas y gastos fijos (o dice a quién pedírselo)", () => {
+  assert.deepEqual(faltaCambioDeVenta("USD", true), {
+    ok: false,
+    error: "Falta el tipo de cambio de USD: cargalo en Monedas y gastos fijos.",
+    enlace: { href: "/admin/proyectos/administracion?tab=monedas", texto: "Ir a Monedas y gastos fijos" },
+  });
+  assert.deepEqual(faltaCambioDeVenta("EUR", false), {
+    ok: false,
+    error: "Falta el tipo de cambio de EUR: pedile a Administración que lo cargue en Monedas y gastos fijos.",
+  });
+});
+
+test("MIA-229 · la plata (pagos, empresa, liquidaciones) sólo la abren Dirección y Administración, ni de fábrica ni guardada", async () => {
+  const { permisoDe, permisoFijo, MODULOS_DE_PLATA, ROLES_GESTION } = await import("./gestion-core");
+  const todoGuardado = ROLES_GESTION.flatMap((rol) => MODULOS_DE_PLATA.map((modulo) => ({ rol, modulo, ver: true, editar: true })));
+  for (const rol of [...ROLES_GESTION, "SIN_FICHA" as const]) {
+    const ve = rol === "DIRECCION" || rol === "ADMINISTRACION";
+    for (const modulo of MODULOS_DE_PLATA) {
+      assert.equal(permisoDe(rol, modulo, todoGuardado).ver, ve, `${rol} · ${modulo}`);
+      assert.equal(permisoFijo(rol, modulo), rol === "DIRECCION" || !ve, `${rol} · ${modulo} fijo`);
+    }
+  }
+  // P3 (decisiones-puestos.ts): los costos no son plata; Producción los sigue viendo y editando de fábrica.
+  assert.deepEqual([...MODULOS_DE_PLATA], ["pagos", "empresa", "liquidaciones"]);
+  assert.deepEqual(permisoDe("PRODUCCION", "costos", []), { ver: true, editar: true });
+  // Rendiciones no es plata del negocio: Producción y Campo rinden lo propio («ver»).
+  assert.equal(permisoDe("PRODUCCION", "rendiciones", []).ver, true);
+  assert.equal(permisoDe("PRODUCCION_CAMPO", "rendiciones", []).ver, true);
+});
+
+test("MIA-239 · en un proyecto ajeno se cierran costos, cotizaciones, pagos y editar la ficha; el resto sigue su permiso", async () => {
+  const { cerradoEnProyectoAjeno } = await import("./gestion-core");
+  const cerrados = (["pipeline", "ficha", "costos", "cotizaciones", "pagos", "diseno", "ia"] as const).flatMap((m) =>
+    (["ver", "editar"] as const).filter((acc) => cerradoEnProyectoAjeno(m, acc)).map((acc) => `${m}:${acc}`),
+  );
+  assert.deepEqual(cerrados, ["ficha:editar", "costos:ver", "costos:editar", "cotizaciones:ver", "cotizaciones:editar", "pagos:ver", "pagos:editar"]);
+});
+
+test("MIA-244 · un puesto sin importes (productor de campo, sin ficha) no ve la plata de un proyecto ni estando en su equipo", async () => {
+  const { veLaPlataDelProyecto } = await import("./gestion-core");
+  const ven = (["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "PRODUCCION_CAMPO", "SIN_FICHA"] as const).flatMap((rol) =>
+    [true, false].filter((enEquipo) => veLaPlataDelProyecto(rol, enEquipo)).map((enEquipo) => `${rol}:${enEquipo ? "equipo" : "fuera"}`),
+  );
+  assert.deepEqual(ven, ["DIRECCION:equipo", "DIRECCION:fuera", "ADMINISTRACION:equipo", "ADMINISTRACION:fuera", "COMERCIAL:equipo", "DISENO:equipo", "DISENO:fuera", "PRODUCCION:equipo", "PRODUCCION:fuera"]);
+});
+
+test("MIA-246 · Comercial en su proyecto ve el margen y no ve PAGO; Producción no ve la venta ni el margen (Pipeline y ficha); Dirección y Administración ven todo; Campo sin importes", async () => {
+  const g = await import("./gestion-core");
+  const { veLaVentaDelProyecto, columnasSinVenta, COLUMNAS_OCULTAS_BASE, permisoDe } = g as typeof g & {
+    veLaVentaDelProyecto: (rol: string, enEquipo: boolean) => boolean;
+    columnasSinVenta: (rol: string) => readonly string[];
+  };
+  assert.equal(typeof veLaVentaDelProyecto, "function", "falta veLaVentaDelProyecto (gestion-core)");
+  assert.equal(typeof columnasSinVenta, "function", "falta columnasSinVenta (gestion-core)");
+  // Pipeline: la venta de la tarjeta.
+  const ven = (["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "PRODUCCION_CAMPO", "SIN_FICHA"] as const).flatMap((rol) =>
+    [true, false].filter((enEquipo) => veLaVentaDelProyecto(rol, enEquipo)).map((enEquipo) => `${rol}:${enEquipo ? "equipo" : "fuera"}`),
+  );
+  assert.deepEqual(ven, ["DIRECCION:equipo", "DIRECCION:fuera", "ADMINISTRACION:equipo", "ADMINISTRACION:fuera", "COMERCIAL:equipo", "DISENO:equipo", "DISENO:fuera"]);
+  // Ficha: Producción no ve venta, margen ni recargo (el margen en %), aunque Dirección le guarde la ficha sin columnas ocultas.
+  assert.deepEqual([...columnasSinVenta("PRODUCCION")].sort(), ["margen", "recargo", "venta"]);
+  for (const rol of ["DIRECCION", "ADMINISTRACION", "COMERCIAL"]) assert.deepEqual(columnasSinVenta(rol), [], rol);
+  assert.ok(columnasSinVenta("PRODUCCION_CAMPO").includes("venta"));
+  // Producción sigue viendo los costos; sin cobros ni pagos.
+  assert.ok(permisoDe("PRODUCCION", "costos", []).ver);
+  assert.equal(permisoDe("PRODUCCION", "pagos", [{ rol: "PRODUCCION", modulo: "pagos", ver: true, editar: true }]).ver, false);
+  // Comercial: el margen no está entre sus columnas ocultas y ve los costos; PAGO (módulo pagos) cerrado aunque Dirección se lo guarde.
+  assert.ok(!COLUMNAS_OCULTAS_BASE.COMERCIAL.includes("margen"));
+  assert.ok(permisoDe("COMERCIAL", "costos", []).ver);
+  assert.equal(permisoDe("COMERCIAL", "pagos", [{ rol: "COMERCIAL", modulo: "pagos", ver: true, editar: true }]).ver, false);
+  // Contraprueba: Dirección y Administración ven pagos.
+  assert.ok(permisoDe("DIRECCION", "pagos", []).ver);
+  assert.ok(permisoDe("ADMINISTRACION", "pagos", []).ver);
 });

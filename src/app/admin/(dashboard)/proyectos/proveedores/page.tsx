@@ -3,6 +3,7 @@ import { buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { requireApp } from "@/lib/require-app";
 import { pagarGasto } from "@/lib/proyectos/acciones";
+import { FormAccion } from "../[id]/_cliente";
 import { cambiarEstadoProveedor } from "@/lib/proyectos/acciones-gestion";
 import { fechaCorta, MEDIOS, MEDIO_LABEL, pesos, totalDelGasto } from "@/lib/proyectos/core";
 import { veLaPlata } from "@/lib/proyectos/datos.server";
@@ -11,6 +12,7 @@ import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { iniciales } from "@/lib/proyectos/gestion-lecturas-core";
 import { listaDeProveedores } from "@/lib/proyectos/gestion-lecturas.server";
 import { campo, etiqueta, tarjeta } from "../_vista";
+import { NavCompras } from "./_compras";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Proveedores" };
@@ -23,12 +25,13 @@ export default async function ProveedoresDeProyectos({ searchParams }: { searchP
   const rubro = (RUBROS as readonly string[]).includes(sp.rubro ?? "") ? sp.rubro! : "";
   const q = (sp.q ?? "").slice(0, 100);
   const bajas = sp.bajas === "1";
-  const { proveedores, pendientes, porPagar, porPagarCuotas, verPlata } = await listaDeProveedores(a, { rubro, q, bajas });
+  const { proveedores, pendientes, porPagar, porPagarCuotas, porPagarComprobantes, verPlata } = await listaDeProveedores(a, { rubro, q, bajas });
   const edita = puede(a, "proveedores", "editar");
-  const paga = verPlata && puede(a, "pagos", "editar") && veLaPlata(a.user);
+  const paga = verPlata && puede(a, "pagos", "editar") && (await veLaPlata(a.user));
 
   return (
     <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-5">
+      <NavCompras actual="/admin/proyectos/proveedores" />
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-strong">Proveedores</h1>
@@ -91,10 +94,10 @@ export default async function ProveedoresDeProyectos({ searchParams }: { searchP
       )}
 
       {verPlata && (
-        <section className={tarjeta} aria-label="Por pagar">
+        <section id="por-pagar" className={tarjeta} aria-label="Por pagar">
           <h2 className="mb-1 font-semibold text-strong">Por pagar</h2>
-          <p className="text-xl font-bold text-strong">{pesos(porPagar + porPagarCuotas)}</p>
-          <p className="mb-3 text-xs text-muted">Gastos cargados {pesos(porPagar)} · Cuotas de las fichas de estos proveedores {pesos(porPagarCuotas)}</p>
+          <p className="text-xl font-bold text-strong">{pesos(porPagar + porPagarCuotas + porPagarComprobantes)}</p>
+          <p className="mb-3 text-xs text-muted">Gastos cargados {pesos(porPagar)} · Cuotas de las fichas de estos proveedores {pesos(porPagarCuotas)} · Comprobantes sin cuotas {pesos(porPagarComprobantes)}</p>
           {pendientes.length === 0 ? (
             <p className="text-sm text-muted">No hay gastos por pagar.</p>
           ) : (
@@ -108,13 +111,13 @@ export default async function ProveedoresDeProyectos({ searchParams }: { searchP
                     </span>
                   </span>
                   {paga && (
-                    <form action={pagarGasto} className="flex items-center gap-2">
+                    <FormAccion accion={pagarGasto} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="id" value={g.id} />
                       <select name="medio" aria-label={`Medio de pago de ${g.descripcion}`} defaultValue="TRANSFERENCIA" className={cn(campo, "w-auto")}>
                         {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
                       </select>
                       <SubmitButton className={buttonClasses("outline", "md")}>Pagar</SubmitButton>
-                    </form>
+                    </FormAccion>
                   )}
                 </li>
               ))}

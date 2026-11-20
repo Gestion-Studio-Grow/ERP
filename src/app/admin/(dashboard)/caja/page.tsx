@@ -14,7 +14,8 @@ import { esperadoDelCajon } from "@/lib/caja/esperado-del-cajon";
 import { EFECTIVO_SE_VE_AL_ABRIR } from "@/lib/caja/arqueo-ciego-core";
 import { Card, CardHeader, CardTitle, CardDescription, Badge, fmtMoneyARS, type BadgeProps } from "@/components/ui";
 import { CASH_METHOD_LABEL, mediosALaVista } from "@/lib/caja/libro-caja";
-import { frozenDayMessage } from "@/lib/caja/cierre-diario";
+import { formatDayLabel, frozenDayMessage, nextDayKey } from "@/lib/caja/cierre-diario";
+import { CargarMovimiento } from "./CargarMovimiento";
 import { OpenCajaForm, CloseCajaForm } from "./CajaForms";
 import { AddLibroEntryForm } from "./libro/LibroForms";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
@@ -119,7 +120,7 @@ export default async function CajaPage() {
         únicamente los gastos, retiros e ingresos sueltos.
       </p>
 
-      <ResumenDelDia dia={dia} />
+      <ResumenDelDia dia={dia} puedeCargar={puedeCargar} esMostrador={caja !== null} />
 
       {!dia.yaCerrado && puedeCargar && <MovimientoSuelto dia={dia.day} conProyectos={conProyectos} esMostrador={caja !== null} />}
 
@@ -136,13 +137,13 @@ export default async function CajaPage() {
 //
 // El período NO es "hoy": es lo que falta arquear desde el último cierre (puede abarcar
 // varios días si nadie cerró). Se dice con esas palabras en vez de rotularlo "hoy" y mentir.
-function ResumenDelDia({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiarioData>> }) {
+function ResumenDelDia({ dia, puedeCargar, esMostrador }: { dia: Awaited<ReturnType<typeof getCierreDiarioData>>; puedeCargar: boolean; esMostrador: boolean }) {
   // UN DÍA CERRADO NO SE RENDERIZA COMO UN DÍA VACÍO. Cuando el día ya se cerró, el loader
   // devuelve el preview en cero y la lista de movimientos vacía a propósito: el período ya
   // está adentro del cierre. Pintar eso con las tres columnas daba "$0,00 / $0,00 / $0,00" y
   // "Todavía no se movió plata hoy" sobre un día en el que sí se movió — dos afirmaciones
   // falsas, encontradas en el recorrido. Va el comprobante en su lugar.
-  if (dia.yaCerrado) return <DiaCerrado dia={dia} />;
+  if (dia.yaCerrado) return <DiaCerrado dia={dia} puedeCargar={puedeCargar} esMostrador={esMostrador} />;
 
   // A CIEGAS (cert F7): el loader ya blanqueó el efectivo y el total; acá se dice por qué no está.
   // Si se pintara el cero, la cajera leería «$0» al lado del formulario a ciegas: otro número falso.
@@ -281,7 +282,7 @@ function ResumenDelDia({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiario
 // El día ya está cerrado y contado: lo que corresponde mostrar es el comprobante, no un
 // tablero en cero. `registro` puede venir null cuando este día quedó ABSORBIDO por un cierre
 // posterior (cerrar el 07 arquea también el 05 y el 06), y eso también se dice con palabras.
-function DiaCerrado({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiarioData>> }) {
+function DiaCerrado({ dia, puedeCargar, esMostrador }: { dia: Awaited<ReturnType<typeof getCierreDiarioData>>; puedeCargar: boolean; esMostrador: boolean }) {
   const { day, registro } = dia;
   const resumen = registro?.resumen ?? null;
   return (
@@ -318,15 +319,19 @@ function DiaCerrado({ dia }: { dia: Awaited<ReturnType<typeof getCierreDiarioDat
       <p className="mt-4 border-t border-line pt-4 text-sm text-muted">
         {dia.lastClosedDay ? frozenDayMessage(day, dia.lastClosedDay) : null}
       </p>
-      <p className="mt-2 text-sm">
-        <Link href="/admin/caja/libro" className="text-muted underline underline-offset-4 hover:text-strong">
-          Ver el mes en el libro
-        </Link>{" "}
-        <span className="text-faint">·</span>{" "}
-        <Link href="/admin/caja/cierre" className="text-muted underline underline-offset-4 hover:text-strong">
-          Ver el cierre
+      {/* M3 (MIA-083): sin callejón. Un clic para cargar en el primer día abierto (el alta de siempre del libro,
+          `addLibroEntry`) o para ir a reabrir este día en el cierre. */}
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+        {puedeCargar && dia.lastClosedDay && (
+          <CargarMovimiento dia={nextDayKey(dia.lastClosedDay)} variante="solid" esMostrador={esMostrador} etiqueta={`Cargarlo con fecha ${formatDayLabel(nextDayKey(dia.lastClosedDay))}`} />
+        )}
+        <Link href={`/admin/caja/cierre?dia=${day}`} className="inline-flex min-h-11 items-center text-strong underline underline-offset-4">
+          Reabrir el día
         </Link>
-      </p>
+        <Link href="/admin/caja/libro" className="inline-flex min-h-11 items-center text-muted underline underline-offset-4 hover:text-strong">
+          Ver el mes en el libro
+        </Link>
+      </div>
     </Card>
   );
 }

@@ -35,9 +35,12 @@ import type { AppOcultableId } from "./interruptores";
  * Las filas de la consola del negocio actual (interruptores y apps ocultas), en UNA consulta por
  * request: la última de cada (entidad, id). `null` si la lectura falló.
  */
-const filasDeLaConsola = cache(async (): Promise<FilaLeida[] | null> => {
+const filasDeLaConsola = cache(async (): Promise<FilaLeida[] | null> => filasDeLaConsolaDe(await getCurrentTenantId().catch(() => null)));
+
+/** Lo mismo, para un negocio dado (p. ej. el formulario público, que resuelve el negocio por el host). */
+async function filasDeLaConsolaDe(tenantId: string | null): Promise<FilaLeida[] | null> {
   try {
-    const tenantId = await getCurrentTenantId();
+    if (!tenantId) throw new Error("sin negocio");
     return await prisma.auditLog.findMany({
       where: { OR: [filtroDeFilasValidas(tenantId), filtroDeFilasDeOcultas(tenantId)] },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -51,7 +54,13 @@ const filasDeLaConsola = cache(async (): Promise<FilaLeida[] | null> => {
     });
     return null;
   }
-});
+}
+
+/** Los interruptores de un negocio dado, sin depender del request. Si la lectura falla, todo apagado. */
+export async function interruptoresDe(tenantId: string): Promise<EstadoInterruptores> {
+  const filas = await filasDeLaConsolaDe(tenantId);
+  return filas ? estadoDesdeFilas(filas) : todosApagados();
+}
 
 export const interruptoresDelNegocio = cache(async (): Promise<EstadoInterruptores> => {
   const filas = await filasDeLaConsola();

@@ -372,3 +372,22 @@ test("cheque de la administración rechazado: su salida por MP dice «Cheque rec
   // El ingreso del pago sigue siendo un cobro de cuenta corriente.
   assert.equal(clasificarOrigen({ type: "INGRESO", createdBy: marcaDelPagoEnCaja("p1") }).origen, "cobro-cuenta-corriente");
 });
+
+test("A-06 · lo que nació en Proyectos (cobro, su anulación, pago de gasto, rendición) no se borra del libro; lo manual sí", () => {
+  const base = { type: "EGRESO" as const, createdBy: "user:u1", orderId: null };
+  assert.match(motivoParaNoBorrar({ ...base, type: "VENTA", proyectoPagoId: "pp1" }) ?? "", /cobro de un proyecto/);
+  assert.match(motivoParaNoBorrar({ ...base, proyectoPagoId: "pp1" }) ?? "", /proyecto/, "el contraasiento de la anulación");
+  assert.match(motivoParaNoBorrar({ ...base, proyectoGastoId: "g1" }) ?? "", /gasto/);
+  // La reversa de un gasto anulado (tabla de #187): un INGRESO con la columna, firmado con el usuario y sin marca.
+  assert.match(motivoParaNoBorrar({ ...base, type: "INGRESO", proyectoGastoId: "g1" }) ?? "", /pago de un gasto de un proyecto \(o su anulación\)\. No se borra desde el libro/);
+  assert.match(motivoParaNoBorrar({ ...base, proyectoLiquidacionId: "l1" }) ?? "", /Rendiciones|liquidaci/);
+  assert.match(motivoParaNoBorrar({ ...base, proyectoAnticipoId: "a1" }) ?? "", /Rendiciones|anticipo/);
+  assert.equal(motivoParaNoBorrar({ ...base, proyectoPagoId: null, proyectoGastoId: null }), null, "uno cargado a mano se sigue borrando");
+});
+
+test("A-06 · la anulación de un cobro de proyecto no dice «cargado a mano»; uno tipeado a mano con el mismo texto, sí", () => {
+  const anulacion = { type: "EGRESO" as const, origin: "manual" as const, detail: "Anulación · Proyecto #1 · Stand", borrable: false };
+  assert.equal(rotuloDeOrigen(anulacion), "de un proyecto");
+  assert.equal(rotuloDeOrigen({ ...anulacion, borrable: true }), "cargado a mano");
+  assert.equal(rotuloDeOrigen({ type: "INGRESO", origin: "manual", detail: "Aporte del socio", borrable: true }), "cargado a mano");
+});

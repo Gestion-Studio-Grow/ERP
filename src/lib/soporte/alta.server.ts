@@ -40,7 +40,9 @@ export function esTablaAusente(e: unknown): boolean {
   return prisma === "P2021" || postgres === "42P01";
 }
 
-export async function hayTablaDeTickets(db: PrismaClient | Tx): Promise<boolean> {
+// Sólo `$queryRaw`: con `PrismaClient | Tx`, el cliente de la consola entraba comparándose entero
+// contra `Tx` (los 195 delegados, ~30 s de tsc; ver `ClienteBase` en prisma-base.ts).
+export async function hayTablaDeTickets(db: Pick<Tx, "$queryRaw">): Promise<boolean> {
   const r = await db.$queryRaw<{ ok: boolean }[]>`SELECT to_regclass('"SupportTicket"') IS NOT NULL AS ok`;
   return r[0]?.ok === true;
 }

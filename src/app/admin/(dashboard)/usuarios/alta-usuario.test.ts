@@ -53,12 +53,57 @@ test("createUser decide con validarAltaDeUsuario y el negocio de la sesión, y d
   const i = src.indexOf("export async function createUser(");
   assert.ok(i >= 0);
   const cuerpo = src.slice(i, src.indexOf("\n}\n", i));
-  assert.match(cuerpo, /const \{ esMostrador \} = await getNegocioApps\(actor\.role\);/);
-  assert.match(cuerpo, /const alta = validarAltaDeUsuario\(formData, esMostrador\);/);
+  assert.match(cuerpo, /const negocio = await getNegocioApps\(actor\.role\);/);
+  assert.match(cuerpo, /const conProyectos = appDelPanelCerrado\(negocio\)\?\.id === "proyectos";/);
+  assert.match(cuerpo, /const alta = validarAltaDeUsuario\(formData, esMostrador, conProyectos\);/);
   assert.match(cuerpo, /if \(!alta\.ok\) backWith\(alta\.status\);/);
-  assert.match(cuerpo, /const \{ name, email, role, password \} = alta;/);
+  assert.match(cuerpo, /const \{ name, email, role, password, puesto \} = alta;/);
+  // MIA-229: la ficha nace en la misma transacción que el usuario, sólo si hay puesto (productora).
+  assert.match(cuerpo, /luego: puesto \? \(tx, userId\) => fichaDelAltaEnTx\(tx, \{ tenantId, userId, nombre: name, email, rol: puesto \}\) : undefined/);
   // El rol no se vuelve a leer del formulario por otro lado.
   assert.ok(!/formData\.get\("role"\)/.test(cuerpo), "el rol sale sólo de la decisión");
   // La clave la fija la dueña: es provisoria y nace con el cambio obligatorio (GSG-SEG-013).
   assert.match(cuerpo, /data: \{ tenantId, name, email, role, passwordHash, mustChangePassword: true \}/);
+});
+
+test("MIA-229 · productora: se da de alta por puesto; el rol del ERP y la ficha salen del puesto (P1–P4 en decisiones-puestos.ts)", () => {
+  const esperado: Record<string, { role: string; puesto: string | null }> = {
+    DUENIO: { role: "OWNER", puesto: null },
+    DIRECCION: { role: "RECEPTION", puesto: "DIRECCION" },
+    ADMINISTRACION: { role: "OWNER", puesto: "ADMINISTRACION" },
+    COMERCIAL: { role: "RECEPTION", puesto: "COMERCIAL" },
+    // MIA-237: el orden del dueño (productor comercial, productor de campo, producción, diseño).
+    PRODUCCION_CAMPO: { role: "PROFESSIONAL", puesto: "PRODUCCION_CAMPO" },
+    PRODUCCION: { role: "PROFESSIONAL", puesto: "PRODUCCION" },
+    DISENO: { role: "PROFESSIONAL", puesto: "DISENO" },
+  };
+  assert.deepEqual(rolesParaAlta(false, true).map((o) => o.valor), Object.keys(esperado));
+  for (const [valor, e] of Object.entries(esperado)) {
+    const r = validarAltaDeUsuario(formulario({ role: valor }), false, true);
+    assert.ok(r.ok, valor);
+    assert.deepEqual({ role: r.ok && r.role, puesto: r.ok && r.puesto }, e, valor);
+  }
+  // «Recepción» no existe en una productora, ni por un POST a mano; tampoco el rol del ERP pelado.
+  for (const role of ["RECEPTION", "PROFESSIONAL", "OWNER", ""]) assert.deepEqual(validarAltaDeUsuario(formulario({ role }), false, true), { ok: false, status: "error_role" }, role);
+});
+
+test("MIA-229 · CH (servicios) y mostrador no cambian: sin productora no hay puestos ni ficha", () => {
+  assert.deepEqual(rolesParaAlta(false).map((o) => o.valor), ["OWNER", "RECEPTION", "PROFESSIONAL"]);
+  assert.deepEqual(rolesParaAlta(true).map((o) => o.valor), ["OWNER", "RECEPTION"]);
+  for (const puesto of ["DIRECCION", "PRODUCCION", "DUENIO"]) assert.deepEqual(validarAltaDeUsuario(formulario({ role: puesto }), false), { ok: false, status: "error_role" }, puesto);
+  const r = validarAltaDeUsuario(formulario({ role: "RECEPTION" }), false);
+  assert.ok(r.ok && !("puesto" in r), "sin puesto: createUser no crea ficha (`luego` queda undefined)");
+});
+
+test("MIA-237 · productora: el alta ofrece «Productor comercial» y «Productor de campo» (ordenados), y Administración se lee sin usuarios ni permisos", () => {
+  const opciones = rolesParaAlta(false, true);
+  // El orden del dueño: los de la plata, los dos productores y después el resto. Los valores no cambian (las fichas siguen).
+  assert.deepEqual(opciones.map((o) => o.valor), ["DUENIO", "DIRECCION", "ADMINISTRACION", "COMERCIAL", "PRODUCCION_CAMPO", "PRODUCCION", "DISENO"]);
+  const texto = Object.fromEntries(opciones.map((o) => [o.valor, o.etiqueta]));
+  assert.match(texto.COMERCIAL, /^Productor comercial \(.*cobros.*costos.*sin pagos/);
+  assert.match(texto.PRODUCCION_CAMPO, /^Productor de campo \(.*sin importes/);
+  assert.match(texto.ADMINISTRACION, /^Administración \(.*proyectos.*sin usuarios ni permisos\)/);
+  // El rol del ERP de Administración sigue OWNER por Facturación: lo que no hace lo frena el puesto (decisiones-puestos.ts).
+  const r = validarAltaDeUsuario(formulario({ role: "ADMINISTRACION" }), false, true);
+  assert.ok(r.ok && r.role === "OWNER" && r.puesto === "ADMINISTRACION");
 });

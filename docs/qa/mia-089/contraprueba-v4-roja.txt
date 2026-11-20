@@ -1,0 +1,6 @@
+# Contraprueba V4: estaPerdido SIN «FOR UPDATE» (lectura del snapshot previo al candado). Tiene que dar rojo.
+not ok 1 - V4 · carreras: perder contra cobrar y retroceder contra marcar, en los dos órdenes (5 veces cada uno), con el candado de la cobranza
+    orden 0: ningún cobro entró a un perdido
+    1 !== 0
+# pass 0
+# fail 1

@@ -10,8 +10,9 @@
 //   · cada página y cada export de /admin/locales pasa por `requireApp` y por `exigirCasa`;
 //   · nadie fuera de la consola de GSG (y de la cartera del contador, que es la dueña de sus
 //     filas) escribe CarteraCliente, y las escrituras del vínculo sólo las importa la consola;
-//   · `trasladoTransaction` (la transacción que escribe en DOS negocios) sólo la importa
-//     multilocal-actions, donde los dos ids salen de las filas de la red de la casa;
+//   · `trasladoTransaction` (la transacción que escribe en DOS negocios) sólo la importan
+//     multilocal-actions, donde los dos ids salen de las filas de la red de la casa, y el repo del CRM
+//     comercial (GSG-CRM-017), donde el destino sale de `VinculoNegocio`, que la app no puede escribir;
 //   · el número del Inicio no arrastra la base al importarse (los tests de loaders lo cargan).
 // Se lee el código sin comentarios: un comentario que explica la regla no la rompe.
 
@@ -138,13 +139,14 @@ test("nadie fuera de la consola de GSG (y de la cartera del contador) escribe Ca
   assert.deepEqual(importan, [["src", "lib", "operador", "red-locales-actions.ts"].join(sep)]);
 });
 
-test("trasladoTransaction (escribe en dos negocios) sólo la importa multilocal-actions", () => {
+test("trasladoTransaction (escribe en dos negocios) sólo la importan multilocal-actions y el repo del CRM (vínculo ARM → destino)", () => {
   const fuentes = archivos(SRC, (n) => /\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n));
   const importan = fuentes
     .filter((f) => /\btrasladoTransaction\b/.test(sinComentarios(readFileSync(f, "utf8"))))
     .map((f) => relative(RAIZ, f))
     .sort();
   assert.deepEqual(importan, [
+    ["src", "lib", "crm-comercial", "repo.ts"].join(sep),
     ["src", "lib", "multilocal", "multilocal-actions.ts"].join(sep),
     ["src", "lib", "rls.ts"].join(sep),
   ]);

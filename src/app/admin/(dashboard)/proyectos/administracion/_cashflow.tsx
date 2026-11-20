@@ -1,6 +1,5 @@
 import { KpiTile, cn } from "@/components/ui";
 import { pesos } from "@/lib/proyectos/core";
-import { plataEn } from "@/lib/proyectos/gestion-core";
 import { etiquetaMes } from "@/lib/proyectos/empresa-core";
 import { cashflowDeEmpresa } from "@/lib/proyectos/empresa.server";
 import { tarjeta } from "../_vista";
@@ -15,7 +14,7 @@ export async function TabCashflow({ tenantId }: { tenantId: string }) {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <KpiTile label="Caja hoy" value={pesos(d.cajaHoy)} sub={d.cuentas.length === 1 ? "1 cuenta" : `${d.cuentas.length} cuentas`} />
         <KpiTile label="Necesidad de financiamiento" value={pesos(d.necesidad)} sub={d.necesidad > 0 ? "lo más abajo de cero en 6 meses" : "la caja no baja de cero en 6 meses"} />
-        <KpiTile label="Pipeline ponderado" value={pesos(d.ponderado)} sub="enviadas al 40 %; no suma al saldo" />
+        <KpiTile label="Venta ponderada por aprobar" value={pesos(d.ponderado)} sub="enviadas al 40 %; no suma al saldo" />
       </div>
 
       <section className={tarjeta}>
@@ -27,7 +26,7 @@ export async function TabCashflow({ tenantId }: { tenantId: string }) {
             {d.cuentas.map((c) => (
               <li key={c.id} className="rounded-lg border border-line p-3">
                 <p className="text-sm text-muted">{c.nombre}</p>
-                <p className="font-semibold tabular-nums text-strong">{plataEn(c.saldo, c.moneda)}</p>
+                <p className="font-semibold tabular-nums text-strong">{pesos(c.saldo, c.moneda)}</p>
                 {c.moneda !== "ARS" && <p className="text-xs tabular-nums text-muted">{pesos(c.enPesos)}</p>}
               </li>
             ))}

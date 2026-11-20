@@ -11,6 +11,7 @@
 
 import type { Role } from "@/lib/capabilities";
 import { rolAdmitidoEnAlta } from "./roles";
+import { puestoDelAlta, type PuestoDelAlta } from "@/lib/proyectos/puestos-del-alta";
 
 export const MIN_PASSWORD_LENGTH = 8;
 
@@ -18,10 +19,11 @@ export const MIN_PASSWORD_LENGTH = 8;
 export type RechazoDeAlta = "error_name" | "error_email_invalid" | "error_role" | "error_password_short";
 
 export type AltaDeUsuario =
-  | { ok: true; name: string; email: string; role: Role; password: string }
+  | { ok: true; name: string; email: string; role: Role; password: string; puesto?: PuestoDelAlta["puesto"] }
   | { ok: false; status: RechazoDeAlta };
 
-export function validarAltaDeUsuario(formData: FormData, esMostrador: boolean): AltaDeUsuario {
+/** `conProyectos`: una productora elige un puesto (MIA-229); el rol del ERP y la ficha salen de él, no del formulario. */
+export function validarAltaDeUsuario(formData: FormData, esMostrador: boolean, conProyectos = false): AltaDeUsuario {
   const name = String(formData.get("name") || "").trim();
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const roleRaw = String(formData.get("role") || "");
@@ -29,7 +31,9 @@ export function validarAltaDeUsuario(formData: FormData, esMostrador: boolean): 
 
   if (!name) return { ok: false, status: "error_name" };
   if (!email || !email.includes("@")) return { ok: false, status: "error_email_invalid" };
-  if (!rolAdmitidoEnAlta(roleRaw, esMostrador)) return { ok: false, status: "error_role" };
+  const puesto = conProyectos ? puestoDelAlta(roleRaw) : null;
+  if (conProyectos ? !puesto : !rolAdmitidoEnAlta(roleRaw, esMostrador)) return { ok: false, status: "error_role" };
   if (password.length < MIN_PASSWORD_LENGTH) return { ok: false, status: "error_password_short" };
+  if (puesto) return { ok: true, name, email, role: puesto.rolErp, password, puesto: puesto.puesto };
   return { ok: true, name, email, role: roleRaw as Role, password };
 }

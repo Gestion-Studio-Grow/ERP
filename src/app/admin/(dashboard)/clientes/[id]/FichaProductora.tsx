@@ -9,6 +9,7 @@ import { ButtonLink } from "@/components/ui";
 import { getClient } from "@/lib/actions";
 import { permisoEfectivo } from "@/lib/capabilities";
 import { proyectosDelCliente, veLaPlata } from "@/lib/proyectos/datos.server";
+import { vendidoDelCliente } from "@/lib/proyectos/ficha-core";
 import { etapaLabel, pesos, redondear, SERVICIO_LABEL, type Servicio } from "@/lib/proyectos/core";
 import type { SessionUser } from "@/lib/session";
 import { claseBotonWhatsApp } from "../boton-whatsapp";
@@ -23,9 +24,9 @@ export default async function FichaProductora({ id, user }: { id: string; user: 
   // Sin `clients:contact` (casilla 5 de la matriz) teléfono y mail salen enmascarados del servidor.
   const client = enmascararContacto(crudo, user);
   const puedeEditar = permisoEfectivo(user, "clients:manage");
-  const conPlata = veLaPlata(user);
+  const conPlata = await veLaPlata(user);
   const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere: false, puedeEditar });
-  const vendido = redondear(proyectos.reduce((s, p) => s + (p.t?.total ?? 0), 0));
+  const vendido = vendidoDelCliente(proyectos);
   const cobrado = redondear(proyectos.reduce((s, p) => s + p.cobrado, 0));
   // `porCobrar` de cada proyecto sale de la cobranza (cobranza-core), igual que Clientes, Rentabilidad y Administración.
   const porCobrar = redondear(proyectos.reduce((s, p) => s + p.porCobrar, 0));
@@ -76,7 +77,7 @@ export default async function FichaProductora({ id, user }: { id: string; user: 
                   <span className="min-w-0">
                     <span className="block font-medium text-strong [overflow-wrap:anywhere]">#{p.numero} {p.nombre}</span>
                     <span className="block text-sm text-muted">
-                      {SERVICIO_LABEL[p.servicio as Servicio] ?? p.servicio} · {etapaLabel(p.etapa, p.servicio)}
+                      {SERVICIO_LABEL[p.servicio as Servicio] ?? p.servicio} · {p.perdidoEl ? "Perdido (no suma en Vendido)" : etapaLabel(p.etapa, p.servicio)}
                     </span>
                   </span>
                   {conPlata && (

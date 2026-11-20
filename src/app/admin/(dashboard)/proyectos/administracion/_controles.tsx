@@ -5,12 +5,12 @@
 import { useEffect, useRef, useState, useTransition, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { buttonClasses, cn } from "@/components/ui";
-import { marcarCuota } from "@/lib/proyectos/acciones-ficha";
-import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista } from "@/lib/proyectos/acciones-empresa";
-import { MEDIOS, MEDIO_LABEL } from "@/lib/proyectos/core";
-import { plataEn } from "@/lib/proyectos/gestion-core";
+import { marcarCuota, tiposDeRetencion } from "@/lib/proyectos/acciones-ficha";
+import { cuentasParaMarcar, editarExtrasLiquidacion, generarLiquidaciones, guardarDatoCuota, importarExtracto, marcarCuotaEmpresa, marcarLiquidacionVista, pagarLiquidacion } from "@/lib/proyectos/acciones-empresa";
+import { MEDIOS, MEDIO_LABEL, pesos } from "@/lib/proyectos/core";
 import { campo } from "../_vista";
 import { useToastSiHay } from "../../ToastProvider";
+import { nuevaClave } from "../[id]/_cliente";
 
 type Salida = { ok: boolean; error?: string; [k: string]: unknown } | void;
 type Accion = (fd: FormData) => Promise<Salida>;
@@ -20,19 +20,27 @@ const mensajeDeError = (e: unknown) => (e instanceof Error && e.message ? e.mess
 /** Corre una acción: lo que devuelve como error y lo que tira terminan en el mismo cartel. */
 function useAccion() {
   const [error, setError] = useState<string | null>(null);
+  // MIA-203: el texto del botón que reenvía el mismo formulario con el sí explícito (`confirmaRepetido=1`), si el servidor lo pide.
+  const [reenviar, setReenviar] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const correr = (accion: Accion, fd: FormData, alTerminar?: (r: Salida) => void) =>
     iniciar(async () => {
       setError(null);
       try {
         const r = await accion(fd);
+        setReenviar(r && r.ok === false && typeof r.reenviar === "string" ? r.reenviar : null);
         if (r && r.ok === false) return setError(r.error ?? "No se pudo guardar.");
         alTerminar?.(r);
       } catch (e) {
         setError(mensajeDeError(e));
       }
     });
-  return { error, ocupado, correr };
+  // Al reabrir un formulario (otra clave): ni el error ni el sí de antes valen para el envío nuevo.
+  const reiniciar = () => {
+    setError(null);
+    setReenviar(null);
+  };
+  return { error, reenviar, ocupado, correr, reiniciar };
 }
 
 /**
@@ -49,16 +57,29 @@ const Fallo = ({ texto }: { texto: string | null }) => (texto ? <p role="alert" 
 
 // ── Formularios ─────────────────────────────────────────────────────────────
 
-export function FormAccion({ accion, children, boton, className, limpiar = true }: { accion: Accion; children?: ReactNode; boton: string; className?: string; limpiar?: boolean }) {
+/**
+ * Con `claveDeEnvio`, cada envío lleva `claveEnvio`: la misma hasta que el servidor contesta, así un doble clic o un
+ * reintento después de un corte graban una sola vez (MIA-089 · V7); con respuesta, el próximo envío lleva otra.
+ */
+export function FormAccion({ accion, children, boton, className, limpiar = true, claveDeEnvio }: { accion: Accion; children?: ReactNode; boton: string; className?: string; limpiar?: boolean; claveDeEnvio?: boolean }) {
   const { error, ocupado, correr } = useAccion();
+  const clave = useRef<string | null>(null);
+  const conClave: Accion = async (fd) => {
+    const r = await accion(fd);
+    clave.current = null;
+    return r;
+  };
   return (
     <form
       className={cn("grid gap-2", className)}
-      onSubmit={alEnviar((fd, form) =>
-        correr(accion, fd, () => {
-          if (limpiar) form.reset();
-        }),
-      )}
+      onSubmit={(e) =>
+        alEnviar((fd, form) => {
+          if (claveDeEnvio) fd.set("claveEnvio", (clave.current ??= nuevaClave()));
+          return correr(claveDeEnvio ? conClave : accion, fd, () => {
+            if (limpiar) form.reset();
+          });
+        })(e)
+      }
     >
       {children}
       <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 justify-self-start")}>{ocupado ? "Guardando…" : boton}</button>
@@ -94,18 +115,37 @@ export function BotonDosPasos({ accion, campos, etiqueta, pregunta, principal }:
 
 // ── Cuotas ──────────────────────────────────────────────────────────────────
 
+/** La cuenta que se mueve: obligatoria cuando hay cuentas, con «ninguna» como elección explícita. Sin cuentas, nada. */
+function SelectCuenta({ cuentas }: { cuentas: readonly { id: string; nombre: string; moneda?: string }[] }) {
+  if (cuentas.length === 0) return null;
+  return (
+    <select name="cuenta" aria-label="Cuenta que se mueve" defaultValue="" required className={campo}>
+      <option value="" disabled>Elegí la cuenta</option>
+      <option value="ninguna">Ninguna cuenta del banco: va sólo al libro de caja</option>
+      {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre}{c.moneda ? ` (${c.moneda})` : ""}</option>)}
+    </select>
+  );
+}
+
 /** Cobrado o Pagar: pide el medio antes de asentar. La cuota de proyecto y la de la empresa van por acciones distintas. */
 function ElegirCuenta() {
   const [cuentas, setCuentas] = useState<{ id: string; nombre: string; moneda: string }[]>([]);
   useEffect(() => {
     cuentasParaMarcar().then(setCuentas).catch(() => setCuentas([]));
   }, []);
-  if (cuentas.length === 0) return null;
+  return <SelectCuenta cuentas={cuentas} />;
+}
+
+/** O36: el tipo de retención sale de la lista del negocio (hoy uno solo, el genérico): elegido de entrada si es el único. */
+function ElegirTipoRetencion({ concepto }: { concepto: string }) {
+  const [tipos, setTipos] = useState<string[]>([]);
+  useEffect(() => {
+    tiposDeRetencion().then(setTipos).catch(() => setTipos([]));
+  }, []);
   return (
-    <select name="cuenta" aria-label="Cuenta que se mueve" defaultValue="" required className={campo}>
-      <option value="" disabled>Elegí la cuenta</option>
-      <option value="ninguna">No mueve ninguna cuenta</option>
-      {cuentas.map((c) => <option key={c.id} value={c.id}>{c.nombre} ({c.moneda})</option>)}
+    <select key={tipos.join("|")} name="retTipo" aria-label={`Tipo de retención de ${concepto}`} defaultValue={tipos.length === 1 ? tipos[0] : ""} className={campo}>
+      <option value="">{tipos.length === 0 ? "Sin tipos de retención cargados" : "Tipo de retención"}</option>
+      {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
     </select>
   );
 }
@@ -113,16 +153,17 @@ function ElegirCuenta() {
 /**
  * La de un proyecto, además, cobra o paga UNA PARTE (`monto`, en la moneda de la cuota; vacío = todo lo que falta) y manda
  * lo que faltaba al cargar la pantalla (`visto`): si cambió mientras tanto, el servidor no asienta «todo» sin preguntar.
- * `envio`, uno por apertura: el doble clic asienta una vez. Las de la empresa (y sin `falta`, la conciliación de Bancos) se
- * marcan enteras.
+ * `envio`, uno por apertura, en toda cuota de un proyecto (también desde Bancos): el doble clic asienta una vez. Las de la
+ * empresa (y sin `falta`, la conciliación de Bancos) se marcan enteras.
  */
 export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", concepto = "la cuota", esCobro = true }: { id: string; deEmpresa: boolean; etiqueta: string; falta?: number; moneda?: string; concepto?: string; esCobro?: boolean }) {
-  const { error, ocupado, correr } = useAccion();
+  const { error, reenviar, ocupado, correr, reiniciar } = useAccion();
   const [abierto, setAbierto] = useState(false);
   const [envio, setEnvio] = useState("");
   const router = useRouter();
   const toast = useToastSiHay();
   const abrir = () => {
+    reiniciar();
     setEnvio(crypto.randomUUID());
     setAbierto(true);
   };
@@ -134,6 +175,9 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
   return (
     <form
       className="grid min-w-44 gap-1"
+      // MIA-208 · 2: el sí responde al formulario como estaba al avisar; si cambia el monto, el medio o la retención, el
+      // sí viejo y su aviso se van (si no, mandaba el importe nuevo con `confirmaRepetido=1` sin que el servidor preguntara).
+      onChange={reenviar ? reiniciar : undefined}
       onSubmit={alEnviar((fd) => {
         fd.set("id", id);
         correr(deEmpresa ? marcarCuotaEmpresa : (marcarCuota as Accion), fd, (r) => {
@@ -148,15 +192,72 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
         {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
       </select>
       <ElegirCuenta />
+      {/* MIA-201 · H2: la clave va en todo cobro de un proyecto, también el de Bancos (sin `falta`); sin ella el servidor no lo graba. */}
+      {!deEmpresa && <input type="hidden" name="envio" value={envio} />}
       {!deEmpresa && falta !== undefined && (
         <>
-          <input type="hidden" name="envio" value={envio} />
           <input type="hidden" name="visto" value={String(falta)} />
-          <input name="monto" inputMode="decimal" aria-label={`Monto a ${esCobro ? "cobrar" : "pagar"} de ${concepto}, en ${moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${plataEn(falta, moneda)}`} className={campo} />
+          <input name="monto" inputMode="decimal" aria-label={`Monto a ${esCobro ? "cobrar" : "pagar"} de ${concepto}, en ${moneda} (vacío: todo lo que falta)`} placeholder={`Todo: ${pesos(falta, moneda)}`} className={campo} />
+          {esCobro && (
+            // MIA-50 · T08 (O36): lo que el cliente retuvo cuenta como cobrado; el tipo se valida contra el catálogo del negocio.
+            <details className="text-xs">
+              <summary className="min-h-11 cursor-pointer py-2 text-muted underline underline-offset-2">Le retuvieron algo</summary>
+              <div className="grid gap-1">
+                <ElegirTipoRetencion concepto={concepto} />
+                <input name="retImporte" inputMode="decimal" aria-label={`Importe retenido de ${concepto}, en pesos`} placeholder="Importe retenido" className={campo} />
+                <input name="retCertificado" aria-label={`Número de certificado de la retención de ${concepto}`} placeholder="Certificado (opcional)" maxLength={60} className={campo} />
+              </div>
+            </details>
+          )}
         </>
       )}
       <div className="flex gap-1">
         <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 flex-1")}>{ocupado ? "…" : "Confirmar"}</button>
+        <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>Volver</button>
+      </div>
+      <Fallo texto={error} />
+      {/* MIA-203: el mismo formulario (la misma clave `envio`, que no cambia hasta cerrarlo) con el sí explícito. */}
+      {reenviar && (
+        <button type="submit" name="confirmaRepetido" value="1" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11")}>{reenviar}</button>
+      )}
+    </form>
+  );
+}
+
+/**
+ * Pagar una liquidación (N1, MIA-084): pide el medio y la cuenta de la que sale el sueldo, igual que una cuota, y el
+ * servidor baja ese saldo en la misma transacción que el egreso. Las cuentas (sólo las de pesos) llegan del servidor:
+ * quien paga sueldos no necesita permiso sobre las cuentas de la empresa para elegir una.
+ */
+/** `codigo`: el pedido del código de la app (MIA-50 T11, O47), donde rigen los dos pasos; va dentro del formulario. */
+export function PagarLiquidacion({ id, total, cuentas, codigo }: { id: string; total: string; cuentas: readonly { id: string; nombre: string }[]; codigo?: ReactNode }) {
+  const { error, ocupado, correr } = useAccion();
+  const [abierto, setAbierto] = useState(false);
+  const router = useRouter();
+  const toast = useToastSiHay();
+  if (!abierto) {
+    return <button type="button" onClick={() => setAbierto(true)} className={cn(buttonClasses("solid", "md"), "min-h-11 whitespace-nowrap")}>Pagar liquidación</button>;
+  }
+  return (
+    <form
+      className="grid min-w-56 gap-1"
+      onSubmit={alEnviar((fd) => {
+        fd.set("id", id);
+        correr(pagarLiquidacion, fd, () => {
+          toast?.showSuccess(`Liquidación pagada: ${total}.`);
+          setAbierto(false);
+          router.refresh();
+        });
+      })}
+    >
+      <p className="text-sm text-strong">Sale {total} y las rendiciones quedan reintegradas.</p>
+      <select name="medio" aria-label="Medio de pago" defaultValue="TRANSFERENCIA" className={campo}>
+        {MEDIOS.map((m) => <option key={m} value={m}>{MEDIO_LABEL[m]}</option>)}
+      </select>
+      <SelectCuenta cuentas={cuentas} />
+      {codigo}
+      <div className="flex gap-1">
+        <button type="submit" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11 flex-1")}>{ocupado ? "…" : "Pagar"}</button>
         <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>Volver</button>
       </div>
       <Fallo texto={error} />
@@ -282,8 +383,10 @@ export function GenerarLiquidaciones({ periodo }: { periodo: string }) {
     fd.set("periodo", periodo);
     setListo(null);
     correr(generarLiquidaciones as Accion, fd, (r) => {
-      const x = r as unknown as { generadas: number; publicadas: number };
-      setListo(`${x.generadas === 1 ? "1 liquidación" : `${x.generadas} liquidaciones`} al día${x.publicadas > 0 ? ` · ${x.publicadas} publicadas sin tocar` : ""}.`);
+      const x = r as unknown as { generadas: number; publicadas: number; salteada?: string | null; esperando?: string[] };
+      // T10 (O23): los proyectos aprobados que todavía no entran, con el motivo.
+      const esperan = x.esperando?.length ? ` Esperan: ${x.esperando.join(" · ")}` : "";
+      setListo(`${x.generadas === 1 ? "1 liquidación" : `${x.generadas} liquidaciones`} al día${x.publicadas > 0 ? ` · ${x.publicadas} publicadas sin tocar` : ""}.${x.salteada ? " La tuya no se tocó: la arma otra persona de Dirección o Administración." : ""}${esperan}`);
     });
   };
   return (

@@ -10,6 +10,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireApp } from "@/lib/require-app";
+import { exigirPuertaDeGestion } from "@/lib/proyectos/puerta-de-gestion.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { todayInBusinessTz } from "@/lib/datetime";
 import { diaLegible } from "@/lib/libros/fecha-fiscal";
@@ -20,6 +21,8 @@ import { AvisoError, PageHeader, buttonClasses, fmtMoneyARS } from "@/components
 import { DosColumnas, Franja, LineaDeEstado, Marca, Plata, Renglon, chipLinkAtributos } from "@/components/ui";
 import { disenoNuevo } from "@/lib/diseno/diseno.server";
 import { LineaDeCuenta } from "@/components/ui/LineaDeCuenta";
+import { paraElFlujo } from "@/lib/proyectos/cuentas-generales";
+import { proyectosParaCuentas } from "@/lib/proyectos/cuentas-generales.server";
 
 export const dynamic = "force-dynamic";
 
@@ -47,12 +50,16 @@ function Tarjeta({ label, value, hint, tono }: { label: string; value: string; h
 
 export default async function FlujoPage({ searchParams }: { searchParams: Promise<{ h?: string }> }) {
   const user = await requireApp("flujo-de-fondos");
+  // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · ver» del rol de Proyectos, también sin el layout.
+  await exigirPuertaDeGestion("empresa", "ver", "flujo-de-fondos");
   const { h } = await searchParams;
   const horizonte = leerHorizonte(h);
   const tenantId = await getCurrentTenantId();
   const hoy = todayInBusinessTz();
+  // MIA-50 · CG8: las cuotas de Proyectos con fecha entran en su día (sin calendario, no). null sin la app o sin permiso.
+  const proyectos = paraElFlujo(await proyectosParaCuentas(tenantId));
   const [{ flujo: f, sinCuentasCorrientes }, abribles] = await Promise.all([
-    leerFlujo(prisma, tenantId, hoy, horizonte),
+    leerFlujo(prisma, tenantId, hoy, horizonte, proyectos),
     appsQuePuedeAbrir(user.role, ["cuentas-a-cobrar", "cuentas-a-pagar", "libro-de-caja"]),
   ]);
   const ajustada = f.semanaMasAjustada;

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { cobranza, cobranzaEnMoneda, conciliarConCobros, esPrevista, leerOriginal, lugarParaCobroManual, montoEnCashflow, pagadoDeCuota, pasaElTope, pendientesDeCobro, repartoDeCobros, repartoDelNegocio, resumenConCobranza, SIN_PREVISTAS_SIN_MARCAR, textoPagado, totalAprobado, totalesEnPesos, type Cobranza, type CobroRegistrado } from "./cobranza-core";
+import { cobranza, cobranzaDePerdido, cobranzaEnMoneda, conciliarConCobros, esPrevista, leerOriginal, lugarParaCobroManual, montoEnCashflow, pagadoDeCuota, pasaElTope, pendientesDeCobro, repartoDeCobros, repartoDelNegocio, resumenConCobranza, SIN_PREVISTAS_SIN_MARCAR, textoPagado, totalAprobado, totalesEnPesos, type Cobranza, type CobroRegistrado } from "./cobranza-core";
 import { aPesos, cashflowDelEvento, enMonedaDeVenta, resumenCuotas, type CuotaLeida } from "./gestion-core";
 import { prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 
@@ -628,6 +628,8 @@ function dbFalso(datos: { cuotas: Fila[]; proyecto: Fila & { pagos: Fila[] }; en
   const log: string[] = [];
   const db = {
     $executeRaw: async () => (log.push("candado"), 1),
+    // MIA T06: la cobranza pregunta si M2 (adicionales) está aplicada; este `db` falso responde que no.
+    $queryRaw: async () => [{ ok: false }],
     proyectoCuota: {
       findMany: async ({ where }: { where: { id?: { in: string[] }; moneda?: { not: string } } }) => (
         log.push("cuotas"), datos.cuotas.filter((c) => (!where.id || where.id.in.includes(c.id as string)) && (!where.moneda || c.moneda !== where.moneda.not))
@@ -689,15 +691,17 @@ test("v2 #3/#4: las tres acciones que mueven la cobranza traban el candado como 
     const i = s.indexOf(`export async function ${funcion}(`);
     assert.ok(i >= 0, funcion);
     const cuerpo = s.slice(i, s.indexOf("\nexport ", i + 10));
-    const tx = cuerpo.indexOf("tenantTransaction(async (tx");
-    assert.ok(tx >= 0, `${funcion}: sin transacción`);
+    // Las tres asientan en la caja: corren en la transacción Serializable de Proyectos (periodo-cerrado.server.ts, O40).
+    const tx = cuerpo.indexOf("transaccionQueAsienta(async (tx");
+    assert.ok(tx >= 0, `${funcion}: sin transacción \`transaccionQueAsienta\``);
     const lineas = cuerpo.slice(tx).split("\n").slice(1).map((l) => l.trim()).filter((l) => l && !l.startsWith("//") && l !== "if (esCobro) {");
     return { cuerpo, primera: lineas[0] };
   };
   const marcar = fuente("./acciones-ficha.ts", "marcarCuota");
   assert.match(marcar.primera, /^await trabarCobranza\(tx, tenantId, proyectoId\);$/);
   assert.match(marcar.cuerpo, /pendienteDeLaCuota\(tenantId, proyectoId, id, tc, margenPct, tx\)/);
-  assert.match(marcar.cuerpo, /pasaElTope\(ahora\.cob, importe\)/);
+  // O36 (T08): con retención, al tope va la cuota entera (lo que entró + lo retenido), siempre contra `ahora.cob` de la tx.
+  assert.match(marcar.cuerpo, /pasaElTope\(ahora\.cob, (importe|cuentanComoCobrado \? redondear\(importe \+ importeRet\) : importe)\)/);
   const registrar = fuente("./acciones.ts", "registrarCobro");
   assert.match(registrar.primera, /^await trabarCobranza\(tx, tenantId, proyectoId\);$/);
   assert.match(registrar.cuerpo, /cobranzasDelNegocio\(tenantId, tc, config\.margenPct, \[proyectoId\], tx\)/);
@@ -917,4 +921,13 @@ test("cobro enlazado a una cuota anulada o prevista: sigue siendo plata suelta (
   const cuotas = [cuotaQ("viva", 605, "ARS", 5), cuotaQ("anulada", 605, "ARS", 15, { anuladoEl: HOY })];
   const r = repartoDeCobros(cuotas, {}, cobranza(1210, [{ monto: 300, cuotaId: "anulada" }]));
   assert.deepEqual(r.pendiente.slice(0, 1), [305]);
+});
+
+test("MIA-094 · V2: la cobranza de un perdido no tiene saldo ni por cobrar; lo cobrado sigue y un saldo a favor del cliente se conserva", () => {
+  const parcial = cobranzaDePerdido(cobranza(1210, [{ monto: 300 }]));
+  assert.deepEqual({ total: parcial.total, cobrado: parcial.cobrado, saldo: parcial.saldo, porCobrar: parcial.porCobrar }, { total: 300, cobrado: 300, saldo: 0, porCobrar: 0 });
+  const deMas = cobranzaDePerdido(cobranza(1000, [{ monto: 1100 }]));
+  assert.deepEqual({ total: deMas.total, saldo: deMas.saldo, porCobrar: deMas.porCobrar }, { total: 1000, saldo: -100, porCobrar: 0 });
+  const usd = cobranzaDePerdido({ ...cobranza(1000, [{ monto: 250 }]), enMoneda: { moneda: "USD", tc: 1000, total: 1, cobrado: 0.25, saldo: 0.75 } });
+  assert.deepEqual(usd.enMoneda, { moneda: "USD", tc: 1000, total: 0.25, cobrado: 0.25, saldo: 0 });
 });

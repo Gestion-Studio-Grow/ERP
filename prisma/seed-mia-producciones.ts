@@ -25,6 +25,7 @@ import { precioConMargen } from "../src/lib/proyectos/core";
 import { marcaDeGastoProyecto } from "../src/lib/proyectos/marcas";
 import { cobroDeCuota, sembrarGestion } from "./seed-mia-gestion";
 import { planDeCuotas } from "../src/lib/proyectos/gestion-core";
+import { faltaLaTabla } from "../src/lib/taller-stands/core";
 
 const guarda = baseLocalParaSeed(process.env.DATABASE_URL);
 if (!guarda.ok) {
@@ -68,11 +69,21 @@ async function main() {
   await prisma.cashMovement.deleteMany({ where: { tenantId, proyectoPagoId: { not: null } } });
   await prisma.cashMovement.deleteMany({ where: { tenantId, proyectoGastoId: { not: null } } });
   await prisma.proyectoPago.deleteMany({ where: { tenantId } });
+  // Un pedido del taller recibido apunta a su gasto (FK RESTRICT): se borra antes. FORCE RLS: parado en el negocio.
+  // Sin la migración del taller la tabla no existe y no hay nada que borrar.
+  await prisma
+    .$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${tenantId}, true)`;
+      await tx.tallerPedido.deleteMany({ where: { tenantId } });
+    })
+    .catch((e: unknown) => {
+      if (!faltaLaTabla(e)) throw e;
+    });
   await prisma.proyectoGasto.deleteMany({ where: { tenantId } });
   await prisma.proyecto.deleteMany({ where: { tenantId } });
 
   // Un usuario de prueba por rol. Administración es Dueño en el ERP porque Facturación lo exige.
-  for (const [local, name, role] of [["diseno", "Equipo de diseño", "PROFESSIONAL"], ["comercial", "Lucía Paz", "RECEPTION"], ["administracion", "Rocío Medina", "OWNER"], ["produccion", "Paula Ibáñez", "PROFESSIONAL"], ["sinficha", "Sin ficha", "RECEPTION"]] as const) {
+  for (const [local, name, role] of [["diseno", "Equipo de diseño", "PROFESSIONAL"], ["comercial", "Lucía Paz", "RECEPTION"], ["administracion", "Rocío Medina", "OWNER"], ["produccion", "Paula Ibáñez", "PROFESSIONAL"], ["campo", "Bruno Ledesma", "PROFESSIONAL"], ["sinficha", "Sin ficha", "RECEPTION"]] as const) {
     const email = `${local}@${SLUG}.demo`;
     if (!(await prisma.user.findFirst({ where: { tenantId, email } }))) {
       await prisma.user.create({ data: { tenantId, name, email, passwordHash: await hashPassword(CLAVE), role } });

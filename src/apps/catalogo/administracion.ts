@@ -44,6 +44,22 @@ export const APPS_ADMINISTRACION = [
     enLanzador: false,
   },
   {
+    // Consola de la Cuadrilla (GSG-MIA-062): la dueña supervisa a sus agentes y el usuario de un
+    // agente ve su hilo. Pide sólo dashboard:read porque entran los dos roles; quién decide qué lo
+    // dice `puede()` (src/lib/cuadrilla/permisos.ts) en el servidor. Se llega por la franja del panel
+    // (sólo en negocios con agentes): no va al Inicio, la barra ni el buscador.
+    id: "cuadrilla",
+    nombre: "Cuadrilla",
+    descripcion: "Los agentes del negocio: lo que espera tu decisión y el hilo de cada uno.",
+    icono: "clientes",
+    ruta: "/admin/cuadrilla",
+    espacio: "plataforma",
+    capability: "dashboard:read",
+    modulo: null,
+    estado: "lista",
+    enLanzador: false,
+  },
+  {
     id: "auditoria",
     nombre: "Auditoría",
     descripcion: "Quién hizo qué y cuándo.",

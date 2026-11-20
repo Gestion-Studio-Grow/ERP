@@ -111,7 +111,7 @@ export async function generateMetadata(): Promise<Metadata> {
       : {}),
     // Paneles, turnos y pedidos de una persona no se indexan aunque la página no lo diga (mismo listado que el robots).
     robots: esRutaPrivada(ruta) ? { index: false, follow: false } : { index: true, follow: true },
-    generator: "GSG",
+    generator: "Gestión Studio Grow",
   };
 }
 

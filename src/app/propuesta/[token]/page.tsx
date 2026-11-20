@@ -37,7 +37,7 @@ export default async function PropuestaPage({ params }: { params: Promise<{ toke
   const { token } = await params;
   const data = await propuestaPublica(token).catch(() => null);
   if (!data) notFound();
-  const { presupuesto: b, negocio, totales: t } = data;
+  const { presupuesto: b, negocio, totales: t, porTotal } = data;
   const cambio = cambioDeVenta(b.proyecto.moneda, b.tcVenta, {});
   const pesos = (n: number) => ventaEn(n, b.proyecto.moneda, cambio);
   const p = b.proyecto;
@@ -112,16 +112,27 @@ export default async function PropuestaPage({ params }: { params: Promise<{ toke
                   <tr key={i.id}>
                     <td>{i.descripcion}</td>
                     <td className="num">{i.cantidad.toLocaleString("es-AR")} {i.unidad}</td>
-                    <td className="num">{pesos(i.cantidad * i.precio)}</td>
+                    <td className="num">{i.precio == null ? "" : pesos(i.cantidad * i.precio)}</td>
                   </tr>
                 ))}
               </tbody>
             ))}
-            <tfoot>
-              <tr><td colSpan={2} style={{ paddingTop: 20 }}>Subtotal</td><td className="num" style={{ paddingTop: 20 }}>{pesos(t.neto)}</td></tr>
-              <tr><td colSpan={2}>IVA {b.ivaPct}%</td><td className="num">{pesos(t.iva)}</td></tr>
-              <tr style={{ fontSize: 24, fontWeight: 600 }}><td colSpan={2}>Total</td><td className="num">{pesos(t.total)}</td></tr>
-            </tfoot>
+            {porTotal ? (
+              // O17: el precio es por el total; el parámetro del negocio dice si va más IVA o con el IVA adentro.
+              <tfoot>
+                <tr style={{ fontSize: 24, fontWeight: 600 }}>
+                  <td colSpan={2} style={{ paddingTop: 20 }}>{porTotal.conIva ? "Total, IVA incluido" : "Total"}</td>
+                  <td className="num" style={{ paddingTop: 20 }}>{pesos(porTotal.conIva ? t.total : t.neto)}</td>
+                </tr>
+                {!porTotal.conIva && b.ivaPct > 0 && <tr><td colSpan={3} style={{ fontSize: 14 }}>Más IVA {b.ivaPct}%.</td></tr>}
+              </tfoot>
+            ) : (
+              <tfoot>
+                <tr><td colSpan={2} style={{ paddingTop: 20 }}>Subtotal</td><td className="num" style={{ paddingTop: 20 }}>{pesos(t.neto)}</td></tr>
+                <tr><td colSpan={2}>IVA {b.ivaPct}%</td><td className="num">{pesos(t.iva)}</td></tr>
+                <tr style={{ fontSize: 24, fontWeight: 600 }}><td colSpan={2}>Total</td><td className="num">{pesos(t.total)}</td></tr>
+              </tfoot>
+            )}
           </table>
           {b.validoHasta && <p style={{ margin: "16px 0 0", fontSize: 14 }}>Propuesta válida hasta el {fechaCorta(b.validoHasta)}.</p>}
           {b.condiciones && (

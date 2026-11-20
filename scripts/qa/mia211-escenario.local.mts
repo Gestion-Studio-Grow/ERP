@@ -1,0 +1,57 @@
+// MIA-211 · escenario de capturas en la DEMO LOCAL (PGlite de scripts/proyectos/demo-local.mjs). Datos inventados; jamás
+// corre contra Neon (guarda de base local). Deja, en el negocio «mia-producciones», lo que producen los arreglos:
+//   S1 · una cuota de empresa pagada por la orden «OP 00000099» (Cuentas no ofrece «Anular»).
+//   H1 · un cobro de las 11:00 y la orden pagada hoy a la hora real (11:30), en el libro de caja.
+//   H2 · un comprobante imputado al proyecto #2, pagado en parte (MIA-216: «Pagado en parte», «Falta»), en el cashflow del evento.
+//   H4 · la anulación de un cobro del proyecto #2 (con `proyectoPagoId`) en Caja del día.
+//   DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54338/postgres npx tsx scripts/qa/mia211-escenario.local.mts
+import { PrismaClient } from "../../src/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { baseLocalParaSeed } from "../../src/lib/seed/guarda-base";
+
+const guarda = baseLocalParaSeed(process.env.DATABASE_URL);
+if (!guarda.ok) throw new Error(`Sólo base local: ${guarda.motivo}`);
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL, max: 1 }) });
+const hoyA = (hhmm: string) => {
+  const dia = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).format(new Date());
+  return new Date(`${dia}T${hhmm}:00-03:00`);
+};
+
+const t = await prisma.tenant.findFirstOrThrow({ where: { slug: "mia-producciones" }, select: { id: true } });
+const tenantId = t.id;
+const admin = await prisma.user.findFirstOrThrow({ where: { tenantId, email: "admin@mia-producciones.demo" }, select: { id: true, name: true } });
+const proyecto = await prisma.proyecto.findFirstOrThrow({ where: { tenantId, numero: 2 }, select: { id: true, nombre: true } });
+// Reentrante: si ya corrió la primera parte (S1 y H1), no la repite.
+const previo = await prisma.supplier.findFirst({ where: { tenantId, name: "Sonido Patagonia (ficticio)" }, select: { id: true } });
+const proveedor = previo ?? (await prisma.supplier.create({ data: { tenantId, name: "Sonido Patagonia (ficticio)" }, select: { id: true } }));
+
+if (!previo) {
+// S1
+await prisma.proyectoCuota.create({ data: { tenantId, proyectoId: null, tipo: "PAGO", concepto: "Alquiler del depósito · noviembre", monto: 100_000, moneda: "ARS", venceEl: hoyA("12:00"), auto: false, supplierId: proveedor.id, pagadoEl: hoyA("11:30"), pagadoPor: "OP 00000099", medio: "TRANSFERENCIA" } });
+
+// H1
+await prisma.cashMovement.create({ data: { tenantId, type: "INGRESO", method: "TRANSFERENCIA", amount: 1_808_950, reason: `Proyecto #2 · ${proyecto.nombre} · cobro del saldo`, occurredAt: hoyA("11:00"), createdAt: hoyA("11:00"), createdBy: `user:${admin.id}` } });
+await prisma.cashMovement.create({ data: { tenantId, type: "EGRESO", method: "TRANSFERENCIA", amount: 350_000, reason: "OP 00000099 · Sonido Patagonia (ficticio)", occurredAt: hoyA("11:30"), createdAt: hoyA("11:30"), createdBy: "sistema:proyecto-gasto:orden-mia211" } });
+
+}
+
+// H2
+const comp = await prisma.proyectoComprobante.create({
+  data: {
+    tenantId, supplierId: proveedor.id, tipo: "A", numero: "0003-00000777", fecha: hoyA("12:00"), moneda: "ARS",
+    netoCentavos: BigInt(100_000_000), ivaCentavos: BigInt(21_000_000), totalCentavos: BigInt(121_000_000), cargadoPorId: admin.id, cargadoNombre: admin.name,
+  },
+  select: { id: true },
+});
+await prisma.proyectoComprobanteLinea.create({ data: { tenantId, comprobanteId: comp.id, destino: "PROYECTO", proyectoId: proyecto.id, categoria: "Sonido", netoCentavos: BigInt(100_000_000), ivaCentavos: BigInt(21_000_000), ivaTratamiento: "CREDITO", costoCentavos: BigInt(100_000_000) } });
+// MIA-216 · H2: una orden PAGADA por 484.000 de los 1.210.000 (40 %): la fila dice «Pagado en parte» y «Falta $ 726.000».
+const op = await prisma.proyectoOrdenPago.create({ data: { tenantId, numero: 98, supplierId: proveedor.id, estado: "PAGADA", totalCentavos: BigInt(48_400_000), creadaPorId: admin.id, creadaNombre: admin.name, aprobadaNombre: "Dirección (ficticio)", pagadaEl: hoyA("10:30") }, select: { id: true } });
+await prisma.proyectoOrdenPagoLinea.create({ data: { tenantId, ordenId: op.id, comprobanteId: comp.id, importeCentavos: BigInt(48_400_000) } });
+
+// H4
+const pago = await prisma.proyectoPago.create({ data: { tenantId, proyectoId: proyecto.id, medio: "TRANSFERENCIA", monto: 500_000 }, select: { id: true } });
+await prisma.cashMovement.create({ data: { tenantId, type: "INGRESO", method: "TRANSFERENCIA", amount: 500_000, reason: `Proyecto #2 · ${proyecto.nombre} · seña`, proyectoPagoId: pago.id, occurredAt: hoyA("09:00"), createdBy: `user:${admin.id}` } });
+await prisma.cashMovement.create({ data: { tenantId, type: "EGRESO", method: "TRANSFERENCIA", amount: 500_000, reason: `Anulación · Proyecto #2 · ${proyecto.nombre} · seña`, proyectoPagoId: pago.id, occurredAt: hoyA("09:15"), createdBy: `user:${admin.id}` } });
+
+console.log(`listo · ficha: /admin/proyectos/${proyecto.id}?tab=finanzas`);
+await prisma.$disconnect();

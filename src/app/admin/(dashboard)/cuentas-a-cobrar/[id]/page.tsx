@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
+import { exigirPuertaDeGestion } from "@/lib/proyectos/puerta-de-gestion.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { getReceivableDetail } from "@/lib/debts/receivable-repo";
 import { medioDelPago } from "@/lib/cuentas/loader";
@@ -25,6 +26,8 @@ const volver = (
 // igual que el listado; la acción de cobro pasa por la misma regla (`requireAppAccion`).
 export default async function CuentaACobrarDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("cuentas-a-cobrar");
+  // MIA-50 T11 (C-CF2): en el panel de la productora, además, «Empresa · ver» del rol de Proyectos, también sin el layout.
+  await exigirPuertaDeGestion("empresa", "ver", "cuentas-a-cobrar");
   const tenantId = await getCurrentTenantId();
   // Las cuentas corrientes de ESTE negocio (interruptor por negocio; si nunca se tocó, la variable).
   const enLibro = await cuentasCorrientesDe(tenantId);

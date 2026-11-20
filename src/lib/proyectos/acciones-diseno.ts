@@ -7,6 +7,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { tenantTransaction } from "@/lib/rls";
 import { auditAdmin } from "@/lib/audit-core";
 import type { Prisma } from "@/generated/prisma/client";
 import { subirVersion, type Resultado } from "./acciones";
@@ -308,10 +309,10 @@ export async function eliminarImagenDelProyecto(d: { proyectoId: string; ref: st
   const idea = await prisma.proyectoIdea.findUnique({ where: { proyectoId: d.proyectoId }, select: { imagenes: true } });
   const elegidas = normalizarImagenes(idea?.imagenes);
   const estabaElegida = elegidas.includes(d.ref);
-  await prisma.$transaction([
-    prisma.proyectoArchivo.deleteMany({ where: { id: f.id, tenantId: a.tenantId, proyectoId: d.proyectoId, ...SIN_COMPROBANTES } }),
-    ...(estabaElegida ? [prisma.proyectoIdea.update({ where: { proyectoId: d.proyectoId }, data: { imagenes: elegidas.filter((x) => x !== d.ref) as unknown as Prisma.InputJsonValue } })] : []),
-  ]);
+  await tenantTransaction(async (tx) => {
+    await tx.proyectoArchivo.deleteMany({ where: { id: f.id, tenantId: a.tenantId, proyectoId: d.proyectoId, ...SIN_COMPROBANTES } });
+    if (estabaElegida) await tx.proyectoIdea.update({ where: { proyectoId: d.proyectoId }, data: { imagenes: elegidas.filter((x) => x !== d.ref) as unknown as Prisma.InputJsonValue } });
+  });
   if (f.clave) await borrarDeNube(f.clave);
   refrescar(d.proyectoId);
   return { ok: true, quitadaDeLaFicha: estabaElegida };

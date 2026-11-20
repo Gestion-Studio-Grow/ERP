@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { requireApp } from "@/lib/require-app";
-import { requireCapabilityFueraDeLaAgenda } from "@/lib/authz";
+import { exigirPlataDeDireccion } from "@/lib/proyectos/gestion.server";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { buttonClasses } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
@@ -13,13 +14,18 @@ export const metadata = { title: "Configuración de proyectos" };
 
 export default async function ConfigProyectos() {
   const user = await requireApp("proyectos");
-  await requireCapabilityFueraDeLaAgenda("agenda:manage");
+  // PRY-099: la guarda Dirección o el módulo `direccion` en «editar» (`guardarConfig` lo vuelve a decidir).
+  await exigirPlataDeDireccion("editar");
   const c = await configProyectos(await getCurrentTenantId());
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <h1 className="mb-4 text-2xl font-bold text-strong">Configuración</h1>
-      <BarraProyectos activa="/admin/proyectos/config" conPlata={veLaPlata(user)} />
+      <BarraProyectos activa="/admin/proyectos/config" conPlata={await veLaPlata(user)} />
+      <p className="mb-4 text-sm text-muted">
+        Las etapas, la rentabilidad, el reparto, el cierre del mes y el resto de las reglas del negocio están en{" "}
+        <Link href="/admin/proyectos/config/parametros" className="underline">Parámetros del módulo</Link> (los cambia Dirección).
+      </p>
       <form action={guardarConfig} className="grid gap-4">
         <section className={tarjeta} aria-label="Presupuestos">
           <h2 className="mb-3 font-semibold text-strong">Presupuestos</h2>
