@@ -83,7 +83,10 @@ export async function actorDelProyecto(a: Actor, proyectoId: string): Promise<Ac
  */
 export function filtroDeProyectosConPlata(a: Actor): Prisma.ProyectoWhereInput {
   const visibles = filtroDeProyectos(a);
-  return veLaPlataDelProyecto(a.rol, false) ? visibles : { ...visibles, equipo: { some: { personaId: a.personaId ?? "-" } } };
+  if (veLaPlataDelProyecto(a.rol, false)) return visibles;
+  // MIA-244: un puesto sin importes no ve la plata de ningún proyecto, tampoco de su equipo (`id` lo pisa quien llama: va en AND).
+  if (!veLaPlataDelProyecto(a.rol, true)) return { ...visibles, AND: [{ id: { in: [] } }] };
+  return { ...visibles, equipo: { some: { personaId: a.personaId ?? "-" } } };
 }
 
 /** Para las pantallas: sin permiso, de vuelta a Inicio. */

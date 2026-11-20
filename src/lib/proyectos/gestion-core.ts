@@ -750,9 +750,10 @@ export const veLosCobros = (rol: RolGestion): boolean => rolVeLaPlata(rol) || ro
 /**
  * MIA-238 · «ve sólo lo cobrado y lo que falta cobrar de sus proyectos» (dueño, 20/11 13:05Z, opción B). Sus proyectos: los
  * de su equipo (`ProyectoEquipo`; quien crea el proyecto entra como «Responsable»). En los demás sigue viendo el lead, sin
- * cobros ni costos. El resto de los puestos, como estaba (lo decide su permiso). PURA.
+ * cobros ni costos. MIA-244 · un puesto sin importes (`veImportes`: productor de campo, sin ficha) no ve la plata de ningún
+ * proyecto, tampoco de los de su equipo («El de campo no ve plata», dueño 20/11). El resto, como estaba (su permiso). PURA.
  */
-export const veLaPlataDelProyecto = (rol: RolGestion, estaEnEquipo: boolean): boolean => rol !== "COMERCIAL" || estaEnEquipo;
+export const veLaPlataDelProyecto = (rol: RolGestion, estaEnEquipo: boolean): boolean => veImportes(rol) && (rol !== "COMERCIAL" || estaEnEquipo);
 /**
  * MIA-239 · en un proyecto ajeno (`veLaPlataDelProyecto` en falso) no se ve ningún importe, tampoco la venta (lectura de
  * ORQ-007 de la opción B, a confirmar por el dueño): se cierran costos, cotizaciones y pagos, y editar la ficha (que cambia
