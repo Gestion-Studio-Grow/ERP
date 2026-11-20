@@ -72,6 +72,8 @@ export async function sembrarGestion(prisma: PrismaClient, tenantId: string, rec
   const adm = await persona("Rocío Medina", "Administración", "ADMINISTRACION", 2_900_000, "MIA Producciones", (await usuario("administracion"))?.id);
   await persona("Lucía Paz", "Comercial", "COMERCIAL", 2_700_000, "Monotributo", (await usuario("comercial"))?.id);
   const gra = await persona("Nadia Quiroga", "Diseño gráfico", "DISENO", 2_300_000, "Monotributo");
+  // MIA-259: un usuario de prueba por puesto (ficticio). Productor de campo entra con PIN, como Producción.
+  await persona("Bruno Ledesma", "Productor de campo", "PRODUCCION_CAMPO", 2_400_000, "Monotributo", (await usuario("campo"))?.id);
 
   // Proveedores con su ficha.
   const provs: Record<string, string> = {};

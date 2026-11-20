@@ -83,7 +83,7 @@ async function main() {
   await prisma.proyecto.deleteMany({ where: { tenantId } });
 
   // Un usuario de prueba por rol. Administración es Dueño en el ERP porque Facturación lo exige.
-  for (const [local, name, role] of [["diseno", "Equipo de diseño", "PROFESSIONAL"], ["comercial", "Lucía Paz", "RECEPTION"], ["administracion", "Rocío Medina", "OWNER"], ["produccion", "Paula Ibáñez", "PROFESSIONAL"], ["sinficha", "Sin ficha", "RECEPTION"]] as const) {
+  for (const [local, name, role] of [["diseno", "Equipo de diseño", "PROFESSIONAL"], ["comercial", "Lucía Paz", "RECEPTION"], ["administracion", "Rocío Medina", "OWNER"], ["produccion", "Paula Ibáñez", "PROFESSIONAL"], ["campo", "Bruno Ledesma", "PROFESSIONAL"], ["sinficha", "Sin ficha", "RECEPTION"]] as const) {
     const email = `${local}@${SLUG}.demo`;
     if (!(await prisma.user.findFirst({ where: { tenantId, email } }))) {
       await prisma.user.create({ data: { tenantId, name, email, passwordHash: await hashPassword(CLAVE), role } });
