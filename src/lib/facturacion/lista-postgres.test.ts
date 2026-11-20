@@ -16,8 +16,14 @@
 //   · el receptor de un comprobante sin venta ni turno sale de su movimiento del banco, y el de
 //     uno con venta, de la ficha (misma precedencia que el comprobante impreso);
 //   · cada página es UNA consulta (totales + renglones juntos), sin N+1;
-//   · rendimiento: p95 de cada filtro y del buscador < 300 ms, CON los movimientos del banco
-//     cargados. El detalle se escribe en .qa/facturacion-escala/rendimiento.txt.
+//   · trabajo acotado, medido en el PLAN y no en el reloj: con el EXPLAIN ANALYZE de la consulta
+//     de verdad (como app_rls, sin paralelismo) ninguna tabla se lee más de PASADAS_MAXIMAS veces
+//     entera y ningún Seq Scan se repite por renglón. Es determinista: las mismas filas sembradas
+//     dan las mismas filas leídas en cualquier máquina.
+//   · el tiempo (p95 y mediana) se mide e informa en .qa/facturacion-escala/rendimiento.txt, pero
+//     sólo bloquea con ERP_TEST_TIEMPOS=estricto: en CI esta suite comparte el Postgres con todas
+//     las demás y el reloj mide al runner, no a la consulta (main rojo el 17/11: 302,6 ms en CI,
+//     115 ms el peor p95 con el archivo solo; PLAT-027).
 // Sin Postgres local se saltea y lo dice; en CI, falla.
 
 import { test } from "node:test";
@@ -32,6 +38,9 @@ const laBase = baseEfimeraDelArchivo();
 const HOY = "2026-09-26";
 const P95_MAXIMO_MS = 300;
 const VUELTAS = 20;
+/** Cuántas veces entera puede leerse una tabla en una página (hoy: el filtro y su orden, 2). Un N+1 da miles. */
+const PASADAS_MAXIMAS = 3;
+const TIEMPO_ESTRICTO = process.env.ERP_TEST_TIEMPOS === "estricto";
 
 async function comoDuenio(base: BaseEfimera, sql: string, params: unknown[] = []): Promise<pg.QueryResult> {
   const c = new pg.Client({ connectionString: base.urlDuenio });
@@ -158,6 +167,54 @@ async function planComoApp(base: BaseEfimera, tenantId: string, q: { text: strin
     const r = await c.query(`EXPLAIN (ANALYZE, BUFFERS OFF, TIMING OFF) ${q.text}`, q.values);
     await c.query("ROLLBACK");
     return (r.rows as { "QUERY PLAN": string }[]).map((x) => `  ${x["QUERY PLAN"]}`);
+  } finally {
+    await c.end();
+  }
+}
+
+type NodoDelPlan = {
+  "Node Type": string;
+  "Relation Name"?: string;
+  "Actual Rows"?: number;
+  "Actual Loops"?: number;
+  "Rows Removed by Filter"?: number;
+  "Rows Removed by Index Recheck"?: number;
+  Plans?: NodoDelPlan[];
+};
+
+/**
+ * Lo que la consulta lee de verdad, del EXPLAIN ANALYZE en JSON, como la app (app_rls, con el
+ * negocio puesto) y sin workers paralelos (con ellos las filas se reparten por worker y el plan
+ * depende de los núcleos). Por tabla: filas devueltas + descartadas por el filtro (RLS incluida),
+ * por cada vuelta del nodo. No mide tiempo: da lo mismo en cualquier máquina.
+ */
+async function lecturaComoApp(
+  base: BaseEfimera,
+  tenantId: string,
+  q: { text: string; values: unknown[] },
+): Promise<{ filasPorTabla: Map<string, number>; seqScanRepetidos: string[] }> {
+  const c = new pg.Client({ connectionString: base.urlApp });
+  await c.connect();
+  try {
+    await c.query("BEGIN");
+    await c.query("SET LOCAL max_parallel_workers_per_gather = 0");
+    await c.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
+    const r = await c.query(`EXPLAIN (ANALYZE, BUFFERS OFF, TIMING OFF, FORMAT JSON) ${q.text}`, q.values);
+    await c.query("ROLLBACK");
+    const filasPorTabla = new Map<string, number>();
+    const seqScanRepetidos: string[] = [];
+    const recorrer = (n: NodoDelPlan): void => {
+      const tabla = n["Relation Name"];
+      const vueltas = n["Actual Loops"] ?? 0;
+      if (tabla) {
+        const porVuelta = (n["Actual Rows"] ?? 0) + (n["Rows Removed by Filter"] ?? 0) + (n["Rows Removed by Index Recheck"] ?? 0);
+        filasPorTabla.set(tabla, (filasPorTabla.get(tabla) ?? 0) + porVuelta * vueltas);
+        if (n["Node Type"] === "Seq Scan" && vueltas > 1) seqScanRepetidos.push(`${tabla} ×${vueltas}`);
+      }
+      for (const h of n.Plans ?? []) recorrer(h);
+    };
+    recorrer((r.rows[0]["QUERY PLAN"] as { Plan: NodoDelPlan }[])[0].Plan);
+    return { filasPorTabla, seqScanRepetidos };
   } finally {
     await c.end();
   }
@@ -302,7 +359,7 @@ test("los totales son los del filtro entero (suma con signo en la base) y el rec
   assert.deepEqual(porNumero.renglones.map((r) => [r.puntoVenta, r.numero]), [[2, 12346]]);
 });
 
-test("cada página es una consulta y su p95 es < 300 ms con 50.000 comprobantes y 80.000 movimientos del banco", { timeout: 900_000 }, async (t) => {
+test("cada página es una consulta y lee cada tabla a lo sumo 3 veces (sin N+1) con 50.000 comprobantes y 80.000 movimientos del banco", { timeout: 900_000 }, async (t) => {
   const base = await baseSembrada(t);
   if (!base) return;
   const { tenantTransaction, paginaDeComprobantesEn, consultaDePagina, consultaDeRenglones } = await deLaApp();
@@ -327,9 +384,25 @@ test("cada página es una consulta y su p95 es < 300 ms con 50.000 comprobantes 
     ["buscar importe «5.445,00»", leerFiltros({ q: "5.445,00" }, HOY)],
     ["buscar nombre + mes + rechazados", leerFiltros({ q: "escala", estado: "rechazada", desde: "2026-09-01", hasta: "2026-09-30" }, HOY)],
   ];
+  // Filas de cada tabla (los dos negocios: el Seq Scan con RLS lee y descarta las de B).
+  const filasDeLaTabla = new Map<string, number>();
+  for (const tabla of ["Invoice", "Client", "Order", "Appointment", "MovimientoImportado"]) {
+    filasDeLaTabla.set(tabla, (await comoDuenio(base, `SELECT count(*)::int AS n FROM "${tabla}"`)).rows[0].n as number);
+  }
   const lineas: string[] = [];
+  const excesos: string[] = [];
   let peor = 0;
   for (const [nombre, f] of casos) {
+    const { filasPorTabla, seqScanRepetidos } = await lecturaComoApp(base, A, consultaDePagina(A, f));
+    for (const r of seqScanRepetidos) excesos.push(`${nombre}: Seq Scan repetido por renglón (${r})`);
+    const lecturas: string[] = [];
+    for (const [tabla, leidas] of filasPorTabla) {
+      const total = filasDeLaTabla.get(tabla);
+      if (total === undefined) excesos.push(`${nombre}: lee "${tabla}", que la prueba no cuenta (sumala a filasDeLaTabla)`);
+      else if (leidas > PASADAS_MAXIMAS * Math.max(total, 1)) excesos.push(`${nombre}: lee ${leidas} filas de "${tabla}" (tope ${PASADAS_MAXIMAS} × ${total})`);
+      lecturas.push(`${tabla} ${leidas}`);
+    }
+    t.diagnostic(`${nombre.padEnd(46)} filas leídas: ${lecturas.join(" · ")}`);
     let consultas = 0;
     const ms: number[] = [];
     let cantidad = 0;
@@ -369,7 +442,8 @@ test("cada página es una consulta y su p95 es < 300 ms con 50.000 comprobantes 
     `Lista de comprobantes a escala — ${new Date().toISOString()}`,
     `Postgres local efímero (src/test/base-efimera.ts), conectado como app_rls con RLS; ${VUELTAS} vueltas por caso, tiempo de la página entera (totales + renglones en una consulta, en su transacción).`,
     `Negocio A: 10.000 clientes, 20.000 pedidos, 50.000 comprobantes en 12 meses, 80.000 movimientos del banco (50.000 atados a un comprobante). Negocio B: 502 comprobantes y 1 movimiento.`,
-    `Presupuesto: p95 < ${P95_MAXIMO_MS} ms por página. Peor p95 medido: ${peor.toFixed(1)} ms.`,
+    `Lo que bloquea: una consulta por página y cada tabla leída a lo sumo ${PASADAS_MAXIMAS} veces entera, sin Seq Scan repetido por renglón (del EXPLAIN ANALYZE, determinista).`,
+    `Tiempo (informativo${TIEMPO_ESTRICTO ? "; ERP_TEST_TIEMPOS=estricto: bloquea" : ""}): presupuesto p95 < ${P95_MAXIMO_MS} ms por página. Peor p95 medido: ${peor.toFixed(1)} ms.`,
     "",
     ...lineas,
     "",
@@ -384,5 +458,8 @@ test("cada página es una consulta y su p95 es < 300 ms con 50.000 comprobantes 
   const dir = path.resolve(process.cwd(), ".qa/facturacion-escala");
   mkdirSync(dir, { recursive: true });
   writeFileSync(path.join(dir, "rendimiento.txt"), `${informe}\n`);
-  assert.ok(peor < P95_MAXIMO_MS, `peor p95 ${peor.toFixed(1)} ms (presupuesto ${P95_MAXIMO_MS} ms)`);
+  assert.deepEqual(excesos, [], "cada página lee cada tabla a lo sumo PASADAS_MAXIMAS veces y no repite un Seq Scan por renglón");
+  // El reloj no bloquea la suite: depende del runner (ver el encabezado). Se mide e informa siempre.
+  if (TIEMPO_ESTRICTO) assert.ok(peor < P95_MAXIMO_MS, `peor p95 ${peor.toFixed(1)} ms (presupuesto ${P95_MAXIMO_MS} ms)`);
+  else if (peor >= P95_MAXIMO_MS) t.diagnostic(`AVISO: peor p95 ${peor.toFixed(1)} ms ≥ ${P95_MAXIMO_MS} ms (informativo; bloquea sólo con ERP_TEST_TIEMPOS=estricto)`);
 });
