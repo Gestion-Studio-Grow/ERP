@@ -33,7 +33,7 @@ import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio } from "@/test/base-efimera";
-import { ROLES_GESTION, type RolGestion } from "./gestion-core";
+import { ROLES_GESTION, RUBROS, type RolGestion } from "./gestion-core";
 
 const laBase = baseEfimeraDelArchivo();
 const EVENTO = new Date("2027-06-15T15:00:00Z");
@@ -56,6 +56,9 @@ const TABLAS = [
   "ProyectoTipoCambio", "ProyectoLiquidacion", "ProyectoRendicion", "ProyectoAnticipo", "ProyectoComprobante", "ProyectoComprobanteLinea",
   "ProyectoCuotaComprobante", "ProyectoOrdenPago", "ProyectoOrdenPagoLinea", "ProyectoMovMoneda", "ProyectoMovCuenta", "ProyectoCuotaFactura",
   "ProyectoLiquidacionProyecto", "ProyectoLiquidacionProyectoLinea", "ProyectoLiquidacionProyectoAjuste", "ProyectoPrevisionEstado",
+  // MIA-236: el anticipo % de una línea (ProyectoLineaDetalle) y el costo y el anticipo de una línea de adicional: de ahí
+  // salen las cuotas de PAGO al proveedor. Con esto el «no se guarda» de `guardarAnticipoLinea` se cuenta, no se supone.
+  "ProyectoLineaDetalle", "ProyectoAdicionalLinea",
 ] as const;
 
 const form = (c: Record<string, string>) => {
@@ -208,6 +211,8 @@ const ACCIONES: Fila[] = [
   // ── acciones-presupuesto.ts · acciones-etapas.ts ──
   // MIA-234 · «2a» del dueño: el % de anticipo de una línea rehace las cuotas de pago al proveedor; es plata.
   { donde: `${P}acciones-presupuesto.ts:106`, accion: "guardarAnticipoLinea", arma: async (m) => { const p = await m.proyecto(); await m.duenio.proyectoItem.update({ where: { id: p.itemId }, data: { costo: 400, supplierId: m.supplierId } }); const g = await import("./gestion.server"); await m.direccion(() => g.regenerarCuotas(m.a.id, p.id)); const x = await import("./acciones-presupuesto"); return () => x.guardarAnticipoLinea(form({ itemId: p.itemId, anticipoPct: String(10 + (corrida++ % 80)) })); } },
+  // MIA-236 · D1: la línea de un adicional con costo y anticipo % se vuelve cuotas de PAGO al aprobarse; es plata.
+  { donde: `${P}acciones-presupuesto.ts:208`, accion: "agregarLineaAdicional", arma: async (m) => { const p = await m.proyecto(); const ad = await m.duenio.$transaction(async (tx) => { await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${m.a.id}, true)`; return tx.proyectoAdicional.create({ data: { tenantId: m.a.id, proyectoId: p.id, numero: 1, nombre: "Pantalla extra", creadoPor: "Dirección" }, select: { id: true } }); }); const x = await import("./acciones-presupuesto"); return () => x.agregarLineaAdicional(form({ adicionalId: ad.id, sector: "Producción", categoria: RUBROS[0], detalle: unico("Pantalla"), supplierId: m.supplierId, cantidad: "1", costo: "300", precio: "500", anticipoPct: "30" })); } },
   { donde: `${P}acciones-presupuesto.ts:133`, accion: "marcarPrevision", arma: async (m) => { const p = await m.proyecto(); const c = await m.duenio.proyectoCuota.create({ data: { tenantId: m.a.id, proyectoId: p.id, tipo: "PAGO", concepto: "Pago previsto", monto: 100, moneda: "ARS", venceEl: new Date(EVENTO.getTime() - 30 * DIA), auto: false }, select: { id: true } }); const x = await import("./acciones-presupuesto"); return () => x.marcarPrevision(form({ cuotaId: c.id, estado: "confirmado" })); } },
   { donde: `${P}acciones-etapas.ts:165`, accion: "cancelarProyecto", arma: async (m) => { const p = await m.proyecto(); const x = await import("./acciones-etapas"); return () => x.cancelarProyecto(form({ id: p.id, motivo: "El cliente se bajó" })); } },
   // ── acciones-rendiciones.ts (rendirGasto queda afuera: rinde lo propio, sin asiento, por diseño) ──
