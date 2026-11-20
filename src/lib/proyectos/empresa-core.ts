@@ -3,6 +3,7 @@
 
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { pesos, redondear } from "./core";
+import { numeroDeOrden } from "./orden-pago-core";
 import { aPesos, cuotaParaMovimiento, estadoCuota, generaCuotas, type CuotaLeida, type LineaExtracto, type MesProyectado, type NivelCarga } from "./gestion-core";
 
 // ── Meses ───────────────────────────────────────────────────────────────────
@@ -41,6 +42,23 @@ export function pasaFiltro(c: Pick<CuotaLeida, "venceEl" | "pagadoEl"> & { noSeC
   if (filtro === "vencidos") return estado === "VENCIDA";
   if (filtro === "pagados") return estado === "PAGADA";
   return true;
+}
+
+/**
+ * MIA-267: una orden de pago pagada salda comprobantes de proveedor, no cuotas, pero es un pago hecho: en «A pagar»
+ * aparece en «Pagados» y en «Todos». La búsqueda mira el proveedor y el número de la orden.
+ */
+export function ordenesDelFiltro<T extends { numero: number; estado: string; supplier: { name: string } }>(ordenes: readonly T[], filtro: FiltroCuota, busqueda = ""): T[] {
+  if (filtro !== "pagados" && filtro !== "todos") return [];
+  const q = busqueda.trim().toLowerCase();
+  return ordenes.filter((o) => o.estado === "PAGADA" && (!q || `${numeroDeOrden(o.numero)} ${o.supplier.name}`.toLowerCase().includes(q)));
+}
+
+/** MIA-267: la lista de Bancos son los renglones del extracto; sin extracto, no se niega lo que ya movió la cuenta. */
+export function textoSinRenglones(cuentasConMovimientos: boolean): string {
+  return cuentasConMovimientos
+    ? "Todavía no importaste ningún extracto. Los cobros y pagos ya mueven el saldo de cada cuenta; importá el extracto del banco para conciliarlos."
+    : "Todavía no importaste ningún extracto.";
 }
 
 // ── Lo que dejó el evento ───────────────────────────────────────────────────

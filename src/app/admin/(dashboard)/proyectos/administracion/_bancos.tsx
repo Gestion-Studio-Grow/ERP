@@ -1,7 +1,7 @@
 import { cn } from "@/components/ui";
 import { fechaCorta } from "@/lib/proyectos/core";
 import { aPesos } from "@/lib/proyectos/gestion-core";
-import { ofreceMarcarConciliada, propuestasDeConciliacion } from "@/lib/proyectos/empresa-core";
+import { ofreceMarcarConciliada, propuestasDeConciliacion, textoSinRenglones } from "@/lib/proyectos/empresa-core";
 import { datosDeBancos } from "@/lib/proyectos/empresa.server";
 import { conciliarMovimiento, crearCuenta, desconciliarMovimiento, guardarSaldo } from "@/lib/proyectos/acciones-empresa";
 import { movimientosParaConciliar, origenesDeMovimientos } from "@/lib/proyectos/moneda-bancos.server";
@@ -105,9 +105,10 @@ export async function TabBancos({ tenantId, editaEmpresa, editaPagos }: { tenant
       )}
 
       <section className={cn(tarjeta, "overflow-x-auto")}>
-        <h2 className="mb-2 font-semibold text-strong">Movimientos</h2>
+        {/* MIA-267: son los renglones del extracto importado; lo que ya movió cada cuenta está en su saldo, arriba. */}
+        <h2 className="mb-2 font-semibold text-strong">Renglones del extracto</h2>
         {movimientos.length === 0 ? (
-          <p className="text-sm text-muted">Sin movimientos todavía.</p>
+          <p className="text-sm text-muted">{textoSinRenglones(cuentas.some((c) => c.conMovimientos))}</p>
         ) : (
           <table className={cn("w-full text-sm md:min-w-[920px]", tablaMovil)}>
             <thead className={cn("text-left text-xs text-muted", cabezaMovil)}>

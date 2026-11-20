@@ -2,16 +2,16 @@ import Link from "next/link";
 import { cn } from "@/components/ui";
 import { fechaCorta, fechaParaInput, pesos } from "@/lib/proyectos/core";
 import { aPesos, codigoProyecto, diasDeAtraso, estadoCuota } from "@/lib/proyectos/gestion-core";
-import { FILTROS_CUOTA, pasaFiltro, type FiltroCuota } from "@/lib/proyectos/empresa-core";
+import { FILTROS_CUOTA, ordenesDelFiltro, pasaFiltro, type FiltroCuota } from "@/lib/proyectos/empresa-core";
 import { proveedoresActivos, type CuotaDelNegocio, type GastoSinPagar, type SinCalendarioDelNegocio } from "@/lib/proyectos/empresa.server";
 import type { PagadoDeCuota } from "@/lib/proyectos/cobranza-core";
-import { esNumeroDeOrden } from "@/lib/proyectos/orden-pago-core";
+import { esNumeroDeOrden, numeroDeOrden } from "@/lib/proyectos/orden-pago-core";
 import { anularCuotaEmpresa, crearPagoEmpresa, desenlazarCuotaFactura, enlazarCuotaFactura } from "@/lib/proyectos/acciones-empresa";
 import { aCobrarPorCuota, facturasParaEnlazar, type ACobrarDeCuota } from "@/lib/proyectos/moneda-bancos.server";
 import { TRAMOS_FACTURA, TRAMO_LABEL, type TramoFactura } from "@/lib/proyectos/moneda-bancos-core";
 import { quitarMovimiento } from "@/lib/proyectos/acciones-ficha";
 import { textoCubierta } from "@/lib/proyectos/avisos-cuota";
-import { aPagarPorComprobante, siHayM1 } from "@/lib/proyectos/comprobantes.server";
+import { aPagarPorComprobante, ordenesDelNegocio, siHayM1 } from "@/lib/proyectos/comprobantes.server";
 import { filaDeCuota, vistaAplicable } from "@/lib/proyectos/vistas.server";
 import { agrupar, columnasPermitidas, ordenar, pasaFiltros, AGRUPACIONES, ORDENES, type ListaId, type VistaGuardada } from "@/lib/proyectos/vistas-core";
 import { actorActual, columnasOcultas } from "@/lib/proyectos/gestion.server";
@@ -114,6 +114,9 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
   const proveedores = tipo === "PAGO" && editaEmpresa ? await proveedoresActivos(tenantId) : [];
   // MIA-50 T05 · O33: lo que se debe por comprobantes de proveedor (sin M1, nada) se paga con órdenes de pago.
   const porComprobantes = tipo === "PAGO" ? ((await siHayM1(() => aPagarPorComprobante(tenantId))) ?? []).filter((g) => g.porPagar > 0) : [];
+  // MIA-267: lo pagado con órdenes de pago (saldan comprobantes, no cuotas) también está en «Pagados» y «Todos». Sin M1, nada.
+  const ordenesPagadas = tipo === "PAGO" && (filtro === "pagados" || filtro === "todos") ? ordenesDelFiltro((await siHayM1(() => ordenesDelNegocio(tenantId))) ?? [], filtro, busqueda) : [];
+  const sinRenglones = filas.length === 0 && faltantes.length === 0 && gastos.length === 0;
   const conVista = actual.id === vistas[0].id ? "" : `&vista=${encodeURIComponent(actual.id)}`;
   const enlace = (f: FiltroCuota) => `/admin/proyectos/administracion?tab=${tab}&estado=${f}${q ? `&q=${encodeURIComponent(q)}` : ""}${conVista}`;
   const enlaceVista = (v: VistaGuardada) => `/admin/proyectos/administracion?tab=${tab}&vista=${encodeURIComponent(v.id)}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
@@ -161,7 +164,24 @@ export async function TabCuentas({ tipo, estado, q, vista: vistaId, guardada = f
         </section>
       )}
 
-      {filas.length === 0 && faltantes.length === 0 && gastos.length === 0 ? (
+      {ordenesPagadas.length > 0 && (
+        <section aria-labelledby="ordenes-pagadas" className={cn(tarjeta, "grid gap-2")}>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="ordenes-pagadas" className="font-semibold text-strong">Pagado con órdenes de pago</h2>
+            <Link href="/admin/proyectos/proveedores/ordenes" className="text-sm underline underline-offset-2">Órdenes de pago</Link>
+          </div>
+          <ul className="grid gap-1 text-sm">
+            {ordenesPagadas.map((o) => (
+              <li key={o.id} className="flex flex-wrap justify-between gap-2 border-t border-line pt-1">
+                <span className="text-strong"><Link href={`/admin/proyectos/proveedores/ordenes/${o.id}`} className="underline underline-offset-2">{numeroDeOrden(o.numero)}</Link> · {o.supplier.name}{o.pagadaEl && ` · pagada el ${fechaCorta(o.pagadaEl)}`}</span>
+                <span>{pesos(o.total / 100)}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {sinRenglones && ordenesPagadas.length > 0 ? null : sinRenglones ? (
         <p className={cn(tarjeta, "text-sm text-muted")}>{busqueda ? "Nada coincide con esa búsqueda." : tipo === "COBRO" ? "No hay cobros en este filtro." : "No hay pagos en este filtro."}</p>
       ) : (
         <div className={cn(tarjeta, "sm:overflow-x-auto")}>
