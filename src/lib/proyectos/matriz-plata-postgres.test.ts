@@ -633,7 +633,8 @@ async function probarComercialAjeno(m: Mundo) {
 async function probarOwnerDeBaja(m: Mundo) {
   const { passwordHash } = await m.duenio.user.findUniqueOrThrow({ where: { id: m.a.duenia.id }, select: { passwordHash: true } });
   const gestion = await import("./gestion.server");
-  const { canCurrentUser } = await import("@/lib/authz");
+  const { canCurrentUser, requireCapability } = await import("@/lib/authz");
+  const { veLaPlata } = await import("./datos.server");
   const alta = async (clave: string, rol: RolGestion) => {
     const u = await m.duenio.user.create({ data: { tenantId: m.a.id, name: `MIA-238 ${clave}`, email: `mia238-${clave.replace("/", "-").toLowerCase()}@negocio-a.erp.test`, passwordHash, role: "OWNER" }, select: { id: true } });
     await m.duenio.proyectoPersona.create({ data: { tenantId: m.a.id, userId: u.id, nombre: `MIA-238 ${clave}`, rol, activa: false } });
@@ -642,13 +643,14 @@ async function probarOwnerDeBaja(m: Mundo) {
   await alta("ADMINISTRACION-BAJA/OWNER", "ADMINISTRACION");
   await alta("DIRECCION-BAJA/OWNER", "DIRECCION");
   const mira = async (clave: string) => {
-    const r = await m.como(clave, async () => ({ rol: (await gestion.actorActual()).rol, usuarios: await canCurrentUser("users:manage") }));
+    const r = await m.como(clave, async () => ({ rol: (await gestion.actorActual()).rol, usuarios: await canCurrentUser("users:manage"), plata: await veLaPlata(await requireCapability("agenda:read")) }));
     assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
     return (r as { valor: unknown }).valor;
   };
   assert.deepEqual(
     { adm: await mira("ADMINISTRACION-BAJA/OWNER"), dir: await mira("DIRECCION-BAJA/OWNER"), duenia: await mira("DIRECCION/OWNER") },
-    { adm: { rol: "SIN_FICHA", usuarios: false }, dir: { rol: "DIRECCION", usuarios: true }, duenia: { rol: "DIRECCION", usuarios: true } },
+    // MIA-241: `veLaPlata` (datos.server.ts) también respeta la ficha de baja, igual que `rolDelActor`.
+    { adm: { rol: "SIN_FICHA", usuarios: false, plata: false }, dir: { rol: "DIRECCION", usuarios: true, plata: true }, duenia: { rol: "DIRECCION", usuarios: true, plata: true } },
   );
 }
 
