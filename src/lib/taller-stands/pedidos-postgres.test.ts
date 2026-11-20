@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
+import { baseEfimeraParaElTest, prismaComoDuenioBase } from "@/test/base-efimera";
 import { anularPedidoTx, recibirPedidoTx } from "./pedidos";
 
 const fk = (e: unknown) => /foreign key|P2003/i.test(String((e as { code?: string }).code ?? "") + String(e));
@@ -15,7 +15,7 @@ const unico = (e: unknown) => /unique|P2002/i.test(String((e as { code?: string 
 test("pedidos: nada de otro negocio, recibir 2× simultáneo = 1 gasto, anular no borra el gasto, RLS", async (t) => {
   const base = await baseEfimeraParaElTest(t);
   if (!base) return;
-  const db = await prismaComoDuenio(base);
+  const db = await prismaComoDuenioBase(base);
   const A = base.a.id;
   const B = base.b.id;
   const enNegocio = <T>(tenantId: string, fn: (tx: typeof db) => Promise<T>) =>

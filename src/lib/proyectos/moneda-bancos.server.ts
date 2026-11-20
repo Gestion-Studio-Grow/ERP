@@ -5,12 +5,14 @@
 // no aborta la transacción), y las acciones siguen como antes. Cada escritura es ×1 por su índice único
 // (tenantId, origenTipo, origenId) con ON CONFLICT DO NOTHING: dos envíos a la vez no mueven el saldo dos veces.
 
-import type { Prisma, PrismaClient } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redondearAlCentavo } from "@/lib/dinero/redondeo";
 import { aCentavos, cambioAplicable, deCentavos, CAMBIO_PESO, diaArgentino, fotoEnPesos, type CambioDelDia, type FotoEnPesos, type OrigenConciliable } from "./moneda-bancos-core";
 
-type Db = Prisma.TransactionClient | PrismaClient;
+// `typeof prisma` y no el alias `PrismaClient`: con el alias, cada `db` que entra como
+// `TransactionClient` hace comparar a tsc los 195 delegados (ver `ClienteBase`, prisma-base.ts).
+type Db = Prisma.TransactionClient | typeof prisma;
 
 async function existe(db: Db, tabla: string): Promise<boolean> {
   const [r] = await db.$queryRaw<{ ok: boolean }[]>`SELECT to_regclass(${`public."${tabla}"`}) IS NOT NULL AS ok`;

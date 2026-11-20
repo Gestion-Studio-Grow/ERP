@@ -28,7 +28,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-servidor";
 import pg from "pg";
-import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type NegocioDePrueba } from "@/test/base-efimera";
+import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenioBase, type NegocioDePrueba } from "@/test/base-efimera";
 
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
@@ -44,7 +44,7 @@ async function preparar(t: import("node:test").TestContext) {
   apuntarLaAppA(base);
   Object.assign(process.env as Record<string, string | undefined>, { NODE_ENV: "development", DB_CONNECTION_LIMIT: "12", DB_CONNECT_TIMEOUT_MS: "5000" });
   prepararAccionesDeServidor();
-  const duenio = await prismaComoDuenio(base);
+  const duenio = await prismaComoDuenioBase(base);
   const { a } = base;
   const { b } = base;
   for (const n of [a, b]) {

@@ -7,7 +7,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
+import { baseEfimeraParaElTest, prismaComoDuenioBase } from "@/test/base-efimera";
 import { RechazoDelStock, recordMovement } from "@/lib/stock/ledger";
 import { SELECT_INGRESOS, costoVigenteEnTx, ultimoIngresoDe } from "@/lib/stock/costo";
 import { costearInsumos, type SalidaDeStock } from "@/lib/reports/costo-vendido";
@@ -21,7 +21,7 @@ const fk = (e: unknown) => /foreign key|P2003/i.test(String((e as { code?: strin
 test("consumo de materiales: FK de producto, 2× simultáneo = 1 juego, diferencia, faltante, devolver 2×, RLS", async (t) => {
   const base = await baseEfimeraParaElTest(t);
   if (!base) return;
-  const db = await prismaComoDuenio(base);
+  const db = await prismaComoDuenioBase(base);
   const A = base.a.id;
   const B = base.b.id;
   const enNegocio = <T>(tenantId: string, fn: (tx: typeof db) => Promise<T>) =>
@@ -92,7 +92,7 @@ test("consumo de materiales: FK de producto, 2× simultáneo = 1 juego, diferenc
 test("consumo de materiales: descontar → devolver → descontar deja costo y demanda netos; el costo vigente no cambia", async (t) => {
   const base = await baseEfimeraParaElTest(t);
   if (!base) return;
-  const db = await prismaComoDuenio(base);
+  const db = await prismaComoDuenioBase(base);
   const A = base.a.id;
   const enA = <T>(fn: (tx: typeof db) => Promise<T>) =>
     db.$transaction(async (tx) => {
@@ -144,7 +144,7 @@ test("consumo de materiales: descontar → devolver → descontar deja costo y d
 test("consumo de materiales: salida mezclada (una parte sin costo, otra con costo) vuelve neta 0 al devolver", async (t) => {
   const base = await baseEfimeraParaElTest(t);
   if (!base) return;
-  const db = await prismaComoDuenio(base);
+  const db = await prismaComoDuenioBase(base);
   const A = base.a.id;
   const enA = <T>(fn: (tx: typeof db) => Promise<T>) =>
     db.$transaction(async (tx) => {

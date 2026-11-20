@@ -1,4 +1,4 @@
-import { PrismaClient } from "@/generated/prisma/client";
+import { PrismaClient, type Prisma } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import { instalarEnPool } from "@/lib/pg-begin-con-negocio";
@@ -22,7 +22,14 @@ import { empaquetarBeginConNegocio, limitesDelPool } from "@/lib/db-pool";
 // server de desarrollo que ya estaba andando arme el cliente nuevo en vez de seguir con el
 // viejo. En producción no se guarda: cada instancia arranca de cero.
 const CLAVE_DEL_CLIENTE = "prismaBase:v2-begin-con-negocio";
-const globalForPrisma = globalThis as unknown as Record<string, PrismaClient | undefined>;
+const globalForPrisma = globalThis as unknown as Record<string, ClienteBase | undefined>;
+
+// El tipo del cliente es `PrismaClient<never, undefined>`: sin `omit` global (no lo usamos) y
+// la MISMA instanciación sobre la que Prisma arma `Prisma.TransactionClient`. Con el alias
+// `PrismaClient` a secas (omit = `GlobalOmitConfig | undefined`), cada vez que `prisma` entra
+// donde se pide un `TransactionClient` tsc compara estructuralmente los 195 delegados: medido el
+// 20/11/2026, una sola de esas comparaciones costaba 30 s y casi 2 GB del pico de tsc (MIA-219).
+export type ClienteBase = PrismaClient<never, undefined>;
 
 // Pool de conexiones ACOTADO (hardening $0, carril de confiabilidad). Cada
 // instancia (lambda/worker) abre como mucho `max` conexiones al pooler de Neon;
@@ -37,11 +44,11 @@ const globalForPrisma = globalThis as unknown as Record<string, PrismaClient | u
 // RLS sale con un viaje menos, sin cambiar qué sentencias corren ni en qué orden. APAGADO por
 // defecto: sólo `DB_BEGIN_CON_NEGOCIO=on` (db-pool.ts) lo prende, sin tocar código.
 // `disposeExternalPool`: `$disconnect()` cierra el pool, como antes, así los scripts terminan.
-function crearCliente(): PrismaClient {
+function crearCliente(): ClienteBase {
   const limites = limitesDelPool(process.env);
   // Apagado (el defecto, db-pool.ts): el adaptador arma su pool como siempre, con los mismos números.
   if (!empaquetarBeginConNegocio(process.env)) {
-    return new PrismaClient({
+    return new PrismaClient<Prisma.PrismaClientOptions, never, undefined>({
       adapter: new PrismaPg({
         connectionString: process.env.DATABASE_URL,
         max: limites.conexiones,
@@ -57,7 +64,7 @@ function crearCliente(): PrismaClient {
     idleTimeoutMillis: limites.ociosaMs,
   });
   instalarEnPool(pool);
-  return new PrismaClient({ adapter: new PrismaPg(pool, { disposeExternalPool: true }) });
+  return new PrismaClient<Prisma.PrismaClientOptions, never, undefined>({ adapter: new PrismaPg(pool, { disposeExternalPool: true }) });
 }
 
 export const basePrisma = globalForPrisma[CLAVE_DEL_CLIENTE] ?? crearCliente();

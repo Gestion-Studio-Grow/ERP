@@ -1,13 +1,13 @@
 // R6: la cuenta de los turnos que esperan a que se cobre el saldo, contra Postgres. Sólo lectura.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { baseEfimeraParaElTest, prismaComoDuenio } from "@/test/base-efimera";
+import { baseEfimeraParaElTest, prismaComoDuenioBase } from "@/test/base-efimera";
 import { leerTurnosEsperandoSaldo } from "@/lib/reports/comisiones-lectura";
 
 test("contra Postgres: cuenta sólo los terminados, sin liquidar y con saldo, de ese negocio", async (t) => {
   const base = await baseEfimeraParaElTest(t);
   if (!base) return;
-  const duenio = await prismaComoDuenio(base);
+  const duenio = await prismaComoDuenioBase(base);
   const hace = (horas: number) => new Date(Date.now() - horas * 3_600_000);
 
   const negocio = async (tenantId: string) => {
