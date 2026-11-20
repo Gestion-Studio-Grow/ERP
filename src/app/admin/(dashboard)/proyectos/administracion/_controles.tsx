@@ -175,6 +175,9 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
   return (
     <form
       className="grid min-w-44 gap-1"
+      // MIA-208 · 2: el sí responde al formulario como estaba al avisar; si cambia el monto, el medio o la retención, el
+      // sí viejo y su aviso se van (si no, mandaba el importe nuevo con `confirmaRepetido=1` sin que el servidor preguntara).
+      onChange={reenviar ? reiniciar : undefined}
       onSubmit={alEnviar((fd) => {
         fd.set("id", id);
         correr(deEmpresa ? marcarCuotaEmpresa : (marcarCuota as Accion), fd, (r) => {
