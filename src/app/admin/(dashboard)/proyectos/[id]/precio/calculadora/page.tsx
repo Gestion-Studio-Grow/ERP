@@ -11,7 +11,7 @@ import { requireApp } from "@/lib/require-app";
 import { leerNumero, pesos, porcentaje } from "@/lib/proyectos/core";
 import { datosDelNegocio } from "@/lib/proyectos/datos.server";
 import { monedasSinCambio } from "@/lib/proyectos/ficha-core";
-import { costoTotalItem } from "@/lib/proyectos/gestion-core";
+import { costoTotalItem, veLaVenta } from "@/lib/proyectos/gestion-core";
 import { actorDelProyecto, exigirVer, filtroDeProyectos, puede, tiposDeCambio } from "@/lib/proyectos/gestion.server";
 import { calcularPrecio, PORCENTAJES_PLANTILLA, TOPE_PLANTILLA, type Centavos, type Precio, type PorcentajesPrecio } from "@/lib/proyectos/precio-core";
 import { calcularRendicion, DIFERENCIAS_CON_PLANILLA, MATRIZ_PLANTILLA, PARTICIPANTES, type MatrizReparto, type Participante, type Rendicion } from "@/lib/proyectos/rendicion-core";
@@ -40,8 +40,8 @@ export default async function VistaPreviaPrecio({ params, searchParams }: { para
   const a = await exigirVer("costos");
   const [{ id }, q] = await Promise.all([params, searchParams]);
   const proyecto = await prisma.proyecto.findFirst({ where: { ...filtroDeProyectos(a), id }, select: { id: true, nombre: true, client: { select: { name: true } } } });
-  // MIA-238: costos sólo de su cartera (productor comercial).
-  if (!proyecto || !puede(await actorDelProyecto(a, id), "costos", "ver")) notFound();
+  // MIA-238: costos sólo de su cartera (productor comercial). MIA-246: el precio es la venta; Producción no lo ve (`veLaVenta`).
+  if (!proyecto || !veLaVenta(a.rol) || !puede(await actorDelProyecto(a, id), "costos", "ver")) notFound();
 
   const [aprobada, gastos, tc, negocio] = await Promise.all([
     prisma.proyectoPresupuesto.findFirst({ where: { tenantId: a.tenantId, proyectoId: id, estado: "APROBADO" }, orderBy: { version: "desc" }, select: { version: true, items: { select: { cantidad: true, costo: true, moneda: true } } } }),

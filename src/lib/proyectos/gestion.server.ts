@@ -20,7 +20,7 @@ import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos, veLaPlata } from "./datos.server";
 import { getCurrentUser } from "@/lib/session";
-import { venceDeLaCuota, previstaDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, cerradoEnProyectoAjeno, veLaPlataDelProyecto, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { venceDeLaCuota, previstaDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, cerradoEnProyectoAjeno, veLaPlataDelProyecto, veLaVenta, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { tomarCuotas } from "./comprobantes.server";
 import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_CON_PARTES } from "./pago-parcial-core";
@@ -87,6 +87,12 @@ export function filtroDeProyectosConPlata(a: Actor): Prisma.ProyectoWhereInput {
   // MIA-244: un puesto sin importes no ve la plata de ningún proyecto, tampoco de su equipo (`id` lo pisa quien llama: va en AND).
   if (!veLaPlataDelProyecto(a.rol, true)) return { ...visibles, AND: [{ id: { in: [] } }] };
   return { ...visibles, equipo: { some: { personaId: a.personaId ?? "-" } } };
+}
+
+/** MIA-246 · el de `filtroDeProyectosConPlata`, y nada para quien no ve la venta (Producción): el papel y los exportes la llevan. */
+export function filtroDeProyectosConVenta(a: Actor): Prisma.ProyectoWhereInput {
+  const conPlata = filtroDeProyectosConPlata(a);
+  return veLaVenta(a.rol) ? conPlata : { ...conPlata, AND: [{ id: { in: [] } }] };
 }
 
 /** Para las pantallas: sin permiso, de vuelta a Inicio. */

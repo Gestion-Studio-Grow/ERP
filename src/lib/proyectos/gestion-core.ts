@@ -763,6 +763,16 @@ const PLATA_DEL_PROYECTO: readonly ModuloGestion[] = ["costos", "cotizaciones", 
 export const cerradoEnProyectoAjeno = (modulo: ModuloGestion, accion: "ver" | "editar"): boolean =>
   PLATA_DEL_PROYECTO.includes(modulo) || (modulo === "ficha" && accion === "editar");
 export const veImportes = (rol: RolGestion): boolean => rol !== "PRODUCCION_CAMPO" && rol !== "SIN_FICHA";
+/**
+ * MIA-246 · «Producción: solo los costos» (dueño, 20/11 15:25Z): Producción ve los costos de sus proyectos, nunca la venta ni el
+ * margen (ficha, Pipeline, papel y exportes). Un puesto sin importes tampoco. PURAS: las usan `vistaDe` y `tableroPipeline`
+ * (ficha.server.ts), `filtroDeProyectosConVenta` (gestion.server.ts) y el precio por total.
+ */
+export const veLaVenta = (rol: RolGestion): boolean => veImportes(rol) && rol !== "PRODUCCION";
+export const veLaVentaDelProyecto = (rol: RolGestion, estaEnEquipo: boolean): boolean => veLaPlataDelProyecto(rol, estaEnEquipo) && veLaVenta(rol);
+/** Columnas de la ficha que se cierran a quien no ve la venta, ni de fábrica ni guardadas por Dirección: el recargo es el margen en %. */
+const COLUMNAS_DE_VENTA: readonly string[] = ["venta", "margen", "recargo"];
+export const columnasSinVenta = (rol: RolGestion): readonly string[] => (veLaVenta(rol) ? [] : COLUMNAS_DE_VENTA);
 
 /** Rendir lo mío: un rol que rinde y que está en el `ProyectoEquipo` del proyecto (ver todos no alcanza). PURA. */
 export function puedeRendir(rol: RolGestion, estaEnEquipo: boolean): boolean {

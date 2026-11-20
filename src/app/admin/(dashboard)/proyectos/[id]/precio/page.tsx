@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { requireApp } from "@/lib/require-app";
 import { fechaCorta, pesos, porcentaje } from "@/lib/proyectos/core";
 import { actorDelProyecto, exigirVer, filtroDeProyectos, puede } from "@/lib/proyectos/gestion.server";
+import { veLaVenta } from "@/lib/proyectos/gestion-core";
 import { defDe, EMPRESA, type Clave } from "@/lib/proyectos/parametros/catalogo";
 import { contextoDelPrecio, estadoDelPrecio, type EstadoPrecio, type FotoPrecio } from "@/lib/proyectos/precio-proyecto.server";
 import { leerPorcentajes, REDONDEO, totalesDelNeto, type Tablero } from "@/lib/proyectos/precio-proyecto-core";
@@ -27,8 +28,8 @@ export default async function PrecioDelProyecto({ params }: { params: Promise<{ 
   const a = await exigirVer("costos");
   const { id } = await params;
   const proyecto = await prisma.proyecto.findFirst({ where: { ...filtroDeProyectos(a), id }, select: { id: true, nombre: true, client: { select: { name: true } } } });
-  // MIA-238: costos sólo de su cartera (productor comercial).
-  if (!proyecto || !puede(await actorDelProyecto(a, id), "costos", "ver")) notFound();
+  // MIA-238: costos sólo de su cartera (productor comercial). MIA-246: el precio es la venta; Producción no lo ve (`veLaVenta`).
+  if (!proyecto || !veLaVenta(a.rol) || !puede(await actorDelProyecto(a, id), "costos", "ver")) notFound();
   const ctx = await contextoDelPrecio(a.tenantId);
   const e = await estadoDelPrecio(a.tenantId, id, ctx);
   const edita = puede(a, "cotizaciones", "editar");

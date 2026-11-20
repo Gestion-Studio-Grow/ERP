@@ -8,8 +8,8 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { totalesCongelados } from "./precio-foto.server";
-import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, rolVeLaPlata, totalesFicha, veImportes, veLosCobros, ventaOEstimado, ventaTotalItem } from "./gestion-core";
-import { columnasOcultas, filtroDeProyectos, filtroDeProyectosConPlata, puede, tiposDeCambio, versionViva, versionDeLaPlata, aItemFicha, type Actor } from "./gestion.server";
+import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, rolVeLaPlata, totalesFicha, columnasSinVenta, veLaVenta, veLaVentaDelProyecto, veLosCobros, ventaOEstimado, ventaTotalItem } from "./gestion-core";
+import { columnasOcultas, filtroDeProyectos, filtroDeProyectosConVenta, puede, tiposDeCambio, versionViva, versionDeLaPlata, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
@@ -17,7 +17,7 @@ import { conPagosParciales, conPartesComoPagadas, porPagarComoGastos } from "./p
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import { comprobantesEnElFlujo, costoRealDeProyectos, cuotasEnlazadas, imputadoSinItem, lineasImputadasDe } from "./comprobantes.server";
 import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
-import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, veLaPlataDelProyecto, ventaEn } from "./gestion-core";
+import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
 import { modoDeLaPropuesta } from "./precio-proyecto.server";
@@ -73,7 +73,8 @@ export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
   ]);
   return proyectos.map((p) => {
     // MIA-239: el mismo control que `actorDelProyecto`; fuera de su equipo, el productor comercial ve el lead sin la venta.
-    const conVenta = veLaPlataDelProyecto(a.rol, !!a.personaId && p.equipo.some((e) => e.personaId === a.personaId));
+    // MIA-246: Producción, en ninguno.
+    const conVenta = veLaVentaDelProyecto(a.rol, !!a.personaId && p.equipo.some((e) => e.personaId === a.personaId));
     const venta = redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0));
     return {
     id: p.id,
@@ -109,7 +110,7 @@ export interface Vista {
   cobros: boolean;
   /** MIA-237 · pagos y deudas con proveedores (cuotas de PAGO, gastos, comprobantes, costo real): sólo quien ve pagos y costos. */
   deudas: boolean;
-  /** MIA-237 · cualquier importe, venta incluida: el productor de campo no ve ninguno. */
+  /** MIA-237 · la venta y lo que cobra el cliente: el productor de campo no ve ninguno; MIA-246 · Producción ve sólo los costos. */
   importes: boolean;
   ocultas: Set<string>;
 }
@@ -118,9 +119,11 @@ export function vistaDe(a: Actor): Vista {
   const costos = puede(a, "costos", "ver");
   const pagos = puede(a, "pagos", "ver");
   // MIA-239: en un proyecto ajeno (`actorDelProyecto`), el productor comercial no ve ningún importe, tampoco la venta.
-  const importes = veImportes(a.rol) && !a.ajeno;
+  // MIA-246: Producción ve los costos, no la venta (tampoco el anticipo ni el presupuesto estimado del cliente).
+  const importes = veLaVenta(a.rol) && !a.ajeno;
   // Sin el permiso de costos, se ocultan las cuatro columnas aunque el rol no las tenga en su lista; sin importes, también la venta.
-  const ocultas = new Set<string>(costos ? columnasOcultas(a) : COLUMNAS_FICHA.map((c) => c.id));
+  // MIA-246: sin la venta, también el margen y el recargo, aunque Dirección le guarde la ficha sin columnas ocultas.
+  const ocultas = new Set<string>([...(costos ? columnasOcultas(a) : COLUMNAS_FICHA.map((c) => c.id)), ...columnasSinVenta(a.rol)]);
   if (!importes) ocultas.add("venta");
   return {
     costos,
@@ -346,7 +349,7 @@ export async function datosDiseno(a: Actor, proyectoId: string) {
 
 /** Lo que sale en papel y en la planilla descargable: nunca un costo. MIA-239: sólo de un proyecto cuya plata ve (la venta lo es). */
 export function planillaParaPapel(a: Actor, proyectoId: string, versionId?: string | null) {
-  return armarPapel(a.tenantId, { ...filtroDeProyectosConPlata(a), id: proyectoId }, versionId);
+  return armarPapel(a.tenantId, { ...filtroDeProyectosConVenta(a), id: proyectoId }, versionId);
 }
 
 /** El mismo papel para el cliente, con el link de su propuesta. Un borrador todavía no existe para él. */
