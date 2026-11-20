@@ -138,16 +138,26 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
 
                 {editable && vista.editaCotizaciones && (
                   <div className="mt-3 grid gap-3 border-t border-line pt-3">
-                    <FormAccion accion={guardarTextos} className="grid gap-2">
-                      <input type="hidden" name="id" value={v.id} />
-                      <label className={etiqueta}>Presentación para el cliente<textarea name="presentacion" rows={3} defaultValue={v.presentacion} className={areaTexto} /></label>
-                      <label className={etiqueta}>Condiciones<textarea name="condiciones" rows={3} defaultValue={v.condiciones} className={areaTexto} /></label>
-                      {/* K2 · MIA-263: el IVA es la venta (`guardarTextos` lo rechaza a Producción): se ve, no se edita. */}
-                      <label className={cn(etiqueta, "max-w-40")}>IVA %<input name="ivaPct" defaultValue={String(v.ivaPct).replace(".", ",")} inputMode="decimal" readOnly={!venta} aria-describedby={venta ? undefined : `iva-venta-${v.id}`} className={campo} /></label>
-                      {!venta && <p id={`iva-venta-${v.id}`} className="text-sm text-muted">El IVA lo cambia quien ve la venta.</p>}
-                      {p.moneda !== "ARS" && venta && <label className={cn(etiqueta, "max-w-64")}>Cambio de venta: pesos por {p.moneda}<input name="tcVenta" defaultValue={cambio > 0 ? String(cambio).replace(".", ",") : ""} inputMode="decimal" className={campo} /></label>}
-                      <SubmitButton className={buttonClasses("outline", "md")}>Guardar textos</SubmitButton>
-                    </FormAccion>
+                    {/* MIA-266 · PROD-DISENO A: presentación, condiciones e IVA los lee el cliente; `guardarTextos` se los rechaza a Producción. */}
+                    {venta ? (
+                      <FormAccion accion={guardarTextos} className="grid gap-2">
+                        <input type="hidden" name="id" value={v.id} />
+                        <label className={etiqueta}>Presentación para el cliente<textarea name="presentacion" rows={3} defaultValue={v.presentacion} className={areaTexto} /></label>
+                        <label className={etiqueta}>Condiciones<textarea name="condiciones" rows={3} defaultValue={v.condiciones} className={areaTexto} /></label>
+                        <label className={cn(etiqueta, "max-w-40")}>IVA %<input name="ivaPct" defaultValue={String(v.ivaPct).replace(".", ",")} inputMode="decimal" className={campo} /></label>
+                        {p.moneda !== "ARS" && <label className={cn(etiqueta, "max-w-64")}>Cambio de venta: pesos por {p.moneda}<input name="tcVenta" defaultValue={cambio > 0 ? String(cambio).replace(".", ",") : ""} inputMode="decimal" className={campo} /></label>}
+                        <SubmitButton className={buttonClasses("outline", "md")}>Guardar textos</SubmitButton>
+                      </FormAccion>
+                    ) : (
+                      <div className="grid gap-2">
+                        <p className={etiqueta}>Presentación para el cliente</p>
+                        <p className="whitespace-pre-line text-sm">{v.presentacion || "Sin presentación."}</p>
+                        <p className={etiqueta}>Condiciones</p>
+                        <p className="whitespace-pre-line text-sm">{v.condiciones || "Sin condiciones."}</p>
+                        <p className="text-sm">IVA {String(v.ivaPct).replace(".", ",")} %</p>
+                        <p className="text-sm text-muted">La presentación, las condiciones y el IVA los lee el cliente: los escribe quien ve la venta (Dirección o Comercial).</p>
+                      </div>
+                    )}
                     {/* K2 · MIA-263: enviar al cliente es la venta; `enviarCotizacion` ya lo rechaza a Producción (acciones-ficha.ts). */}
                     {venta ? (
                       <FormAccion accion={enviarCotizacion}>

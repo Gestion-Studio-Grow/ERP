@@ -23,7 +23,7 @@ import { cobranzasDelNegocio, tiposDeCambio, estaPerdido, trabarCobranza } from 
 import { pasaElTope, type Cobranza } from "./cobranza-core";
 import { avisoTopeCobro } from "./avisos-cuota";
 import { actorActual, avisar, exigirPlataDeDireccion, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDelEquipo, usuariosDeLaPlata, type Actor } from "./gestion.server";
-import type { ModuloGestion } from "./gestion-core";
+import { hablaConElCliente, SOLO_DISENO_AL_CLIENTE, type ModuloGestion } from "./gestion-core";
 import { marcaDeGastoProyecto } from "./marcas";
 import { BASE_YA_APROBADA, BaseYaAprobada, conGuardiaDeBase, hayBaseAprobada } from "./presupuesto-base.server";
 import { claveDeEnvio } from "./pago-columnas";
@@ -598,6 +598,8 @@ export async function descartarBorrador(formData: FormData) {
 /** Enviar congela la versión con la especificación vigente y la pone en el link. La que seguía sin respuesta queda reemplazada. */
 export async function enviarVersion(formData: FormData) {
   const a = await actorCon(["diseno"]);
+  // MIA-266: lo que sale al cliente no va por `diseno:E` (Producción lo tiene para subir borradores): va por el puesto.
+  if (!hablaConElCliente(a.rol)) throw new Error(SOLO_DISENO_AL_CLIENTE);
   const { tenantId } = a;
   const id = txt(formData.get("id"));
   const v = await prisma.proyectoEntregableVersion.findFirst({

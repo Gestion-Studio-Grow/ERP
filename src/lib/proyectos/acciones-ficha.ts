@@ -32,7 +32,7 @@ import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
 import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, CUOTA_ENLAZADA, cuotaEnOrdenPendiente, cuotaPagadaPorOrden, listoAnulado, listoMarcada, listoParcial } from "./avisos-cuota";
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
-import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, columnasSinVenta, SOLO_LA_VENTA, veElPlus, veLaVenta, veTodosLosProyectos } from "./gestion-core";
+import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, columnasSinVenta, SOLO_LA_VENTA, TEXTOS_DEL_CLIENTE, veElPlus, veLaVenta, veTodosLosProyectos } from "./gestion-core";
 import { actorDelProyecto, avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, pagosPorRevisar, regenerarCuotas, regenerarCuotasTx, rehaceLosPagos, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { FALTA_APROBACION, FALTA_REAPROBAR, frenaSinAprobacion, tipoDeArchivoSubido, VOLVIO_A_PEDIDO, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, PAGOS_SIN_REHACER, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
@@ -932,7 +932,7 @@ async function avisarEtapa(tenantId: string, proyectoId: string, salvo: string, 
 export async function guardarTextos(formData: FormData): Promise<ResultadoFicha> {
   const tenantId = await getCurrentTenantId();
   const id = txt(formData.get("id"));
-  const pr = await prisma.proyectoPresupuesto.findFirst({ where: { id, tenantId }, select: { proyectoId: true, estado: true, ivaPct: true, tcVenta: true, proyecto: { select: { moneda: true } } } });
+  const pr = await prisma.proyectoPresupuesto.findFirst({ where: { id, tenantId }, select: { proyectoId: true, estado: true, ivaPct: true, tcVenta: true, presentacion: true, condiciones: true, proyecto: { select: { moneda: true } } } });
   if (!pr) return mal("Esa versión no existe.");
   const a = await entrar("cotizaciones", pr.proyectoId);
   if (typeof a === "string") return mal(a);
@@ -940,6 +940,10 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
   const iva = numeroDe(txt(formData.get("ivaPct")));
   if (iva === null) return mal("El IVA no se entiende: escribilo como un número.");
   if (iva !== pr.ivaPct && !veLaVenta(a.rol)) return mal(SOLO_LA_VENTA);
+  const presentacion = txt(formData.get("presentacion"));
+  const condiciones = txt(formData.get("condiciones"));
+  // MIA-266 (PROD-DISENO A): la presentación y las condiciones las lee el cliente. Sin cambios, el guardado pasa igual.
+  if ((presentacion !== pr.presentacion || condiciones !== pr.condiciones) && !veLaVenta(a.rol)) return mal(TEXTOS_DEL_CLIENTE);
   const textoCambio = txt(formData.get("tcVenta"));
   const tcVenta = pr.proyecto.moneda !== "ARS" && textoCambio ? numeroDe(textoCambio) : pr.tcVenta;
   if (tcVenta === null && textoCambio && pr.proyecto.moneda !== "ARS") return mal("El tipo de cambio no se entiende: escribilo como un número.");
@@ -963,7 +967,7 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
       if (cobros + cuotasCobradas + aprobadas > 0) return "contabiliza";
     }
     // Sigue en borrador y, si cambia el cambio, con el mismo cambio que se leyó: si no, otro guardado ganó.
-    const u = await tx.proyectoPresupuesto.updateMany({ where: { id, tenantId, estado: "BORRADOR", ...(cambiaCambio && { tcVenta: pr.tcVenta }) }, data: { presentacion: txt(formData.get("presentacion")), condiciones: txt(formData.get("condiciones")), ivaPct: iva, tcVenta, ...(cambiaTotal && { aprobadoInternoEl: null, aprobadoInternoPor: null }) } });
+    const u = await tx.proyectoPresupuesto.updateMany({ where: { id, tenantId, estado: "BORRADOR", ...(cambiaCambio && { tcVenta: pr.tcVenta }) }, data: { presentacion, condiciones, ivaPct: iva, tcVenta, ...(cambiaTotal && { aprobadoInternoEl: null, aprobadoInternoPor: null }) } });
     if (u.count === 0) return "cambio";
     if (cambiaCambio && viejo > 0) {
       const aMano = await tx.proyectoItem.findMany({ where: { tenantId, presupuestoId: id, precio: { gt: 0 } }, select: { id: true, precio: true } });
