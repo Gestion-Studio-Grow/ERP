@@ -120,7 +120,8 @@ export function vistaDe(a: Actor): Vista {
     editaCostos: puede(a, "costos", "editar"),
     pagos,
     // MIA-237: Dirección y Administración, por su permiso de pagos (como antes); el productor comercial, por su puesto.
-    cobros: rolVeLaPlata(a.rol) ? pagos : veLosCobros(a.rol),
+    // MIA-238: fuera de su cartera (`actorDelProyecto`), el productor comercial no ve los cobros.
+    cobros: rolVeLaPlata(a.rol) ? pagos : veLosCobros(a.rol) && !a.ajeno,
     deudas: pagos && costos,
     importes,
     editaPagos: puede(a, "pagos", "editar"),

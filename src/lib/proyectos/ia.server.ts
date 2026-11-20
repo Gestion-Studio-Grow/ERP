@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { etapaLabel } from "./core";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { bloqueDeDatos, type AgenteId, type MensajeAgente } from "./diseno-core";
-import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
+import { actorDelProyecto, columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, aItemFicha, type Actor } from "./gestion.server";
 import { codigoProyecto, costoTotalItem, ESTADO_ITEM_LABEL, ESTADO_TAREA_LABEL, totalesFicha, ventaTotalItem, type ModuloGestion } from "./gestion-core";
 import { errorDeGratis, imagenDeGratis, MODELO_IMAGEN_GRATIS, MODELO_TEXTO_GRATIS, pedidoDeImagen, pedidoDeTexto, textoDeGratis, urlGratis } from "./ia-gratis-core";
 import { aDataUri, tipoDeImagen, urlPollinations } from "./ia-pollinations-core";
@@ -250,7 +250,9 @@ const linea = (...partes: (string | number | null | undefined)[]): string => par
  * Sólo lo que este rol ve y este agente necesita. El filtro se aplica acá, en el servidor, sobre cada sección: lo que el rol
  * no puede ver no llega a salir hacia el modelo.
  */
-export async function contextoDeAgente(a: Actor, id: AgenteId, proyectoId: string | null): Promise<string> {
+export async function contextoDeAgente(actor: Actor, id: AgenteId, proyectoId: string | null): Promise<string> {
+  // MIA-238: dentro de un proyecto, lo que el actor ve de ESE proyecto (el productor comercial, sin plata ajena).
+  const a = proyectoId ? await actorDelProyecto(actor, proyectoId) : actor;
   const ve = (m: ModuloGestion) => puede(a, m, "ver");
   const alcance = ALCANCE[id];
   const { tenantId } = a;

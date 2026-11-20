@@ -19,7 +19,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
-import { venceDeLaCuota, previstaDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { venceDeLaCuota, previstaDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veLaPlataDelProyecto, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { tomarCuotas } from "./comprobantes.server";
 import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_CON_PARTES } from "./pago-parcial-core";
@@ -36,6 +36,8 @@ export interface Actor {
   nombre: string;
   rol: RolGestion;
   permisos: { rol: string; modulo: string; ver: boolean; editar: boolean; columnasOcultas: unknown }[];
+  /** MIA-238 · el actor en un proyecto que no es de su cartera (`actorDelProyecto`): sin costos ni cobros. */
+  ajeno?: boolean;
 }
 
 /** El dueño entra sin que nadie lo cargue; cualquier otro usuario sin ficha no abre nada hasta que lo sumen al equipo. */
@@ -51,12 +53,27 @@ export async function actorActual(): Promise<Actor> {
     prisma.proyectoPersona.findFirst({ where: { tenantId, userId: user.id, activa: true }, select: { id: true, rol: true, nombre: true } }),
     prisma.proyectoPermiso.findMany({ where: { tenantId }, select: { rol: true, modulo: true, ver: true, editar: true, columnasOcultas: true } }),
   ]);
-  const rol = rolDelActor(persona?.rol, user.role);
+  // MIA-238: una OWNER sin ficha activa es la Dueña sólo si no tiene una ficha de otro puesto de baja.
+  const deBaja = !persona && user.role === "OWNER"
+    ? await prisma.proyectoPersona.findFirst({ where: { tenantId, userId: user.id, activa: false, rol: { not: "DIRECCION" } }, select: { rol: true } })
+    : null;
+  const rol = rolDelActor(persona?.rol, user.role, deBaja?.rol);
   return { user, tenantId, personaId: persona?.id ?? null, nombre: persona?.nombre ?? user.name, rol, permisos };
 }
 
 export function puede(a: Actor, modulo: ModuloGestion, accion: "ver" | "editar"): boolean {
+  if (a.ajeno && modulo === "costos") return false;
   return permisoDe(a.rol, modulo, a.permisos)[accion];
+}
+
+/**
+ * MIA-238 · el actor dentro de UN proyecto: el productor comercial ve la plata (cobros y costos) sólo de los proyectos de su
+ * equipo (`veLaPlataDelProyecto`). Toda pantalla o acción de un proyecto que muestre costos o cobros pasa por acá.
+ */
+export async function actorDelProyecto(a: Actor, proyectoId: string): Promise<Actor> {
+  if (a.rol !== "COMERCIAL") return a;
+  const enEquipo = !!a.personaId && !!(await prisma.proyectoEquipo.findFirst({ where: { tenantId: a.tenantId, proyectoId, personaId: a.personaId }, select: { id: true } }));
+  return veLaPlataDelProyecto(a.rol, enEquipo) ? a : { ...a, ajeno: true };
 }
 
 /** Para las pantallas: sin permiso, de vuelta a Inicio. */

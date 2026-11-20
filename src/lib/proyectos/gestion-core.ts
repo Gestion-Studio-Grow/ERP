@@ -677,9 +677,12 @@ export type RolGestion = (typeof ROLES_GESTION)[number] | "SIN_FICHA";
 export const ROL_LABEL: Record<RolGestion, string> = { DIRECCION: "Dirección", ADMINISTRACION: "Administración", COMERCIAL: "Productor comercial", DISENO: "Diseño", PRODUCCION: "Producción", PRODUCCION_CAMPO: "Productor de campo", SIN_FICHA: "Sin ficha" };
 
 /** Sólo el dueño entra como Dirección sin ficha: tiene que poder armar el equipo. Cualquier otro espera a que lo carguen. */
-export function rolDelActor(rolDeLaFicha: string | null | undefined, rolDelErp: string): RolGestion {
+export function rolDelActor(rolDeLaFicha: string | null | undefined, rolDelErp: string, rolDeLaFichaDeBaja?: string | null): RolGestion {
   if ((ROLES_GESTION as readonly string[]).includes(rolDeLaFicha ?? "")) return rolDeLaFicha as RolGestion;
-  return rolDelErp === "OWNER" ? "DIRECCION" : "SIN_FICHA";
+  if (rolDelErp !== "OWNER") return "SIN_FICHA";
+  // MIA-238: la Dueña (puesto «Dueño/a» del alta) es la OWNER sin ficha. Una OWNER cuya ficha de otro puesto está de baja
+  // no es la Dueña: no hereda Dirección. Con una ficha de Dirección de baja, sigue Dirección (no gana nada que no tenía).
+  return rolDeLaFichaDeBaja && rolDeLaFichaDeBaja !== "DIRECCION" ? "SIN_FICHA" : "DIRECCION";
 }
 
 export const MODULOS = [
@@ -744,6 +747,12 @@ export const rolVeLaPlata = (rol: RolGestion): boolean => ROLES_QUE_APRUEBAN_REN
  * PURAS: las usan la vista de la ficha (`vistaDe`, ficha.server.ts) y sus lecturas.
  */
 export const veLosCobros = (rol: RolGestion): boolean => rolVeLaPlata(rol) || rol === "COMERCIAL";
+/**
+ * MIA-238 · «ve sólo lo cobrado y lo que falta cobrar de sus proyectos» (dueño, 20/11 13:05Z, opción B). Sus proyectos: los
+ * de su equipo (`ProyectoEquipo`; quien crea el proyecto entra como «Responsable»). En los demás sigue viendo el lead, sin
+ * cobros ni costos. El resto de los puestos, como estaba (lo decide su permiso). PURA.
+ */
+export const veLaPlataDelProyecto = (rol: RolGestion, estaEnEquipo: boolean): boolean => rol !== "COMERCIAL" || estaEnEquipo;
 export const veImportes = (rol: RolGestion): boolean => rol !== "PRODUCCION_CAMPO" && rol !== "SIN_FICHA";
 
 /** Rendir lo mío: un rol que rinde y que está en el `ProyectoEquipo` del proyecto (ver todos no alcanza). PURA. */

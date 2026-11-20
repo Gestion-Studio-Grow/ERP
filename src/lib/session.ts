@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionCookieName, readSessionToken } from "@/lib/auth";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { isDemoSandbox, DEMO_SESSION_USER } from "@/lib/demo-sandbox";
-import type { PermisoOverride } from "@/lib/capabilities";
+import { CAPACIDADES_NEGABLES_POR_PUESTO, type PermisoOverride } from "@/lib/capabilities";
 import { esTablaAusente, leerOverridesTolerante } from "@/lib/permisos-overrides";
 import { tenantTransaction } from "@/lib/rls";
 import { agenteDelUsuario } from "@/lib/cuadrilla/consola-core";
@@ -89,7 +89,11 @@ const leerSesionDeLaCookie = cache(async (): Promise<SesionDelPanel | null> => {
 async function capacidadesNegadasDelPuesto(userId: string, tenantId: string): Promise<PermisoOverride[]> {
   try {
     const persona = await prisma.proyectoPersona.findFirst({ where: { tenantId, userId, activa: true }, select: { rol: true } });
-    return (DECISIONES_DE_PUESTOS.capacidadesNegadas[persona?.rol ?? ""] ?? []).map((capability) => ({ capability, allowed: false }));
+    if (persona) return (DECISIONES_DE_PUESTOS.capacidadesNegadas[persona.rol] ?? []).map((capability) => ({ capability, allowed: false }));
+    // MIA-238: sin ficha activa, la OWNER es la Dueña salvo que tenga una ficha de otro puesto de baja (`rolDelActor`):
+    // ésa no hereda usuarios ni permisos.
+    const deBaja = await prisma.proyectoPersona.findFirst({ where: { tenantId, userId, activa: false, rol: { not: "DIRECCION" } }, select: { id: true } });
+    return deBaja ? CAPACIDADES_NEGABLES_POR_PUESTO.map((capability) => ({ capability, allowed: false })) : [];
   } catch (e) {
     if (esTablaAusente(e)) return [];
     throw e;

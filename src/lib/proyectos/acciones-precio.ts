@@ -10,7 +10,7 @@ import { revalidatePath } from "next/cache";
 import { tenantTransaction } from "@/lib/rls";
 import { centavosDe } from "@/lib/dinero/redondeo";
 import { sePuedeEditar } from "./core";
-import { avisar, exigirEditar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDeDireccion, type Actor } from "./gestion.server";
+import { actorDelProyecto, avisar, exigirEditar, proyectoVisible, puede, regenerarCuotas, registrarCambio, usuariosDeDireccion, type Actor } from "./gestion.server";
 import { hayBaseAprobada } from "./presupuesto-base.server";
 import { calcularTablero, decisionDelTotal, errorDePorcentajes, topeDelNegocio, validarReparto, type PorcentajesProyecto } from "./precio-proyecto-core";
 import { contextoDelPrecio, estadoDelPrecio, fueraDelNegocio, hayM3, hayM4, trabarPrecio, type ContextoPrecio, type EstadoPrecio } from "./precio-proyecto.server";
@@ -51,6 +51,8 @@ async function entrar(proyectoId: string): Promise<Actor | string> {
   }
   if (!puede(a, "costos", "ver")) return "El precio por total muestra costos: no tenés permiso para verlos.";
   if (!proyectoId || !(await proyectoVisible(a, proyectoId))) return "Ese proyecto no existe.";
+  // MIA-238: el productor comercial ve costos sólo de su cartera.
+  if (!puede(await actorDelProyecto(a, proyectoId), "costos", "ver")) return "El precio por total muestra costos: no tenés permiso para verlos en este proyecto.";
   return a;
 }
 

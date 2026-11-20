@@ -6,7 +6,7 @@ import { etapaLabel, etapaSiguiente, etapasDe, fechaCorta, pesos, porcentaje, wa
 import { iniciales } from "@/lib/proyectos/ficha-core";
 import { cabeceraFicha, vistaDe } from "@/lib/proyectos/ficha.server";
 import { cambioDeVenta, costoParaMostrar, margenParaMostrar, ventaEn } from "@/lib/proyectos/gestion-core";
-import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
+import { actorDelProyecto, exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { ChatProyecto } from "../_chat";
 import { PestanaDiseno } from "../_pestana-diseno";
 import { tarjeta } from "../_vista";
@@ -30,8 +30,9 @@ export const metadata = { title: "Proyecto" };
 
 export default async function FichaProyecto({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   await requireApp("proyectos");
-  const a = await exigirVer("pipeline");
   const [{ id }, q] = await Promise.all([params, searchParams]);
+  // MIA-238: el actor de ESTE proyecto (el productor comercial, sin plata fuera de su cartera).
+  const a = await actorDelProyecto(await exigirVer("pipeline"), id);
   const cab = await cabeceraFicha(a, id);
   if (!cab) notFound();
   const vista = vistaDe(a);
