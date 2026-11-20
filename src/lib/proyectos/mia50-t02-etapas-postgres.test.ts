@@ -79,7 +79,13 @@ async function armar(base: BaseEfimera) {
       await tx.proyectoParametro.create({ data: { tenantId: a.id, clave: "etapas.lista", valor: JSON.parse(JSON.stringify(lista)), actualizadoPor: a.duenia.id, actualizadoNombre: "Test" } });
     });
   };
-  return { a, duenio, ficha, fichaServer, gestion, agruparPorEtapa, valorDelNegocio, como, valor, usuarios, proyecto, cambios, etapa, cuotas, ponerCompuerta };
+  /** MIA-236 · Z3: las etapas con fecha real (O05) del proyecto. Sólo un pase efectivo escribe la de la etapa que se entra. */
+  const fechasReales = (proyectoId: string) =>
+    duenio.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${a.id}, true)`;
+      return (await tx.proyectoEtapaFecha.findMany({ where: { tenantId: a.id, proyectoId }, orderBy: { etapaId: "asc" }, select: { etapaId: true } })).map((f) => f.etapaId);
+    });
+  return { a, duenio, ficha, fichaServer, gestion, agruparPorEtapa, valorDelNegocio, como, valor, usuarios, proyecto, cambios, etapa, cuotas, fechasReales, ponerCompuerta };
 }
 
 async function preparar(t: import("node:test").TestContext) {
@@ -154,9 +160,14 @@ test("C-O03 · con «frena»: no pasa; Comercial no fuerza; Dirección fuerza co
     assert.equal((await p.cambios(id)).length, 0, "tres rechazos: 0 filas");
     assert.equal(await p.etapa(id), "DESARME");
     assert.equal(await p.cuotas(id), cuotas0, "las cuotas, idénticas");
+    // MIA-236 · Z3: Desarme y Cierre generan las mismas cuotas, así que la línea de arriba ya no distingue un pase indebido
+    // (antes, Propuesta → Confirmado cruzaba el borde de las cuotas). El testigo que sí distingue, aparte de la etapa y del
+    // historial: la fecha real de entrada a Cierre (O05), que sólo escribe un pase efectivo. Abajo, la contraprueba.
+    assert.deepEqual(await p.fechasReales(id), [], "tres rechazos: ninguna fecha real de Cierre");
     const dir = p.valor(await p.como(p.usuarios.direccion, () => p.ficha.moverProyecto({ id, destino: "CIERRE", forzar: true, motivoForzar: "Se levantó un día antes" })));
     assert.equal(dir.ok, true, JSON.stringify(dir));
     assert.equal(await p.etapa(id), "CIERRE");
+    assert.deepEqual(await p.fechasReales(id), ["CIERRE"], "el pase forzado sí deja la fecha real de Cierre: el testigo distingue");
     const forzadas = (await p.cambios(id)).filter((c) => c.campo === "Compuerta forzada");
     assert.equal(forzadas.length, 1);
     assert.equal(forzadas[0].antes, AVISO_EVENTO);

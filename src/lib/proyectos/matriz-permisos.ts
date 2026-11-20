@@ -147,7 +147,7 @@ export const PUERTAS_DE_ACCIONES: Readonly<Record<string, string>> = {
   "acciones-presupuesto#guardarAnticipoLinea": "E:cotizaciones|pagos — además, ver la plata (`veLaPlata`, MIA-234 «2a»): sin ella se rechaza y no se guarda",
   "acciones-presupuesto#marcarPrevision": "E:pagos — además, sólo Administración marca la previsión (`errorDeMarcaPrevision`)",
   "acciones-presupuesto#crearAdicional": "E:cotizaciones",
-  "acciones-presupuesto#agregarLineaAdicional": "E:cotizaciones",
+  "acciones-presupuesto#agregarLineaAdicional": "E:cotizaciones — además, el costo y el anticipo % de la línea sólo con la plata (`veLaPlata`, MIA-236 «2A»): sin ella se rechaza y no se guarda",
   "acciones-presupuesto#borrarLineaAdicional": "E:cotizaciones",
   "acciones-presupuesto#aprobarAdicionalInterno": "E:cotizaciones — además, Dirección fuera del equipo del proyecto (`errorDeAprobador`)",
   "acciones-presupuesto#enviarAdicional": "E:cotizaciones",

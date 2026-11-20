@@ -204,12 +204,22 @@ async function adicionalEditable(id: string, puerta: (proyectoId: string) => Pro
   return { a, ad, tenantId };
 }
 
-/** Una línea del adicional. Cambiar precios borra la aprobación interna: lo aprobado tiene que ser lo que se envía. */
+/** MIA-236 · «2A» por otra puerta: el costo y el anticipo de una línea de adicional son el plan de pago al proveedor. */
+const COSTO_ADICIONAL_SIN_PLATA =
+  "Tu usuario no ve la plata del negocio: el costo y el anticipo al proveedor los carga Dirección o Administración. Cargá la línea sin costo ni anticipo.";
+
+/**
+ * Una línea del adicional. Cambiar precios borra la aprobación interna: lo aprobado tiene que ser lo que se envía.
+ * MIA-236 · «2A» (D1 de GSG-PR214-v7): al aprobarse el adicional, el costo y el anticipo % de la línea se vuelven cuotas de
+ * PAGO al proveedor (`cuotasDeAdicionales`). Sin `veLaPlata`, con cualquiera de los dos se rechaza y no se guarda nada; sin
+ * ellos la línea entra con costo 0 y sin cuotas de pago (el precio al cliente es cotización).
+ */
 export async function agregarLineaAdicional(formData: FormData): Promise<ResultadoPresupuesto> {
   const r = await adicionalEditable(txt(formData.get("adicionalId")), (p) => entrar(["cotizaciones"], p));
   if (typeof r === "string") return mal(r);
   const { a, ad, tenantId } = r;
   if (ad.estado !== "BORRADOR") return mal("Este adicional ya se envió.");
+  if ((txt(formData.get("costo")) || txt(formData.get("anticipoPct"))) && !(await veLaPlata(a.user))) return mal(COSTO_ADICIONAL_SIN_PLATA);
   const sector = txt(formData.get("sector"));
   const categoria = txt(formData.get("categoria"));
   const detalle = txt(formData.get("detalle")).slice(0, 200);

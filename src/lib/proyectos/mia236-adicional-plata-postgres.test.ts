@@ -70,7 +70,7 @@ test("MIA-236 · adicionales: el costo y el anticipo al proveedor sólo los carg
 
   for (const rol of ["COMERCIAL", "PRODUCCION"]) {
     await conRol(rol);
-    for (const plata of [{ costo: "250", anticipoPct: "90" }, { costo: "250" }, { anticipoPct: "90" }]) {
+    for (const plata of [{ costo: "250", anticipoPct: "90" }, { costo: "250" }, { anticipoPct: "90" }] as Record<string, string>[]) {
       const antes = await foto();
       const r = await como("recepcion", () => acc.agregarLineaAdicional(form({ ...linea, detalle: `Línea de ${rol}`, precio: "400", ...plata })));
       assert.equal(r.ok, false, `${rol} con ${JSON.stringify(plata)}: no pasa (${JSON.stringify(r)})`);
@@ -84,7 +84,7 @@ test("MIA-236 · adicionales: el costo y el anticipo al proveedor sólo los carg
   const sinPlata = await como("recepcion", () => acc.agregarLineaAdicional(form({ ...linea, detalle: "Operador extra", precio: "400" })));
   assert.equal(sinPlata.ok, true, JSON.stringify(sinPlata));
   const deComercial = await enA((tx) => tx.proyectoAdicionalLinea.findFirstOrThrow({ where: { tenantId: a.id, adicionalId: ad.id, detalle: "Operador extra" }, select: { costoCentavos: true, anticipoPct: true } }));
-  assert.deepEqual([deComercial.costoCentavos, deComercial.anticipoPct], [0n, null]);
+  assert.deepEqual([deComercial.costoCentavos, deComercial.anticipoPct], [BigInt(0), null]);
 
   // Aprobado por el cliente: sólo la línea de Dirección da cuotas de PAGO ($ 600 al 30 %).
   assert.equal((await como("duenia", () => acc.aprobarAdicionalInterno(form({ adicionalId: ad.id })))).ok, true);

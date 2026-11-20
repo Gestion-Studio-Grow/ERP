@@ -126,6 +126,8 @@ export async function Adicionales({ a, vista, proyectoId, baseAprobada }: { a: A
   const sectores = par["costos.sectores"].valor;
   const categorias = par["costos.categorias"].valor;
   const verCosto = vista.costos;
+  // MIA-236 · «2A»: el costo y el anticipo de la línea son el pago al proveedor; sin la plata no se ofrecen (la acción los rechaza igual).
+  const cargaCosto = edita && (await veLaPlata(a.user));
   return (
     <section className={tarjeta} aria-label="Adicionales">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -219,15 +221,18 @@ export async function Adicionales({ a, vista, proyectoId, baseAprobada }: { a: A
                       </select>
                     </label>
                     <label className={etiqueta}>Cantidad<input name="cantidad" inputMode="decimal" defaultValue="1" className={campo} /></label>
-                    <label className={etiqueta}>Anticipo %<input name="anticipoPct" inputMode="numeric" placeholder="Del proveedor" className={campo} /></label>
+                    {cargaCosto ? <label className={etiqueta}>Anticipo %<input name="anticipoPct" inputMode="numeric" placeholder="Del proveedor" className={campo} /></label> : <span className="hidden sm:block" />}
                     <label className={etiqueta}>Puestos<input name="puestos" inputMode="numeric" className={campo} /></label>
                     <label className={etiqueta}>Horas<input name="horas" inputMode="decimal" className={campo} /></label>
                     <label className={etiqueta}>Días<input name="dias" inputMode="numeric" className={campo} /></label>
                     <span className="hidden sm:block" />
-                    <label className={etiqueta}>Costo unitario ($)<input name="costo" inputMode="decimal" className={campo} /></label>
+                    {cargaCosto ? <label className={etiqueta}>Costo unitario ($)<input name="costo" inputMode="decimal" className={campo} /></label> : <span className="hidden sm:block" />}
                     <label className={etiqueta}>Precio unitario sin IVA ($)<input name="precio" inputMode="decimal" className={campo} /></label>
                     <SubmitButton className={cn(buttonClasses("outline", "md"), "sm:col-span-2 sm:self-end")}>Agregar línea</SubmitButton>
-                    <p className="text-sm text-muted sm:col-span-4">Personal: completá puestos, horas y días (los tres); la cantidad sale de multiplicarlos. Importes en pesos (provisional a confirmar).</p>
+                    <p className="text-sm text-muted sm:col-span-4">
+                      Personal: completá puestos, horas y días (los tres); la cantidad sale de multiplicarlos. Importes en pesos (provisional a confirmar).
+                      {!cargaCosto && " El costo y el anticipo al proveedor los carga Dirección o Administración."}
+                    </p>
                   </FormAccion>
                 </details>
               )}
