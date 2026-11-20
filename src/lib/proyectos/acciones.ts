@@ -30,7 +30,7 @@ import { claveDeEnvio } from "./pago-columnas";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import { faltaDelPago } from "./pago-parcial-core";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
-import { PERDIDO_NO_COBRA } from "./ficha-core";
+import { PERDIDO_NO_COBRA, SIN_PLATA } from "./ficha-core";
 import { esClaveRepetida, faltaLaMigracion } from "./rendiciones-core";
 import { etapa2ActivaPara } from "./etapa2.server";
 import { MENSAJE_APAGADO } from "./etapa2-core";
@@ -214,6 +214,9 @@ export async function responderPropuesta(d: { token: string; aprueba: boolean; n
 export async function registrarCobro(formData: FormData): Promise<Resultado<{ listo?: string }>> {
   const a = await actorCon(["pagos"]);
   const { user, tenantId } = a;
+  // MIA-213: el cobro asienta una VENTA en el libro. «Pagos · editar» lo tiene PRODUCCION; ver la plata, no. La pantalla
+  // esconde el formulario (`cargaDirecta`, `_pestanas-plata.tsx`); acá es donde de verdad se frena.
+  if (!veLaPlata(user)) return { ok: false, error: SIN_PLATA };
   const proyectoId = txt(formData.get("proyectoId"));
   const medio = txt(formData.get("medio")) as MedioPago;
   const original = redondear(numero(formData.get("monto")));
@@ -376,6 +379,9 @@ async function deudaEnCalendarioTx(tx: Prisma.TransactionClient, tenantId: strin
 export async function registrarGasto(formData: FormData): Promise<Resultado> {
   const a = await actorCon(["pagos"]);
   const { user, tenantId } = a;
+  // MIA-213: «pagado» asienta un EGRESO en el libro. La pantalla muestra el formulario sólo a quien ve la plata
+  // (`cargaDirecta`, `_pestanas-plata.tsx`); el servidor pide lo mismo.
+  if (!veLaPlata(user)) return { ok: false, error: SIN_PLATA };
   const proyectoId = txt(formData.get("proyectoId"));
   if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
   const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });

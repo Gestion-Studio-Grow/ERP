@@ -117,6 +117,21 @@ async function proyectoConCobroAnulado(t: import("node:test").TestContext) {
   return { base, duenio, a, form, en, ficha, proyectoId: p.id, cuotaId: cuota.id, pagoId: pago.id, venta: venta.id, contra: contra.id };
 }
 
+/** `produccion@` de la corrida: rol de gestión PRODUCCION, en el equipo como Productor, y un usuario del ERP que no ve la plata
+ *  del negocio (sin «agenda:manage» fuera de la agenda: PROFESSIONAL). La base es una por archivo: la persona se reusa. */
+async function comoProductor(p: NonNullable<Awaited<ReturnType<typeof proyectoConCobroAnulado>>>) {
+  const { duenio, a } = p;
+  await duenio.user.update({ where: { id: a.recepcion.id }, data: { role: "PROFESSIONAL" } });
+  const persona = await duenio.proyectoPersona.upsert({
+    where: { tenantId_userId: { tenantId: a.id, userId: a.recepcion.id } },
+    create: { tenantId: a.id, userId: a.recepcion.id, nombre: "Producción de prueba", rol: "PRODUCCION" },
+    update: { rol: "PRODUCCION", activa: true },
+    select: { id: true },
+  });
+  await duenio.proyectoEquipo.create({ data: { tenantId: a.id, proyectoId: p.proyectoId, personaId: persona.id, funcion: "PRODUCTOR" } });
+  return persona;
+}
+
 test("1 · como app_rls, la venta de un cobro de proyecto y su contraasiento no se borran ni se les cambia importe, tipo, medio, fecha ni vínculos", async (t) => {
   const p = await proyectoConCobroAnulado(t);
   if (!p) return;
@@ -241,21 +256,20 @@ test("4 · A-06: deleteLibroEntry rechaza borrar la venta de un cobro de proyect
   assert.equal(await duenio.cashMovement.count({ where: { id: { in: [p.venta, p.contra] } } }), 2, "0 filas borradas");
 });
 
-test("3 · el productor (PRODUCCION, no ve la plata) no puede marcar cobrado ni anular: el servidor lo rechaza y no escribe nada", async (t) => {
+test("3 · el productor (PRODUCCION, no ve la plata) no puede marcar cobrado, anular, registrar cobro ni gasto pagado, ni cargar o quitar cuotas: el servidor lo rechaza y no escribe nada", async (t) => {
   const p = await proyectoConCobroAnulado(t);
   if (!p) return;
   const { duenio, a } = p;
-  // Como `produccion@` de la corrida: rol de gestión PRODUCCION, en el equipo como Productor, y un usuario del ERP que no
-  // ve la plata del negocio (sin «agenda:manage» fuera de la agenda: PROFESSIONAL).
-  await duenio.user.update({ where: { id: a.recepcion.id }, data: { role: "PROFESSIONAL" } });
-  const persona = await duenio.proyectoPersona.create({ data: { tenantId: a.id, userId: a.recepcion.id, nombre: "Producción de prueba", rol: "PRODUCCION" }, select: { id: true } });
-  await duenio.proyectoEquipo.create({ data: { tenantId: a.id, proyectoId: p.proyectoId, personaId: persona.id, funcion: "PRODUCTOR" } });
+  await comoProductor(p);
   // Un cobro vivo (de la dueña) para que haya algo que anular, y un gasto pagado.
   const cobro = await p.en("duenia", () => p.ficha.marcarCuota(p.form({ envio: "mia208-cobro-0002", id: p.cuotaId, medio: "TRANSFERENCIA", cuenta: "ninguna" })));
   assert.equal(cobro.ok, true, JSON.stringify(cobro));
   const vivo = await duenio.proyectoPago.findFirstOrThrow({ where: { proyectoId: p.proyectoId, anuladoEl: null }, select: { id: true } });
   const gasto = await duenio.proyectoGasto.create({ data: { tenantId: a.id, proyectoId: p.proyectoId, descripcion: "Flete", neto: 10_000, pagadoEl: EVENTO, medio: "EFECTIVO", pagadoPor: "Dueña" }, select: { id: true } });
   const otra = await duenio.proyectoCuota.findFirstOrThrow({ where: { proyectoId: p.proyectoId, tipo: "COBRO", pagadoEl: null, anuladoEl: null, prevista: false }, select: { id: true } });
+  // MIA-213: una cuota cargada a mano (de la dueña), para intentar quitarla.
+  const aMano = await duenio.proyectoCuota.create({ data: { tenantId: a.id, proyectoId: p.proyectoId, tipo: "COBRO", concepto: "Extra a mano", monto: 100, moneda: "ARS", venceEl: new Date(EVENTO.getTime() - 30 * DIA), auto: false }, select: { id: true } });
+  const acciones = await import("./acciones");
   const foto = async () => ({
     pagos: await duenio.proyectoPago.findMany({ where: { tenantId: a.id }, orderBy: { id: "asc" } }),
     gastos: await duenio.proyectoGasto.findMany({ where: { tenantId: a.id }, orderBy: { id: "asc" } }),
@@ -267,11 +281,51 @@ test("3 · el productor (PRODUCCION, no ve la plata) no puede marcar cobrado ni 
     "Marcar cobrado": () => p.ficha.marcarCuota(p.form({ envio: "mia208-productor-0001", id: otra.id, medio: "EFECTIVO", cuenta: "ninguna" })),
     "Anular cobro": () => p.ficha.anularCobroFicha(p.form({ id: vivo.id })),
     "Anular gasto": () => p.ficha.anularGastoFicha(p.form({ id: gasto.id })),
+    // MIA-213 (certificación de MIA-208, C3): «Registrar cobro» asentaba una VENTA; «Registrar gasto» pagado, un EGRESO.
+    "Registrar cobro": () => acciones.registrarCobro(p.form({ proyectoId: p.proyectoId, medio: "EFECTIVO", monto: "100" })),
+    "Registrar gasto pagado": () => acciones.registrarGasto(p.form({ proyectoId: p.proyectoId, descripcion: "Flete del productor", neto: "100", pagado: "on", medio: "EFECTIVO" })),
+    // Decisión de ORQ-007: tampoco carga ni quita cuotas a mano.
+    "Movimiento manual": () => p.ficha.crearMovimientoManual(p.form({ proyectoId: p.proyectoId, tipo: "PAGO", concepto: "Pago del productor", monto: "100", moneda: "ARS", venceEl: "2027-05-01" })),
+    "Quitar movimiento": () => p.ficha.quitarMovimiento(p.form({ proyectoId: p.proyectoId, id: aMano.id })),
   };
+  // Todas las puertas en una corrida: las que no rechazan con el texto de la plata se listan juntas.
+  const pasaron: string[] = [];
   for (const [que, fn] of Object.entries(intentos)) {
     const r: { ok: boolean; error?: string } = await p.en("recepcion", fn);
-    assert.equal(r.ok, false, `${que}: ${JSON.stringify(r)}`);
-    assert.match((r as { error?: string }).error ?? "", /plata del negocio/, `${que}: dice por qué`);
+    if (r.ok || !/plata del negocio/.test(r.error ?? "")) pasaron.push(`${que}: ${JSON.stringify(r)}`);
   }
+  assert.deepEqual(pasaron, [], "cada acción rechaza y dice por qué");
   assert.deepEqual(await foto(), antes, "nada escrito");
+});
+
+// MIA-213 · 4: PRODUCCION tiene `rendiciones: V` (`gestion-core.ts`). «Ver» alcanza para rendir lo propio, que crea el gasto
+// pagado por la persona SIN asiento de caja (`acciones-rendiciones.ts`, `rendirGasto`). Lo que mueve el libro (aprobar,
+// reintegrar, entregar y cerrar anticipos) pide Rendiciones en «editar»: el productor lo intenta y el libro no cambia.
+test("5 · el productor (rendiciones: ver) no mueve plata por Rendiciones: aprobar, reintegrar, entregar y cerrar anticipos se rechazan y el libro no cambia", async (t) => {
+  const p = await proyectoConCobroAnulado(t);
+  if (!p) return;
+  const { duenio, a } = p;
+  const persona = await comoProductor(p);
+  // Un anticipo abierto a su nombre: cerrarlo con devolución asentaría un INGRESO.
+  const anticipo = await duenio.proyectoAnticipo.create({ data: { tenantId: a.id, personaId: persona.id, proyectoId: p.proyectoId, montoCentavos: 50_000 }, select: { id: true } });
+  const rendiciones = await import("./acciones-rendiciones");
+  const foto = async () => ({
+    libro: await duenio.cashMovement.count({ where: { tenantId: a.id } }),
+    anticipos: await duenio.proyectoAnticipo.findMany({ where: { tenantId: a.id }, orderBy: { id: "asc" } }),
+    gastos: await duenio.proyectoGasto.count({ where: { tenantId: a.id } }),
+  });
+  const antes = await foto();
+  const intentos = {
+    "Aprobar rendición": () => rendiciones.aprobarRendicion(p.form({ id: "rendicion-inexistente" })),
+    "Reintegrar directo": () => rendiciones.reintegrarDirecto(p.form({ id: "rendicion-inexistente", medio: "EFECTIVO" })),
+    "Entregar anticipo": () => rendiciones.entregarAnticipo(p.form({ personaId: persona.id, proyectoId: p.proyectoId, medio: "EFECTIVO", monto: "500", clave: "mia213-anticipo-0001" })),
+    "Cerrar anticipo": () => rendiciones.cerrarAnticipo(p.form({ id: anticipo.id, medio: "EFECTIVO" })),
+  };
+  const pasaron: string[] = [];
+  for (const [que, fn] of Object.entries(intentos)) {
+    const r: { ok: boolean; error?: string } = await p.en("recepcion", fn);
+    if (r.ok || !/Rendiciones en «editar»/.test(r.error ?? "")) pasaron.push(`${que}: ${JSON.stringify(r)}`);
+  }
+  assert.deepEqual(pasaron, [], "cada acción rechaza en la puerta y dice por qué");
+  assert.deepEqual(await foto(), antes, "el libro, los anticipos y los gastos no cambian");
 });

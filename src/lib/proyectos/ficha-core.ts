@@ -6,6 +6,8 @@ import { claveFoto, costoTotalItem, ventaTotalItem, type CuotaLeida, type FotoIt
 
 export const PERDIDO = "PERDIDO";
 /** Lo que contesta el servidor si se intenta cobrar, marcar una cuota de cobro o cargar un cobro en un perdido (MIA-089 · V2). */
+/** MIA-208/213: el productor (rol de gestión que no ve la plata) no cobra, no paga, no anula ni carga cuotas: lo hace Administración. */
+export const SIN_PLATA = "Tu usuario no ve la plata del negocio: los cobros, los pagos y sus anulaciones los hace Administración.";
 export const PERDIDO_NO_COBRA = "Este proyecto está perdido: no se le registran cobros ni se marcan cuotas de cobro. Si se retoma, reabrilo primero.";
 
 /**

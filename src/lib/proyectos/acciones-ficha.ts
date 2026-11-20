@@ -34,7 +34,7 @@ import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server"
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
-import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
+import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { evaluarPase, textoDelPase, type Pase } from "./compuertas-core";
@@ -95,12 +95,15 @@ async function entrar(modulos: ModuloGestion | readonly ModuloGestion[], proyect
   return a;
 }
 
-/**
+// ─ Ver la plata ─
+/*
  * MIA-208 · 3: marcar cobrado o pagado y anular mueven la plata del negocio. Además de «Pagos · editar» (que PRODUCCION
  * tiene, `gestion-core.ts` PERMISOS_BASE), hace falta ver la plata, el mismo control que `pagarGasto` (O42) y las órdenes
  * de pago: el productor ve la ficha pero no cobra ni anula. Del lado del servidor; la pantalla esconde los botones.
+ * MIA-213: también cargar o quitar cuotas a mano (decisión de ORQ-007: el productor no ve ni mueve plata). El texto
+ * (`SIN_PLATA`) vive en `ficha-core.ts`, compartido con `registrarCobro` y `registrarGasto` (`acciones.ts`).
  */
-const SIN_PLATA = "Tu usuario no ve la plata del negocio: los cobros, los pagos y sus anulaciones los hace Administración.";
+
 
 /** Dos guardados casi juntos (dos pestañas) pueden chocar creando la misma cuota: el segundo intento ya la encuentra. */
 async function regenerar(tenantId: string, proyectoId: string) {
@@ -1191,6 +1194,7 @@ export async function crearMovimientoManual(formData: FormData): Promise<Resulta
   const proyectoId = txt(formData.get("proyectoId"));
   const a = await entrar("pagos", proyectoId);
   if (typeof a === "string") return mal(a);
+  if (!veLaPlata(a.user)) return mal(SIN_PLATA);
   const { tenantId } = a;
   const tipo = txt(formData.get("tipo"));
   const concepto = txt(formData.get("concepto")).slice(0, 200);
@@ -1235,6 +1239,7 @@ export async function quitarMovimiento(formData: FormData): Promise<ResultadoFic
   const proyectoId = txt(formData.get("proyectoId"));
   const a = await entrar("pagos", proyectoId);
   if (typeof a === "string") return mal(a);
+  if (!veLaPlata(a.user)) return mal(SIN_PLATA);
   const { tenantId } = a;
   const id = txt(formData.get("id"));
   // En fila con «Marcar pagado»: con partes pagadas (pago parcial), quitarlo dejaría esos pagos sin su cuota.
