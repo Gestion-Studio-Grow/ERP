@@ -81,7 +81,7 @@ export default async function Orden({ params }: { params: Promise<{ id: string }
       {paga && o.estado !== "ANULADA" && (
         <FormAccion accion={anularOrden} className="flex justify-end">
           <input type="hidden" name="id" value={o.id} />
-          <SubmitButton className={buttonClasses("ghost", "md", "h-auto min-h-11 whitespace-normal py-2 text-right")}>{o.estado === "PAGADA" ? textos.anular : "Anular la orden"}</SubmitButton>
+          <SubmitButton className={buttonClasses("ghost", "md", "h-auto! min-h-11 whitespace-normal! py-2 text-right")}>{o.estado === "PAGADA" ? textos.anular : "Anular la orden"}</SubmitButton>
         </FormAccion>
       )}
       {o.anuladaEl && <p className="text-sm text-muted">Anulada el {fechaCorta(o.anuladaEl)}{o.anuladaPor ? ` por ${o.anuladaPor}` : ""}.</p>}

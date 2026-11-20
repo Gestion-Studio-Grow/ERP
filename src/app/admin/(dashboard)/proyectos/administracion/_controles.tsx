@@ -20,19 +20,27 @@ const mensajeDeError = (e: unknown) => (e instanceof Error && e.message ? e.mess
 /** Corre una acción: lo que devuelve como error y lo que tira terminan en el mismo cartel. */
 function useAccion() {
   const [error, setError] = useState<string | null>(null);
+  // MIA-203: el texto del botón que reenvía el mismo formulario con el sí explícito (`confirmaRepetido=1`), si el servidor lo pide.
+  const [reenviar, setReenviar] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const correr = (accion: Accion, fd: FormData, alTerminar?: (r: Salida) => void) =>
     iniciar(async () => {
       setError(null);
       try {
         const r = await accion(fd);
+        setReenviar(r && r.ok === false && typeof r.reenviar === "string" ? r.reenviar : null);
         if (r && r.ok === false) return setError(r.error ?? "No se pudo guardar.");
         alTerminar?.(r);
       } catch (e) {
         setError(mensajeDeError(e));
       }
     });
-  return { error, ocupado, correr };
+  // Al reabrir un formulario (otra clave): ni el error ni el sí de antes valen para el envío nuevo.
+  const reiniciar = () => {
+    setError(null);
+    setReenviar(null);
+  };
+  return { error, reenviar, ocupado, correr, reiniciar };
 }
 
 /**
@@ -149,12 +157,13 @@ function ElegirTipoRetencion({ concepto }: { concepto: string }) {
  * empresa (y sin `falta`, la conciliación de Bancos) se marcan enteras.
  */
 export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", concepto = "la cuota", esCobro = true }: { id: string; deEmpresa: boolean; etiqueta: string; falta?: number; moneda?: string; concepto?: string; esCobro?: boolean }) {
-  const { error, ocupado, correr } = useAccion();
+  const { error, reenviar, ocupado, correr, reiniciar } = useAccion();
   const [abierto, setAbierto] = useState(false);
   const [envio, setEnvio] = useState("");
   const router = useRouter();
   const toast = useToastSiHay();
   const abrir = () => {
+    reiniciar();
     setEnvio(crypto.randomUUID());
     setAbierto(true);
   };
@@ -204,6 +213,10 @@ export function MarcarCuota({ id, deEmpresa, etiqueta, falta, moneda = "ARS", co
         <button type="button" disabled={ocupado} onClick={() => setAbierto(false)} className={cn(buttonClasses("ghost", "md"), "min-h-11")}>Volver</button>
       </div>
       <Fallo texto={error} />
+      {/* MIA-203: el mismo formulario (la misma clave `envio`, que no cambia hasta cerrarlo) con el sí explícito. */}
+      {reenviar && (
+        <button type="submit" name="confirmaRepetido" value="1" disabled={ocupado} className={cn(buttonClasses("solid", "md"), "min-h-11")}>{reenviar}</button>
+      )}
     </form>
   );
 }

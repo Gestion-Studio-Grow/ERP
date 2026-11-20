@@ -366,7 +366,7 @@ test("P4-2 · dos pedidos directos iguales con la misma clave (todo, con cuenta)
   assert.equal(await p.saldoCuenta(banco), 605);
 });
 
-test("MIA-201 · H2 · todo cobro lleva clave: dos cobros iguales con claves distintas entran los dos; con la misma, uno; sin clave, ninguno", async (t) => {
+test("MIA-201 · H2 · todo cobro lleva clave: dos cobros iguales con claves distintas entran con el sí; con la misma, uno; sin clave, ninguno", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { id } = await p.proyecto();
@@ -377,9 +377,11 @@ test("MIA-201 · H2 · todo cobro lleva clave: dos cobros iguales con claves dis
   assert.equal(sinClave.ok, false, "sin clave no se graba");
   assert.match(String((sinClave as { error?: string }).error), /clave del envío/);
   assert.deepEqual(await p.caja(id), { cobros: 0, cobrado: 0, caja: 0 });
-  // Dos cobros iguales de verdad (dos formularios, dos claves), a la vez: entran los dos (100 + 100).
+  // Dos cobros iguales (dos formularios, dos claves), a la vez: el primero entra; el segundo (misma cuota, mismo importe,
+  // dentro de 2 min) pide un sí (MIA-203, decisión «A» del dueño) y con el sí, reenviado con SU clave, entra (100 + 100).
   const rs = await enFila(p.base, p.clave(id), [p.cobrar(q, { monto: "100", cuenta: banco, envio: "form-1" }), p.cobrar(q, { monto: "100", cuenta: banco, envio: "form-2" })]);
-  assert.deepEqual(rs.map((r) => r.ok), [true, true], "dos claves distintas: dos cobros");
+  assert.deepEqual(rs.map((r) => r.ok), [true, false], "dos claves distintas, mismo importe: el segundo pide un sí");
+  assert.equal((await p.cobrar(q, { monto: "100", cuenta: banco, envio: "form-2", confirmaRepetido: "1" })()).ok, true, "con el sí, entra");
   assert.deepEqual(await p.caja(id), { cobros: 2, cobrado: 200, caja: 200 });
   // El mismo envío repetido (doble clic, reintento): no asienta otra vez.
   const repetido = await p.cobrar(q, { monto: "100", cuenta: banco, envio: "form-2" })();
@@ -388,4 +390,62 @@ test("MIA-201 · H2 · todo cobro lleva clave: dos cobros iguales con claves dis
   assert.deepEqual(await p.caja(id), { cobros: 2, cobrado: 200, caja: 200 });
   assert.equal(await p.saldoCuenta(banco), 200);
   assert.equal((await p.estado(id)).falta[q], 405);
+});
+
+test("MIA-203 · #COBRO-DUPLICADO (decisión «A»): otra clave, misma cuota y mismo importe en 2 min → aviso sin grabar; con el sí entra; otra cuota entra sin aviso; la misma clave, uno solo", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { id } = await p.proyecto();
+  const q = await p.cuota(id, 605, 5);
+  const q2 = await p.cuota(id, 605, 35);
+  const banco = await p.cuenta();
+  assert.equal((await p.cobrar(q, { monto: "100", cuenta: banco, envio: "f-1" })()).ok, true);
+  // Otra clave, misma cuota, mismo importe, otro medio y sin cuenta: se compara cuota + importe (no el medio ni la nota).
+  const aviso = await p.cobrar(q, { monto: "100", medio: "EFECTIVO", cuenta: "ninguna", envio: "f-2" })();
+  assert.equal(aviso.ok, false, "sin confirmar no se graba");
+  assert.equal((aviso as { error?: string }).error, "Ya entró un cobro igual hace instantes. ¿Es otro?");
+  assert.equal(typeof (aviso as { reenviar?: string }).reenviar, "string", "la pantalla recibe el texto del botón que reenvía");
+  assert.deepEqual(await p.caja(id), { cobros: 1, cobrado: 100, caja: 100 }, "0 cobros nuevos");
+  assert.equal(await p.saldoCuenta(banco), 100);
+  // Confirmado (el botón reenvía con la MISMA clave y `confirmaRepetido=1`): entra.
+  const si = await p.cobrar(q, { monto: "100", medio: "EFECTIVO", cuenta: "ninguna", envio: "f-2", confirmaRepetido: "1" })();
+  assert.equal(si.ok, true, JSON.stringify(si));
+  assert.deepEqual(await p.caja(id), { cobros: 2, cobrado: 200, caja: 200 });
+  // La misma clave otra vez (doble clic en el botón del sí): uno solo.
+  const otraVez = await p.cobrar(q, { monto: "100", medio: "EFECTIVO", cuenta: "ninguna", envio: "f-2", confirmaRepetido: "1" })();
+  assert.match(String((otraVez as { listo?: string }).listo), /ya estaba registrado/);
+  assert.deepEqual(await p.caja(id), { cobros: 2, cobrado: 200, caja: 200 }, "misma clave: uno solo");
+  // Otra cuota, mismo importe: entra sin aviso.
+  const otra = await p.cobrar(q2, { monto: "100", cuenta: banco, envio: "f-3" })();
+  assert.equal(otra.ok, true, JSON.stringify(otra));
+  // Misma cuota, otro importe: tampoco es igual.
+  assert.equal((await p.cobrar(q, { monto: "50", cuenta: banco, envio: "f-4" })()).ok, true);
+  assert.deepEqual(await p.caja(id), { cobros: 4, cobrado: 350, caja: 350 });
+  assert.equal(await p.saldoCuenta(banco), 250);
+  const e = await p.estado(id);
+  assert.equal(e.falta[q], 355);
+  assert.equal(e.falta[q2], 505);
+});
+
+test("MIA-203 · deuda de MIA-201: un cobro PARCIAL con cuenta deja su movimiento; el saldo ya no se escribe a mano y anularlo lo devuelve una vez", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { id } = await p.proyecto();
+  const q = await p.cuota(id, 605, 5);
+  const banco = await p.cuenta();
+  assert.equal((await p.cobrar(q, { monto: "200", cuenta: banco, envio: "parte-1" })()).ok, true);
+  assert.equal(await p.saldoCuenta(banco), 200);
+  const pago = await p.duenio.proyectoPago.findFirstOrThrow({ where: { proyectoId: id, anuladoEl: null }, select: { id: true } });
+  // `ProyectoMovCuenta` tiene RLS forzado (M8): se lee con la conexión de la app y la sesión del negocio, no como dueño.
+  const movDe = () => p.enSesion(async () => (await import("@/lib/prisma")).prisma.proyectoMovCuenta.findFirst({ where: { tenantId: p.a.id, origenTipo: "COBRO", origenId: pago.id }, select: { cuentaId: true, importeCentavos: true, anuladoEl: true } }).then((m) => m && { ...m, importeCentavos: Number(m.importeCentavos) }));
+  const mov = await movDe();
+  assert.deepEqual(mov, { cuentaId: banco, importeCentavos: 20_000, anuladoEl: null }, "el parcial deja su ProyectoMovCuenta");
+  const aMano = await p.enSesion(async () => (await import("./acciones-empresa")).guardarSaldo(p.form({ id: banco, saldo: "999" })));
+  assert.equal(aMano.ok, false, "con el movimiento del parcial, el saldo no se pisa a mano");
+  assert.equal(await p.saldoCuenta(banco), 200);
+  // Anular el parcial devuelve el banco exacto, una sola vez (no también por «Cuenta movida»).
+  assert.equal((await p.enSesion(() => p.ficha.anularCobroFicha(p.form({ id: pago.id })))).ok, true);
+  assert.equal(await p.saldoCuenta(banco), 0);
+  assert.equal((await movDe())?.anuladoEl instanceof Date, true, "el movimiento queda anulado");
+  assert.equal((await p.estado(id)).falta[q], 605);
 });

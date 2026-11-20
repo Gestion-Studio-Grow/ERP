@@ -31,6 +31,8 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
   const [error, setError] = useState<string | null>(null);
   // El servidor no grabó y pide un sí explícito (p. ej. un cobro igual a uno de recién): el texto de la casilla.
   const [confirmar, setConfirmar] = useState<string | null>(null);
+  // MIA-203: el sí es un botón que reenvía este mismo formulario (la misma clave `envio`) con `confirmaRepetido=1`.
+  const [reenviar, setReenviar] = useState<string | null>(null);
   const [enCurso, iniciar] = useTransition();
   const form = useRef<HTMLFormElement>(null);
   const clave = useRef<string | null>(null);
@@ -48,9 +50,11 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
         if (claveDeEnvio) clave.current = null;
         if (!r.ok) {
           setConfirmar(r.confirmar ?? null);
+          setReenviar(r.reenviar ?? null);
           return setError(r.error);
         }
         setConfirmar(null);
+        setReenviar(null);
         // El éxito va en un aviso flotante: el renglón que lo pidió (la cuota marcada) suele desaparecer al refrescar.
         if (r.listo) toast?.showSuccess(r.listo);
         if (limpiar) form.current?.reset();
@@ -70,6 +74,11 @@ export function FormAccion({ accion, className, children, limpiar, alGuardar, cl
             <input type="checkbox" name="confirmaRepetido" value="1" className="size-5" />
             {confirmar}
           </label>
+        )}
+        {reenviar && (
+          <button type="submit" name="confirmaRepetido" value="1" disabled={enCurso} className={cn(buttonClasses("solid", "md"), "col-span-full min-h-11 basis-full")}>
+            {reenviar}
+          </button>
         )}
       </form>
     </EnvioEnCurso.Provider>

@@ -20,8 +20,11 @@ import type { Prisma } from "@/generated/prisma/client";
 import { textoAlCentavo } from "@/lib/dinero/redondeo";
 import { esEtapa, etapaAlAprobar, etapaLabel, MEDIO_LABEL, MEDIOS, metodoDeCaja, pesos, redondear, sePuedeEditar, sumarDias, type MedioPago } from "./core";
 
-/** MIA-199 · P4-2: un cobro sin clave igual a otro de la misma cuota dentro de esta ventana es el mismo pedido repetido. */
+/** MIA-203 (#COBRO-DUPLICADO, «A» del dueño): otro cobro de la misma cuota y el mismo importe dentro de esta ventana pide un sí. */
 const VENTANA_COBRO_IGUAL_MS = 2 * 60_000;
+/** El aviso del cobro igual de recién y el texto del botón que lo confirma (ficha y Bancos). */
+const AVISO_COBRO_IGUAL = "Ya entró un cobro igual hace instantes. ¿Es otro?";
+const CONFIRMA_COBRO_IGUAL = "Sí, es otro cobro: grabarlo";
 import { configProyectos } from "./datos.server";
 import { cobranzaConCuotas, envioYaGrabado, estaPerdido, pendienteDeLaCuota, trabarCobranza } from "./cobranza.server";
 import { claveDeEnvio } from "./pago-columnas";
@@ -37,7 +40,7 @@ import { marcaDeGastoProyecto } from "./marcas";
 import { evaluarPase, textoDelPase, type Pase } from "./compuertas-core";
 import { parametrosDelNegocio, valorDelNegocio } from "./parametros/leer.server";
 import { aCentavos, leerRetenciones, MEDIO_RETENCION, notaDeRetencion, repartoDelCobro, type RetencionLeida } from "./moneda-bancos-core";
-import { anularRetencionesDelCobroTx, guardarFotoTx, hayM8, revertirCuentaTx } from "./moneda-bancos.server";
+import { anularRetencionesDelCobroTx, guardarFotoTx, hayM8, moverCuentaTx, revertirCuentaTx } from "./moneda-bancos.server";
 import { GASTO_EN_RENDICION, SIN_COMPROBANTES, esClaveRepetida, faltaLaMigracion } from "./rendiciones-core";
 import { archivoAdmitido, claveDeArchivo, claveEsDelProyecto, MINUTOS_SUBIDA, urlFirmada } from "./r2-core";
 import { borrarDeNube, configR2, tamanoEnNube } from "./r2.server";
@@ -50,8 +53,11 @@ import { grabarFechaReal, hayM7b } from "./etapas-m7b.server";
 
 /** `aviso`: salió bien, pero hay algo que mirar (p. ej. «recalculá el plan» si se facturó una cuota en el medio). */
 /** `listo`: el cartel de éxito (se muestra aparte, porque el renglón que lo pidió suele desaparecer al refrescar). */
-/** `confirmar`: no se grabó porque hace falta un sí explícito; es el texto de la casilla que `FormAccion` muestra. */
-export type ResultadoFicha<T = object> = ({ ok: true; aviso?: string; listo?: string } & T) | { ok: false; error: string; confirmar?: string; enlace?: EnlaceDeArreglo };
+/**
+ * `confirmar`: no se grabó porque hace falta un sí explícito; es el texto de la casilla que `FormAccion` muestra.
+ * `reenviar`: lo mismo, pero el sí es un botón que reenvía el mismo formulario (la misma clave) con `confirmaRepetido=1`.
+ */
+export type ResultadoFicha<T = object> = ({ ok: true; aviso?: string; listo?: string } & T) | { ok: false; error: string; confirmar?: string; reenviar?: string; enlace?: EnlaceDeArreglo };
 
 const RAIZ = "/admin/proyectos";
 const MAX_ARCHIVOS = 30; // los que viven en la base; los que están en la nube tienen su propio tope
@@ -992,6 +998,8 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   // MIA-201 · H2: todo cobro trae su clave (la ficha y Administración, también Bancos, la mandan). Sin clave no hay cómo
   // distinguir el mismo pedido repetido de otro cobro igual de verdad. El freno de «parecido» sigue hasta que decida el dueño.
   if (esCobro && !envio) return mal("Falta la clave del envío del cobro: recargá la página y volvé a cobrar.");
+  // MIA-203: el sí explícito al aviso del cobro igual de recién (el botón reenvía el mismo formulario, con la misma clave).
+  const confirmaIgual = txt(formData.get("confirmaRepetido")) === "1";
   const importe = aPesos(cobra, c.moneda, tc);
   if (!(importe > 0)) return mal(`Falta el tipo de cambio de ${c.moneda}: sin él no se puede asentar en pesos.`);
   // Cada retención en pesos, al mismo cambio que el cobro; el cobro «RETENCION» es su suma (cuadra al centavo).
@@ -1017,11 +1025,10 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     if (envio && (await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: esCobro ? "ProyectoPago" : "ProyectoGasto", campo: "Envío", antes: envio }, select: { id: true } }))) return "repetido";
     // MIA-089 · V2: un perdido no marca cuotas de cobro; una de pago a proveedor sí (decisión 2 = A, provisional a confirmar por el dueño). En fila con «Marcar perdido».
     if (!perdidoAdmite(c.tipo) && (await estaPerdido(tx, tenantId, proyectoId))) return "perdido";
-    // MIA-199 · P4-2: un pedido directo SIN clave (la pantalla siempre la manda) igual a un cobro de esta cuota que
-    // acaba de entrar (mismo importe y medio, vivo) no se graba: es el mismo pedido repetido. Con clave nueva (el
-    // formulario recargado), otro cobro igual de verdad entra. Ventana de 2 minutos (provisional a confirmar).
-    // MIA-201: sin cambios hasta que el dueño decida H2 (con la clave obligatoria de arriba, hoy no llega a frenar nada).
-    if (esCobro && !envio && (await tx.proyectoPago.findFirst({ where: { tenantId, proyectoId, anuladoEl: null, medio, nota: c.concepto.slice(0, 200), monto: { gte: importe - 0.005, lte: importe + 0.005 }, createdAt: { gte: new Date(Date.now() - VENTANA_COBRO_IGUAL_MS) } }, select: { id: true } }))) return "parecido";
+    // MIA-203 (#COBRO-DUPLICADO, decisión «A» del dueño, 20/11): con OTRA clave (la misma ya dio «repetido» arriba), si
+    // a ESTA cuota le entró hace menos de 2 minutos un cobro vivo del mismo importe, no se graba sin un sí explícito: la
+    // pantalla avisa y su botón reenvía con la misma clave y `confirmaRepetido`. Cuota + importe; no la nota ni el medio.
+    if (esCobro && !confirmaIgual && (await cobroIgualDeRecien(tx, tenantId, proyectoId, id, importe))) return "parecido";
     if (ahora === null) return false;
     faltaAhora = ahora.pendiente;
     // CERT-4: un pago toma la cuota (después de la traba de la cobranza) con el candado de `enlazarCuota` y cuenta el
@@ -1040,7 +1047,11 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
       ? { count: await tx.proyectoCuota.count({ where: { id, tenantId, pagadoEl: null, anuladoEl: null, prevista: false, monto: c.monto, moneda: c.moneda } }) }
       : await tx.proyectoCuota.updateMany({ where: { id, tenantId, pagadoEl: null, anuladoEl: null, prevista: false, monto: c.monto, moneda: c.moneda }, data: { pagadoEl: new Date(), pagadoPor: a.nombre, medio, cuentaId: cuenta?.id ?? null, cuentaMovido: cuenta?.movido ?? null } });
     if (r.count === 0) return false;
-    if (cuenta) await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId }, data: { saldo: { increment: cuenta.movido } } });
+    // MIA-203 (deuda de MIA-201): un cobro PARCIAL no marca la cuota, así que no deja `cuota.cuentaId`; con M8 su cuenta se
+    // mueve con un `ProyectoMovCuenta` (más abajo, ya con el id del cobro): la cuenta «tiene movimientos» y `guardarSaldo`
+    // no la pisa. Anularlo lo revierte con `revertirCuentaTx`. Sin M8, como antes.
+    const porMovimiento = Boolean(cuenta && esCobro && parcial !== null && (await hayM8(tx)));
+    if (cuenta && !porMovimiento) await tx.proyectoCuentaBanco.updateMany({ where: { id: cuenta.id, tenantId }, data: { saldo: { increment: cuenta.movido } } });
     const session = await tx.cashSession.findFirst({ where: { tenantId, status: "OPEN" }, select: { id: true } });
     const method = metodoDeCaja(medio, await transferenciaEnElLibroTx(tx));
     const base = { tenantId, sessionId: session?.id ?? null, method, amount: importe };
@@ -1048,6 +1059,7 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
     if (esCobro) {
       const pago = await tx.proyectoPago.create({ data: { tenantId, proyectoId, medio, monto: importe, nota: c.concepto.slice(0, 200), cobradoPor: a.nombre, ...(conClave && claveCobro && { claveEnvio: claveCobro }) }, select: { id: true } });
       asiento = pago.id;
+      if (porMovimiento && cuenta) await moverCuentaTx(tx, tenantId, { cuentaId: cuenta.id, origenTipo: "COBRO", origenId: pago.id, importeEnPesos: cuenta.movido });
       await asentarEnCajaTx(tx, "cobro", { ...base, type: "VENTA", reason: `${etiqueta}${parcial !== null ? " · parte" : ""}${cheque}`, proyectoPagoId: pago.id, createdBy: a.user.name });
       await guardarFotoTx(tx, tenantId, { origenTipo: "COBRO", origenId: pago.id, foto: { moneda: c.moneda, originalCentavos: aCentavos(cobra), cambioCentavos: cambioUsado, pesosCentavos: aCentavos(importe) }, cambioDia: null });
       // La cuenta que movió ESTE cobro (una cuota puede tener varios), también «ninguna»: anularlo devuelve exactamente
@@ -1102,7 +1114,10 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   });
   // O40: con el día de caja cerrado (o el mes congelado) no se asienta nada y se dice qué hacer.
   if (ganada instanceof PeriodoCerradoError) return mal(ganada.message);
-  if (ganada === "parecido") return mal(`Hace instantes entró un cobro igual de esta cuota (${pesos(importe)} por ${MEDIO_LABEL[medio as MedioPago] ?? medio}). No se grabó otra vez: si es otro cobro, recargá la página y cargalo de nuevo.`);
+  if (ganada === "parecido") {
+    refrescar(proyectoId); // el cobro igual tiene que verse en la lista
+    return { ok: false, error: AVISO_COBRO_IGUAL, reenviar: CONFIRMA_COBRO_IGUAL };
+  }
   // Perder contra otro cobro o contra una anulación: el cartel dice cuál y cuánto falta ahora.
   if (ganada === "cambio") return mal(avisoSaldoCambio(pendiente, faltaAhora, c.moneda, esCobro));
   if (ganada === "tope") return mal(avisoTopeMarcar(importe, leido.cob));
@@ -1117,6 +1132,21 @@ export async function marcarCuota(formData: FormData): Promise<ResultadoFicha> {
   // Lo que falta después de ESTA parte sale de lo leído adentro, en fila (`faltaAhora`), no de lo leído afuera: con otra
   // parte entrando a la vez, el de afuera es de antes de esa otra (MIA-119).
   return { ok: true, listo: parcial !== null ? listoParcial(importe, faltaAhora - parcial, c.moneda, esCobro) : listoMarcada(esCobro, importe, { monto: c.monto, cobra: cancela, moneda: c.moneda }) };
+}
+
+/**
+ * MIA-203: ¿entró a esta cuota, hace menos de `VENTANA_COBRO_IGUAL_MS`, un cobro vivo de este importe (en pesos)? La cuota
+ * se ata a sus cobros por el «Asiento» que deja cada uno; lo retenido (O36) no cuenta. Se llama en fila (con la traba).
+ */
+async function cobroIgualDeRecien(tx: Prisma.TransactionClient, tenantId: string, proyectoId: string, cuotaId: string, importe: number): Promise<boolean> {
+  const asientos = await tx.proyectoCambio.findMany({ where: { tenantId, proyectoId, entidad: "ProyectoCuota", entidadId: cuotaId, campo: "Asiento" }, select: { despues: true } });
+  const ids = asientos.flatMap((x) => (x.despues ? [String(x.despues)] : []));
+  if (ids.length === 0) return false;
+  const igual = await tx.proyectoPago.findFirst({
+    where: { tenantId, proyectoId, id: { in: ids }, anuladoEl: null, medio: { not: MEDIO_RETENCION }, monto: { gte: importe - 0.005, lte: importe + 0.005 }, createdAt: { gte: new Date(Date.now() - VENTANA_COBRO_IGUAL_MS) } },
+    select: { id: true },
+  });
+  return igual !== null;
 }
 
 /**
@@ -1230,7 +1260,9 @@ async function reabrirCuotaTx(tx: Prisma.TransactionClient, tenantId: string, pr
   const cuota = await tx.proyectoCuota.findFirst({ where: { id: enlace.entidadId, tenantId }, select: { cuentaId: true, cuentaMovido: true, pagadoEl: true } });
   // La cuenta que movió ESTE cobro o pago (los nuevos: uno por parte); los de antes la guardaban sólo en la cuota marcada.
   const movida = await tx.proyectoCambio.findFirst({ where: { tenantId, proyectoId, entidad: { in: ["ProyectoPago", "ProyectoGasto"] }, entidadId: asiento, campo: "Cuenta movida" }, select: { antes: true, despues: true } });
-  if (movida?.antes && movida.antes !== "ninguna" && Number(movida.despues)) await tx.proyectoCuentaBanco.updateMany({ where: { id: movida.antes, tenantId }, data: { saldo: { decrement: Number(movida.despues) } } });
+  // MIA-203: si lo movió un `ProyectoMovCuenta` (cobro parcial con M8), lo devuelve `revertirCuentaTx`, no esto (si no, dos veces).
+  const porMovimiento = Boolean(movida?.antes && movida.antes !== "ninguna" && (await hayM8(tx)) && (await tx.proyectoMovCuenta.count({ where: { tenantId, origenTipo: "COBRO", origenId: asiento, anuladoEl: null } })) > 0);
+  if (!porMovimiento && movida?.antes && movida.antes !== "ninguna" && Number(movida.despues)) await tx.proyectoCuentaBanco.updateMany({ where: { id: movida.antes, tenantId }, data: { saldo: { decrement: Number(movida.despues) } } });
   else if (!movida && cuota?.pagadoEl && cuota.cuentaId && cuota.cuentaMovido) await tx.proyectoCuentaBanco.updateMany({ where: { id: cuota.cuentaId, tenantId }, data: { saldo: { decrement: cuota.cuentaMovido } } });
   // Una parte anulada de una cuota sin marcar: la cuota ya está pendiente, sólo recupera ese saldo (lo hace el reparto).
   const r = await tx.proyectoCuota.updateMany({ where: { id: enlace.entidadId, tenantId, pagadoEl: { not: null } }, data: { pagadoEl: null, pagadoPor: null, medio: null, cuentaId: null, cuentaMovido: null } });
