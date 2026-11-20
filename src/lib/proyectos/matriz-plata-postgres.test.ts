@@ -178,7 +178,8 @@ async function armarMundo(t: TestContext) {
       );
     });
 
-  return { a, duenio, como, registrar, direccion, proyecto, cuotaEmpresa, comprobante, orden, liquidacion, periodo, rendicion, foto, supplierId, cuentaId, trabajador };
+  const persona = (clave: string): string => { const id = usuarios.get(clave)?.personaId; assert.ok(id, clave); return id; };
+  return { a, duenio, como, registrar, persona, direccion, proyecto, cuotaEmpresa, comprobante, orden, liquidacion, periodo, rendicion, foto, supplierId, cuentaId, trabajador };
 }
 
 /**
@@ -322,6 +323,8 @@ test("MIA-215 · matriz de plata: cada rol que no ve la plata rechaza cada acci�
   await t.test("MIA-237 · productor comercial: cobrado, por cobrar y costos de sus proyectos; sin pagos ni deudas a proveedores", () => probarProductorComercial(m));
   await t.test("MIA-237 · productor de campo: ningún importe, ni con lo que Dirección le guarde; sigue rindiendo", () => probarProductorDeCampo(m));
   await t.test("MIA-237 · Administración (usuario OWNER): ve la plata y los proyectos, no administra usuarios", () => probarAdministracion(m));
+  await t.test("MIA-238 · productor comercial: en un proyecto que no es suyo no ve cobrado, por cobrar ni costos (pantalla y llamada directa)", () => probarComercialAjeno(m));
+  await t.test("MIA-238 · una OWNER sin ficha activa que no es la Dueña (su ficha de Administración, de baja) no hereda Dirección ni usuarios", () => probarOwnerDeBaja(m));
   await t.test("MIA-237 · puertas de MIA-236: % de anticipo del proveedor y costos al presupuesto, sólo quien corresponde", () => probarPuertasMia236(m));
 });
 
@@ -572,4 +575,78 @@ async function probarVeLaPlata(m: Mundo) {
   const obtenido: Record<string, boolean> = {};
   for (const clave of Object.keys(esperado)) obtenido[clave] = await ve(clave);
   assert.deepEqual(obtenido, esperado);
+}
+
+/**
+ * MIA-238 · «ve sólo lo cobrado y lo que falta cobrar de sus proyectos» (dueño, 20/11 13:05Z, opción B). Sus proyectos =
+ * donde está en el equipo (`ProyectoEquipo`: quien crea el proyecto entra como «Responsable», acciones-ficha.ts). Se lee
+ * como la pantalla: el actor del proyecto (`actorDelProyecto`) y su vista. Hecho a mano: el mismo proyecto de $ 1.210 por
+ * cobrar y $ 400 de costo; afuera del equipo, ni un importe de cobros ni de costos.
+ */
+async function probarComercialAjeno(m: Mundo) {
+  const gestion = await import("./gestion.server");
+  const ficha = await import("./ficha.server");
+  const precio = await import("./acciones-precio");
+  const p = await proyectoConDeuda(m);
+  const fuera = ["COMERCIAL/RECEPTION", "COMERCIAL/PROFESSIONAL"].map((c) => m.persona(c));
+  await m.duenio.proyectoEquipo.deleteMany({ where: { proyectoId: p.id, personaId: { in: fuera } } });
+  const leer = async (clave: string) => {
+    const r = await m.como(clave, async () => {
+      const yo = await gestion.actorActual();
+      const delProyecto = (gestion as { actorDelProyecto?: (a: typeof yo, id: string) => Promise<typeof yo> }).actorDelProyecto;
+      const a = delProyecto ? await delProyecto(yo, p.id) : yo;
+      const cab = await ficha.cabeceraFicha(a, p.id);
+      assert.ok(cab, `${clave} sigue viendo el proyecto (el lead)`);
+      const v = ficha.vistaDe(a);
+      const res = await ficha.datosResumen(a, cab, v);
+      const fi = await ficha.datosFicha(a, cab, v);
+      return {
+        vista: { costos: v.costos, cobros: v.cobros, deudas: v.deudas, pagos: v.pagos },
+        resumen: res.finanzas && { cobrado: res.finanzas.cobrado },
+        costos: fi.filas.map((f) => (f as { costo?: number }).costo ?? null),
+      };
+    });
+    assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
+    return (r as { valor: unknown }).valor;
+  };
+  const AJENO = { vista: { costos: false, cobros: false, deudas: false, pagos: false }, resumen: null, costos: [null] };
+  assert.deepEqual({ rec: await leer("COMERCIAL/RECEPTION"), prof: await leer("COMERCIAL/PROFESSIONAL") }, { rec: AJENO, prof: AJENO });
+  // Control: Dirección, en el mismo proyecto, ve los $ 400 de costo y la cobranza (la sonda no está ciega).
+  const dir = (await leer("DIRECCION/OWNER")) as typeof AJENO;
+  assert.deepEqual(dir.costos, [400]);
+  assert.equal(dir.vista.cobros, true);
+  // Llamada directa: el precio por total (muestra costos) no se guarda en un proyecto ajeno, aunque tenga «Cotizaciones · editar».
+  const antes = await m.duenio.proyectoPrecio.count({ where: { proyectoId: p.id } });
+  const r = await m.como("COMERCIAL/RECEPTION", () => precio.guardarPrecio(form({ proyectoId: p.id, modo: "total", totalPersonas: "1000" })));
+  const valor = r.tipo === "respuesta" ? (r.valor as { ok: boolean; error?: string }) : null;
+  assert.equal(valor?.ok, false, `guardarPrecio en un proyecto ajeno: ${JSON.stringify(r)}`);
+  assert.match(valor?.error ?? "", /costos/);
+  assert.equal(await m.duenio.proyectoPrecio.count({ where: { proyectoId: p.id } }), antes);
+}
+
+/**
+ * MIA-238 · la Dueña (puesto «Dueño/a» del alta: OWNER sin ficha) entra como Dirección. Una OWNER cuya ficha de otro puesto
+ * está de baja NO es la Dueña: no hereda Dirección (rol SIN_FICHA) ni administra usuarios. Una OWNER cuya única ficha es de
+ * Dirección y está de baja sigue como antes (Dirección): nadie pierde lo que ya tenía por puesto.
+ */
+async function probarOwnerDeBaja(m: Mundo) {
+  const { passwordHash } = await m.duenio.user.findUniqueOrThrow({ where: { id: m.a.duenia.id }, select: { passwordHash: true } });
+  const gestion = await import("./gestion.server");
+  const { canCurrentUser } = await import("@/lib/authz");
+  const alta = async (clave: string, rol: RolGestion) => {
+    const u = await m.duenio.user.create({ data: { tenantId: m.a.id, name: `MIA-238 ${clave}`, email: `mia238-${clave.replace("/", "-").toLowerCase()}@negocio-a.erp.test`, passwordHash, role: "OWNER" }, select: { id: true } });
+    await m.duenio.proyectoPersona.create({ data: { tenantId: m.a.id, userId: u.id, nombre: `MIA-238 ${clave}`, rol, activa: false } });
+    m.registrar(clave, u.id);
+  };
+  await alta("ADMINISTRACION-BAJA/OWNER", "ADMINISTRACION");
+  await alta("DIRECCION-BAJA/OWNER", "DIRECCION");
+  const mira = async (clave: string) => {
+    const r = await m.como(clave, async () => ({ rol: (await gestion.actorActual()).rol, usuarios: await canCurrentUser("users:manage") }));
+    assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
+    return (r as { valor: unknown }).valor;
+  };
+  assert.deepEqual(
+    { adm: await mira("ADMINISTRACION-BAJA/OWNER"), dir: await mira("DIRECCION-BAJA/OWNER"), duenia: await mira("DIRECCION/OWNER") },
+    { adm: { rol: "SIN_FICHA", usuarios: false }, dir: { rol: "DIRECCION", usuarios: true }, duenia: { rol: "DIRECCION", usuarios: true } },
+  );
 }
