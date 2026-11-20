@@ -190,7 +190,7 @@ export default function UsuariosRenglon({
                     Crear usuario
                   </SubmitButton>
                 </div>
-                {!esMostrador && (
+                {!esMostrador && !conProyectos && (
                   <p className="text-[13px] text-muted">
                     A un Profesional, el alta le da el acceso; su agenda se le vincula aparte, desde su ficha de profesional.
                   </p>
