@@ -43,6 +43,9 @@ export const PUESTOS = {
   sinficha: { email: "sinficha@mia-producciones.demo", nombre: "Sin ficha", pin: false },
 };
 
+// Errores de la app: `role="alert"` menos el anunciador de rutas de Next (`#__next-route-announcer__`, también `role="alert"`,
+// lee el título de la página: «Verificación en dos pasos» parecía un TOTP rechazado).
+const alertaDe = (page) => page.locator('[role="alert"]:not(#__next-route-announcer__)');
 const log = (m) => process.stdout.write(`[ingreso] ${m}\n`);
 const archivo = (puesto, ext = "json") => path.join(DIR, `${puesto}.${ext}`);
 const secretos = () => (existsSync(archivo("_secretos")) ? JSON.parse(readFileSync(archivo("_secretos"), "utf8")) : {});
@@ -83,15 +86,25 @@ async function sesionValida(browser, puesto) {
 }
 
 /** Dirección genera el código de ingreso de `nombre` en Equipo y permisos y lo lee de la pantalla. */
-async function codigoDeEquipo(browser, nombre) {
+async function codigoDeEquipo(browser, nombre, reintento = false) {
   const ctx = await browser.newContext({ storageState: archivo("direccion") });
   const page = await ctx.newPage();
   await page.goto(`${URL_BASE}/admin/proyectos/equipo`);
   await page.getByRole("button", { name: `Generar código de ingreso para ${nombre}` }).click();
   const estado = page.getByRole("status").filter({ has: page.locator("p.font-mono") });
-  const error = page.getByRole("alert");
+  const error = alertaDe(page);
   await Promise.race([estado.waitFor(), error.waitFor()]);
-  if (await error.isVisible()) throw new Error(`Equipo no generó el código de ${nombre}: ${await error.innerText()}`);
+  if (await error.isVisible()) {
+    const texto = await error.innerText();
+    await ctx.close();
+    // Al entrar con la clave, /admin/login/pin ya le pidió un código por mail: hay un minuto entre códigos (pin-core.ts:89).
+    if (!reintento && /hace instantes/.test(texto)) {
+      log(`${nombre}: ya salió un código por mail; espero el minuto entre códigos`);
+      await new Promise((r) => setTimeout(r, 61_000));
+      return codigoDeEquipo(browser, nombre, true);
+    }
+    throw new Error(`Equipo no generó el código de ${nombre}: ${texto}`);
+  }
   const codigo = (await estado.locator("p.font-mono").innerText()).replace(/\D/g, "");
   await ctx.close();
   return codigo;
@@ -100,7 +113,10 @@ async function codigoDeEquipo(browser, nombre) {
 async function entrar(browser, puesto) {
   const p = PUESTOS[puesto];
   if (!p) throw new Error(`Puesto desconocido: ${puesto}. Puestos: ${Object.keys(PUESTOS).join(", ")}`);
-  if (await sesionValida(browser, puesto)) return log(`${puesto}: reuso ${archivo(puesto)}`);
+  if (await sesionValida(browser, puesto)) {
+    log(`${puesto}: reuso ${archivo(puesto)}`);
+    return capturarInicio(browser, puesto);
+  }
   if (p.pin && !(await sesionValida(browser, "direccion"))) await entrar(browser, "direccion");
 
   const ctx = await browser.newContext();
@@ -128,8 +144,12 @@ async function entrar(browser, puesto) {
       if (!base32) throw new Error(`${puesto}: el segundo paso ya está activo y no tengo su secreto en ${archivo("_secretos")}.`);
       await page.locator("#codigo").fill(await totpFresco(puesto, base32));
       await page.locator("#codigo").press("Enter");
-      await page.getByRole("link", { name: /^(Entrar|Ya los guardé, entrar)$/ }).or(page.getByRole("alert")).first().waitFor();
-      if (await page.getByRole("alert").isVisible()) throw new Error(`${puesto}: TOTP rechazado: ${await page.getByRole("alert").innerText()}`);
+      // Activando: muestra los códigos de respaldo («Ya los guardé, entrar»). Ya activo: redirige solo (segundo-paso/acciones.ts:32).
+      await Promise.race([
+        page.waitForURL((u) => !u.pathname.startsWith("/admin/login/segundo-paso")),
+        page.getByRole("link", { name: /^(Entrar|Ya los guardé, entrar)$/ }).or(alertaDe(page)).first().waitFor(),
+      ]);
+      if (await alertaDe(page).isVisible()) throw new Error(`${puesto}: TOTP rechazado: ${await alertaDe(page).innerText()}`);
     } else if (ruta.startsWith("/admin/cambiar-password")) {
       await page.locator("#cp-current").fill(secretos()[puesto]?.clave ?? CLAVE_SEED);
       await page.locator("#cp-new").fill(CLAVE_NUEVA);
@@ -146,10 +166,12 @@ async function entrar(browser, puesto) {
         await page.locator("#confirmacion").fill(PIN);
         await Promise.all([page.waitForURL((u) => !u.pathname.startsWith("/admin/definir-pin")), page.locator("#confirmacion").press("Enter")]);
       } else {
-        await page.getByRole("link", { name: "Ahora no" }).click();
+        // Un <a> común: se sigue su href. Con click, a veces la página se rehacía y el enlace quedaba suelto (30 s de espera).
+        const href = await page.getByRole("link", { name: "Ahora no" }).getAttribute("href");
+        await page.goto(new URL(href ?? "/admin", page.url()).href);
       }
     } else if (ruta.startsWith("/admin/login")) {
-      const alerta = page.getByRole("alert");
+      const alerta = alertaDe(page);
       throw new Error(`${puesto}: el ingreso volvió al login${(await alerta.count()) ? `: ${await alerta.first().innerText()}` : ""}.`);
     } else {
       break;
@@ -157,16 +179,27 @@ async function entrar(browser, puesto) {
   }
   await ctx.storageState({ path: archivo(puesto) });
   log(`${puesto}: adentro (${new URL(page.url()).pathname}) → ${archivo(puesto)}`);
-  if (process.env.CAPTURAS === "1") {
-    await page.screenshot({ path: archivo(puesto, "png"), fullPage: false });
-    log(`${puesto}: captura ${archivo(puesto, "png")}`);
-  }
+  await ctx.close();
+  await capturarInicio(browser, puesto);
+}
+
+/** CAPTURAS=1: el inicio del puesto (lo que abre /admin), con la sesión guardada; también al reusarla. */
+async function capturarInicio(browser, puesto) {
+  if (process.env.CAPTURAS !== "1") return;
+  const ctx = await browser.newContext({ storageState: archivo(puesto), viewport: { width: 1280, height: 800 } });
+  const page = await ctx.newPage();
+  await page.goto(`${URL_BASE}/admin`);
+  await page.waitForLoadState("networkidle");
+  await page.screenshot({ path: archivo(puesto, "png"), fullPage: false });
+  log(`${puesto}: captura de ${new URL(page.url()).pathname} → ${archivo(puesto, "png")}`);
   await ctx.close();
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   mkdirSync(DIR, { recursive: true });
-  const browser = await chromium.launch({ headless: process.env.HEADED !== "1" });
+  // Si el Playwright del proyecto no trae su navegador (la nube trae el suyo en /opt/pw-browsers), usa ese o PW_CHROMIUM.
+  const navegador = process.env.PW_CHROMIUM ?? (existsSync("/opt/pw-browsers/chromium") ? "/opt/pw-browsers/chromium" : undefined);
+  const browser = await chromium.launch({ headless: process.env.HEADED !== "1", ...(navegador ? { executablePath: navegador } : {}) });
   try {
     for (const puesto of process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(PUESTOS)) await entrar(browser, puesto);
   } finally {
