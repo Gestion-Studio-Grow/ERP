@@ -505,3 +505,32 @@ test("MIA-244 · un puesto sin importes (productor de campo, sin ficha) no ve la
   );
   assert.deepEqual(ven, ["DIRECCION:equipo", "DIRECCION:fuera", "ADMINISTRACION:equipo", "ADMINISTRACION:fuera", "COMERCIAL:equipo", "DISENO:equipo", "DISENO:fuera", "PRODUCCION:equipo", "PRODUCCION:fuera"]);
 });
+
+test("MIA-246 · Comercial en su proyecto ve el margen y no ve PAGO; Producción no ve la venta ni el margen (Pipeline y ficha); Dirección y Administración ven todo; Campo sin importes", async () => {
+  const g = await import("./gestion-core");
+  const { veLaVentaDelProyecto, columnasSinVenta, COLUMNAS_OCULTAS_BASE, permisoDe } = g as typeof g & {
+    veLaVentaDelProyecto: (rol: string, enEquipo: boolean) => boolean;
+    columnasSinVenta: (rol: string) => readonly string[];
+  };
+  assert.equal(typeof veLaVentaDelProyecto, "function", "falta veLaVentaDelProyecto (gestion-core)");
+  assert.equal(typeof columnasSinVenta, "function", "falta columnasSinVenta (gestion-core)");
+  // Pipeline: la venta de la tarjeta.
+  const ven = (["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "PRODUCCION_CAMPO", "SIN_FICHA"] as const).flatMap((rol) =>
+    [true, false].filter((enEquipo) => veLaVentaDelProyecto(rol, enEquipo)).map((enEquipo) => `${rol}:${enEquipo ? "equipo" : "fuera"}`),
+  );
+  assert.deepEqual(ven, ["DIRECCION:equipo", "DIRECCION:fuera", "ADMINISTRACION:equipo", "ADMINISTRACION:fuera", "COMERCIAL:equipo", "DISENO:equipo", "DISENO:fuera"]);
+  // Ficha: Producción no ve venta, margen ni recargo (el margen en %), aunque Dirección le guarde la ficha sin columnas ocultas.
+  assert.deepEqual([...columnasSinVenta("PRODUCCION")].sort(), ["margen", "recargo", "venta"]);
+  for (const rol of ["DIRECCION", "ADMINISTRACION", "COMERCIAL"]) assert.deepEqual(columnasSinVenta(rol), [], rol);
+  assert.ok(columnasSinVenta("PRODUCCION_CAMPO").includes("venta"));
+  // Producción sigue viendo los costos; sin cobros ni pagos.
+  assert.ok(permisoDe("PRODUCCION", "costos", []).ver);
+  assert.equal(permisoDe("PRODUCCION", "pagos", [{ rol: "PRODUCCION", modulo: "pagos", ver: true, editar: true }]).ver, false);
+  // Comercial: el margen no está entre sus columnas ocultas y ve los costos; PAGO (módulo pagos) cerrado aunque Dirección se lo guarde.
+  assert.ok(!COLUMNAS_OCULTAS_BASE.COMERCIAL.includes("margen"));
+  assert.ok(permisoDe("COMERCIAL", "costos", []).ver);
+  assert.equal(permisoDe("COMERCIAL", "pagos", [{ rol: "COMERCIAL", modulo: "pagos", ver: true, editar: true }]).ver, false);
+  // Contraprueba: Dirección y Administración ven pagos.
+  assert.ok(permisoDe("DIRECCION", "pagos", []).ver);
+  assert.ok(permisoDe("ADMINISTRACION", "pagos", []).ver);
+});
