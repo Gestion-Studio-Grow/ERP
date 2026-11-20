@@ -33,7 +33,7 @@ import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, 
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
-import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
+import { actorDelProyecto, avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { FALTA_APROBACION, FALTA_REAPROBAR, frenaSinAprobacion, tipoDeArchivoSubido, VOLVIO_A_PEDIDO, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
@@ -92,8 +92,14 @@ async function entrar(modulos: ModuloGestion | readonly ModuloGestion[], proyect
     }
   }
   if (!a) return "No tenés permiso para hacer esto.";
-  if (proyectoId !== undefined && (!proyectoId || !(await proyectoVisible(a, proyectoId)))) return "Ese proyecto no existe.";
-  return a;
+  if (proyectoId === undefined) return a;
+  if (!proyectoId || !(await proyectoVisible(a, proyectoId))) return "Ese proyecto no existe.";
+  // MIA-239: dentro de un proyecto, el permiso de ESE proyecto (`actorDelProyecto`): el productor comercial, en uno ajeno,
+  // no edita cotizaciones, precios ni la ficha. Se devuelve ese actor, así los chequeos de abajo (plus, costos) lo heredan.
+  const enProyecto = await actorDelProyecto(a, proyectoId);
+  const lista = typeof modulos === "string" ? [modulos] : modulos;
+  if (!lista.some((m) => puede(enProyecto, m, "editar"))) return "No tenés permiso para hacer esto en un proyecto que no es de tu equipo.";
+  return enProyecto;
 }
 
 // ─ Ver la plata ─
@@ -348,6 +354,8 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
   if (textoEstimado && estimado === null) return mal("El presupuesto estimado no se entiende.");
   const previo = await prisma.proyecto.findFirst({ where: { id, tenantId }, select: { anticipoClientePct: true, fechaEvento: true, moneda: true, clientId: true, nombre: true, tipoEvento: true, evento: true, ciudad: true, lugar: true, invitados: true, presupuestoEstimado: true, responsable: true, contactoNombre: true, contactoEmail: true, client: { select: { name: true } } } });
   if (!previo) return mal("Ese proyecto no existe.");
+  const tocaEstimado = !a.ajeno && formData.has("presupuestoEstimado");
+  const tocaAnticipo = !a.ajeno && formData.has("anticipoClientePct");
   const clientId = txt(formData.get("clientId")) || previo.clientId;
   const clienteNuevo = clientId === previo.clientId ? null : await prisma.client.findFirst({ where: { id: clientId, tenantId }, select: { name: true } });
   if (clientId !== previo.clientId) {
@@ -378,8 +386,10 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
         fechaDesarme: fecha(formData.get("fechaDesarme")),
         invitados: invitados === null ? null : Math.round(invitados),
         moneda,
-        presupuestoEstimado: estimado,
-        anticipoClientePct: anticipo,
+        // MIA-239: el estimado y el anticipo son plata; en un proyecto ajeno, el productor comercial no los toca, y quien no
+        // los ve (la pantalla no manda el campo) tampoco los pisa.
+        presupuestoEstimado: tocaEstimado ? estimado : previo.presupuestoEstimado,
+        anticipoClientePct: tocaAnticipo ? anticipo : previo.anticipoClientePct,
         responsable: txt(formData.get("responsable")).slice(0, 80) || null,
         contactoNombre: txt(formData.get("contactoNombre")).slice(0, 120) || null,
         contactoEmail: txt(formData.get("contactoEmail")).slice(0, 160) || null,
@@ -394,13 +404,13 @@ export async function guardarDatos(formData: FormData): Promise<ResultadoFicha> 
       ["Ciudad", previo.ciudad, txt(formData.get("ciudad")).slice(0, 80) || null],
       ["Lugar", previo.lugar, txt(formData.get("lugar")).slice(0, 120) || null],
       ["Invitados", previo.invitados, invitados === null ? null : Math.round(invitados)],
-      ["Presupuesto estimado", previo.presupuestoEstimado, estimado],
+      ["Presupuesto estimado", previo.presupuestoEstimado, tocaEstimado ? estimado : previo.presupuestoEstimado],
       ["Responsable", previo.responsable, txt(formData.get("responsable")).slice(0, 80) || null],
       ["Contacto", previo.contactoNombre, txt(formData.get("contactoNombre")).slice(0, 120) || null],
       ["Mail de contacto", previo.contactoEmail, txt(formData.get("contactoEmail")).slice(0, 160) || null],
     ];
     for (const [campo, antes, despues] of datosNuevos) await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo, antes, despues, autor: a.nombre });
-    await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Anticipo del cliente %", antes: previo.anticipoClientePct, despues: anticipo, autor: a.nombre });
+    await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Anticipo del cliente %", antes: previo.anticipoClientePct, despues: tocaAnticipo ? anticipo : previo.anticipoClientePct, autor: a.nombre });
     await registrarCambio(tx, { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Moneda de venta", antes: previo.moneda, despues: moneda, autor: a.nombre });
     // El checklist cuenta para atrás desde el evento: si se mueve la fecha, lo pendiente de la plantilla se mueve con ella.
     if ((previo.fechaEvento?.getTime() ?? null) !== (fechaEvento?.getTime() ?? null)) {
@@ -450,10 +460,14 @@ export async function revocarPortal(formData: FormData): Promise<ResultadoFicha>
 
 // ── Equipo ──────────────────────────────────────────────────────────────────
 
+const EQUIPO_AJENO = "Este proyecto no es de tu equipo: lo arman Dirección o quienes ya están en él.";
+
 export async function asignarEquipo(formData: FormData): Promise<ResultadoFicha> {
   const proyectoId = txt(formData.get("proyectoId"));
   const a = await entrar("pipeline", proyectoId);
   if (typeof a === "string") return mal(a);
+  // MIA-239: sumarse (o sumar a alguien) al equipo de un proyecto ajeno le abriría la plata al productor comercial.
+  if (a.ajeno) return mal(EQUIPO_AJENO);
   const { tenantId } = a;
   const personaId = txt(formData.get("personaId"));
   const persona = await prisma.proyectoPersona.findFirst({ where: { id: personaId, tenantId, activa: true }, select: { id: true, nombre: true } });
@@ -483,6 +497,7 @@ export async function quitarEquipo(formData: FormData): Promise<ResultadoFicha> 
   const proyectoId = txt(formData.get("proyectoId"));
   const a = await entrar("pipeline", proyectoId);
   if (typeof a === "string") return mal(a);
+  if (a.ajeno) return mal(EQUIPO_AJENO);
   await prisma.proyectoEquipo.deleteMany({ where: { id: txt(formData.get("id")), proyectoId, tenantId: a.tenantId } });
   refrescar(proyectoId);
   return { ok: true };

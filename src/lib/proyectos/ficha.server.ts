@@ -9,7 +9,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { totalesCongelados } from "./precio-foto.server";
 import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, rolVeLaPlata, totalesFicha, veImportes, veLosCobros, ventaOEstimado, ventaTotalItem } from "./gestion-core";
-import { columnasOcultas, filtroDeProyectos, puede, tiposDeCambio, versionViva, versionDeLaPlata, aItemFicha, type Actor } from "./gestion.server";
+import { columnasOcultas, filtroDeProyectos, filtroDeProyectosConPlata, puede, tiposDeCambio, versionViva, versionDeLaPlata, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
 import { cobranzasDelNegocio } from "./cobranza.server";
@@ -17,7 +17,7 @@ import { conPagosParciales, conPartesComoPagadas, porPagarComoGastos } from "./p
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import { comprobantesEnElFlujo, costoRealDeProyectos, cuotasEnlazadas, imputadoSinItem, lineasImputadasDe } from "./comprobantes.server";
 import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
-import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
+import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, veLaPlataDelProyecto, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
 import { modoDeLaPropuesta } from "./precio-proyecto.server";
@@ -25,14 +25,15 @@ import { totalesDelNeto, type ModoPropuesta } from "./precio-proyecto-core";
 
 export interface TarjetaProyecto {
   id: string;
-  ventaTexto: string; // en la moneda del evento; `venta` sigue en pesos para sumar
+  /** MIA-239 · null: el productor comercial no ve la venta de un proyecto que no es de su equipo. */
+  ventaTexto: string | null; // en la moneda del evento; `venta` sigue en pesos para sumar
   codigo: string;
   nombre: string;
   ciudad: string | null;
   cliente: string;
   tipo: string | null;
   iniciales: string[];
-  venta: number;
+  venta: number | null;
   fecha: string;
   fechaOrden: number;
   etapa: string;
@@ -63,14 +64,18 @@ export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
         perdidoEl: true,
         motivoPerdida: true,
         client: { select: { name: true } },
-        equipo: { select: { persona: { select: { nombre: true } } } },
+        equipo: { select: { personaId: true, persona: { select: { nombre: true } } } },
         presupuestos: { orderBy: { version: "desc" }, take: 1, select: { tcVenta: true, items: { select: { cantidad: true, costo: true, moneda: true, recargoPct: true, precio: true } } } },
       },
     }),
     tiposDeCambio(a.tenantId),
     configProyectos(a.tenantId),
   ]);
-  return proyectos.map((p) => ({
+  return proyectos.map((p) => {
+    // MIA-239: el mismo control que `actorDelProyecto`; fuera de su equipo, el productor comercial ve el lead sin la venta.
+    const conVenta = veLaPlataDelProyecto(a.rol, !!a.personaId && p.equipo.some((e) => e.personaId === a.personaId));
+    const venta = redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0));
+    return {
     id: p.id,
     codigo: codigoProyecto(p.numero, p.createdAt),
     nombre: p.nombre,
@@ -80,14 +85,15 @@ export async function tableroPipeline(a: Actor): Promise<TarjetaProyecto[]> {
     iniciales: p.equipo.map((e) => iniciales(e.persona.nombre)),
     // El pipeline del tablero es el mismo que el «Pipeline abierto» de Dirección (`empresa.server.ts`, `ventaOEstimado`):
     // un lead todavía sin ítems pesa por lo que se estimó (MIA-089 · T: eran 1.000.000 de diferencia en la semilla).
-    venta: ventaOEstimado(redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0)), p.presupuestoEstimado, p.moneda, tc),
-    ventaTexto: ventaEn(redondear((p.presupuestos[0]?.items ?? []).reduce((s, i) => s + ventaTotalItem(i, tc, config.margenPct), 0)), p.moneda, cambioDeVenta(p.moneda, p.presupuestos[0]?.tcVenta, tc)),
+    venta: conVenta ? ventaOEstimado(venta, p.presupuestoEstimado, p.moneda, tc) : null,
+    ventaTexto: conVenta ? ventaEn(venta, p.moneda, cambioDeVenta(p.moneda, p.presupuestos[0]?.tcVenta, tc)) : null,
     fecha: p.fechaEvento ? fechaCorta(p.fechaEvento) : "Sin fecha",
     fechaOrden: p.fechaEvento?.getTime() ?? Number.MAX_SAFE_INTEGER,
     etapa: p.etapa,
     columna: columnaDe(p),
     motivoPerdida: p.motivoPerdida,
-  }));
+    };
+  });
 }
 
 export interface Vista {
@@ -111,7 +117,8 @@ export interface Vista {
 export function vistaDe(a: Actor): Vista {
   const costos = puede(a, "costos", "ver");
   const pagos = puede(a, "pagos", "ver");
-  const importes = veImportes(a.rol);
+  // MIA-239: en un proyecto ajeno (`actorDelProyecto`), el productor comercial no ve ningún importe, tampoco la venta.
+  const importes = veImportes(a.rol) && !a.ajeno;
   // Sin el permiso de costos, se ocultan las cuatro columnas aunque el rol no las tenga en su lista; sin importes, también la venta.
   const ocultas = new Set<string>(costos ? columnasOcultas(a) : COLUMNAS_FICHA.map((c) => c.id));
   if (!importes) ocultas.add("venta");
@@ -337,9 +344,9 @@ export async function datosDiseno(a: Actor, proyectoId: string) {
   return { stands, entregables };
 }
 
-/** Lo que sale en papel y en la planilla descargable: nunca un costo. */
+/** Lo que sale en papel y en la planilla descargable: nunca un costo. MIA-239: sólo de un proyecto cuya plata ve (la venta lo es). */
 export function planillaParaPapel(a: Actor, proyectoId: string, versionId?: string | null) {
-  return armarPapel(a.tenantId, { ...filtroDeProyectos(a), id: proyectoId }, versionId);
+  return armarPapel(a.tenantId, { ...filtroDeProyectosConPlata(a), id: proyectoId }, versionId);
 }
 
 /** El mismo papel para el cliente, con el link de su propuesta. Un borrador todavía no existe para él. */

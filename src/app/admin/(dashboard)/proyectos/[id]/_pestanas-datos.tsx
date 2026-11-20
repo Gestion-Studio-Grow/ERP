@@ -60,8 +60,8 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
           <div className={dato}><dt className="text-xs text-muted">Invitados</dt><dd className="text-strong">{p.invitados?.toLocaleString("es-AR") ?? "—"}</dd></div>
           <div className={dato}><dt className="text-xs text-muted">Moneda de venta</dt><dd className="text-strong">{p.moneda}</dd></div>
           <div className={dato}><dt className="text-xs text-muted">Responsable</dt><dd className="text-strong">{p.responsable || "—"}</dd></div>
-          <div className={dato}><dt className="text-xs text-muted">Anticipo del cliente</dt><dd className="text-strong">{porcentaje(p.anticipoClientePct)}</dd></div>
-          <div className={dato}><dt className="text-xs text-muted">Presupuesto estimado</dt><dd className="text-strong">{p.presupuestoEstimado != null ? importe(p.presupuestoEstimado, p.moneda) : "—"}</dd></div>
+          {vista.importes && (<div className={dato}><dt className="text-xs text-muted">Anticipo del cliente</dt><dd className="text-strong">{porcentaje(p.anticipoClientePct)}</dd></div>)}
+          {vista.importes && (<div className={dato}><dt className="text-xs text-muted">Presupuesto estimado</dt><dd className="text-strong">{p.presupuestoEstimado != null ? importe(p.presupuestoEstimado, p.moneda) : "—"}</dd></div>)}
           <div className={dato}><dt className="text-xs text-muted">Creado</dt><dd className="text-strong">{fechaCorta(p.createdAt)}</dd></div>
           {p.evento && <div className={dato}><dt className="text-xs text-muted">Feria o marco</dt><dd className="text-strong">{p.evento}</dd></div>}
         </dl>
@@ -95,8 +95,8 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
                 <label className={etiqueta}>Moneda de venta
                   <select name="moneda" defaultValue={p.moneda} className={campo}>{MONEDAS.map((m) => <option key={m} value={m}>{m}</option>)}</select>
                 </label>
-                <label className={etiqueta}>Presupuesto estimado<input name="presupuestoEstimado" inputMode="decimal" defaultValue={p.presupuestoEstimado ?? ""} className={campo} /></label>
-                <label className={etiqueta}>Anticipo del cliente %<input name="anticipoClientePct" inputMode="decimal" defaultValue={p.anticipoClientePct} className={campo} /></label>
+                {vista.importes && (<label className={etiqueta}>Presupuesto estimado<input name="presupuestoEstimado" inputMode="decimal" defaultValue={p.presupuestoEstimado ?? ""} className={campo} /></label>)}
+                {vista.importes && (<label className={etiqueta}>Anticipo del cliente %<input name="anticipoClientePct" inputMode="decimal" defaultValue={p.anticipoClientePct} className={campo} /></label>)}
                 <label className={etiqueta}>Responsable<input name="responsable" maxLength={80} defaultValue={p.responsable ?? ""} className={campo} /></label>
                 <label className={etiqueta}>Contacto del cliente<input name="contactoNombre" maxLength={120} defaultValue={p.contactoNombre ?? ""} className={campo} /></label>
                 <label className={etiqueta}>Mail del contacto<input name="contactoEmail" type="email" maxLength={160} defaultValue={p.contactoEmail ?? ""} className={campo} /></label>

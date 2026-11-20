@@ -68,9 +68,10 @@ export const COLUMNAS_PIPELINE: readonly string[] = [...ETAPAS, PERDIDO];
 
 export const columnaDe = (p: { etapa: string; perdidoEl: Date | string | null }): string => (p.perdidoEl ? PERDIDO : p.etapa);
 
-export function resumenPipeline(proyectos: readonly { etapa: string; venta: number; perdido: boolean }[]): { abiertos: number; valor: number } {
+/** MIA-239 · `venta` null = un proyecto ajeno del productor comercial: cuenta como lead abierto, pero no suma al valor. */
+export function resumenPipeline(proyectos: readonly { etapa: string; venta: number | null; perdido: boolean }[]): { abiertos: number; valor: number } {
   const abiertos = proyectos.filter((p) => !p.perdido && (ETAPAS_DE_LEAD as readonly string[]).includes(p.etapa));
-  return { abiertos: abiertos.length, valor: redondear(abiertos.reduce((s, p) => s + p.venta, 0)) };
+  return { abiertos: abiertos.length, valor: redondear(abiertos.reduce((s, p) => s + (p.venta ?? 0), 0)) };
 }
 
 export function iniciales(nombre: string): string {

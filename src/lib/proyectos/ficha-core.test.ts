@@ -193,3 +193,11 @@ test("MIA-232 · H1-H3: motivo reservado, freno sin re-aprobar y «Vendido» sin
   assert.equal(vendidoDelCliente([{ t: { total: 1863.4 }, perdidoEl: null }, { t: { total: 1863.4 }, perdidoEl }, { t: null, perdidoEl: null }]), 1863.4);
   assert.equal(vendidoDelCliente([]), 0);
 });
+
+test("MIA-239 · el valor del pipeline del productor comercial suma sólo sus proyectos: el ajeno (venta null) cuenta como lead, sin plata", () => {
+  const r = resumenPipeline([
+    { etapa: "PEDIDO", venta: 1000, perdido: false },
+    { etapa: "PROPUESTA", venta: null, perdido: false },
+  ]);
+  assert.deepEqual(r, { abiertos: 2, valor: 1000 });
+});

@@ -753,6 +753,14 @@ export const veLosCobros = (rol: RolGestion): boolean => rolVeLaPlata(rol) || ro
  * cobros ni costos. El resto de los puestos, como estaba (lo decide su permiso). PURA.
  */
 export const veLaPlataDelProyecto = (rol: RolGestion, estaEnEquipo: boolean): boolean => rol !== "COMERCIAL" || estaEnEquipo;
+/**
+ * MIA-239 · en un proyecto ajeno (`veLaPlataDelProyecto` en falso) no se ve ningún importe, tampoco la venta (lectura de
+ * ORQ-007 de la opción B, a confirmar por el dueño): se cierran costos, cotizaciones y pagos, y editar la ficha (que cambia
+ * precios). El resto (pipeline, diseño, ver la ficha sin importes) sigue con su permiso. PURA.
+ */
+const PLATA_DEL_PROYECTO: readonly ModuloGestion[] = ["costos", "cotizaciones", "pagos"];
+export const cerradoEnProyectoAjeno = (modulo: ModuloGestion, accion: "ver" | "editar"): boolean =>
+  PLATA_DEL_PROYECTO.includes(modulo) || (modulo === "ficha" && accion === "editar");
 export const veImportes = (rol: RolGestion): boolean => rol !== "PRODUCCION_CAMPO" && rol !== "SIN_FICHA";
 
 /** Rendir lo mío: un rol que rinde y que está en el `ProyectoEquipo` del proyecto (ver todos no alcanza). PURA. */

@@ -489,3 +489,11 @@ test("MIA-229 · la plata (pagos, empresa, liquidaciones) sólo la abren Direcci
   assert.equal(permisoDe("PRODUCCION", "rendiciones", []).ver, true);
   assert.equal(permisoDe("PRODUCCION_CAMPO", "rendiciones", []).ver, true);
 });
+
+test("MIA-239 · en un proyecto ajeno se cierran costos, cotizaciones, pagos y editar la ficha; el resto sigue su permiso", async () => {
+  const { cerradoEnProyectoAjeno } = await import("./gestion-core");
+  const cerrados = (["pipeline", "ficha", "costos", "cotizaciones", "pagos", "diseno", "ia"] as const).flatMap((m) =>
+    (["ver", "editar"] as const).filter((acc) => cerradoEnProyectoAjeno(m, acc)).map((acc) => `${m}:${acc}`),
+  );
+  assert.deepEqual(cerrados, ["ficha:editar", "costos:ver", "costos:editar", "cotizaciones:ver", "cotizaciones:editar", "pagos:ver", "pagos:editar"]);
+});

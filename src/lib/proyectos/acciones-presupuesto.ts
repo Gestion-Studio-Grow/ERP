@@ -14,7 +14,7 @@ import { sePuedeEditar } from "./core";
 import { veLaPlata } from "./datos.server";
 import { numeroDe } from "./ficha-core";
 import type { ModuloGestion } from "./gestion-core";
-import { actorActual, proyectoVisible, puede, regenerarCuotas, registrarCambio, type Actor } from "./gestion.server";
+import { actorActual, actorDelProyecto, proyectoVisible, puede, regenerarCuotas, registrarCambio, type Actor } from "./gestion.server";
 import { valoresDelNegocio } from "./parametros/leer.server";
 import { aCentavos, errorDeAnticipo, errorDeAprobador, errorDeListas, errorDeMarcaPrevision, errorDePersonal, esPersonal, ESTADO_ADICIONAL_LABEL, type EstadoAdicional } from "./presupuesto-core";
 import { FALTA_M2, hayM2 } from "./presupuesto-m2.server";
@@ -40,8 +40,11 @@ async function entrar(modulos: readonly ModuloGestion[], proyectoId: string): Pr
   const a = await actorActual();
   if (!modulos.some((m) => puede(a, m, "editar"))) return "No tenés permiso para hacer esto.";
   if (!proyectoId || !(await proyectoVisible(a, proyectoId))) return "Ese proyecto no existe.";
+  // MIA-239: en un proyecto ajeno, el productor comercial no edita la cotización (`actorDelProyecto`).
+  const enProyecto = await actorDelProyecto(a, proyectoId);
+  if (!modulos.some((m) => puede(enProyecto, m, "editar"))) return "No tenés permiso para hacer esto en un proyecto que no es de tu equipo.";
   if (!(await hayM2())) return FALTA_M2;
-  return a;
+  return enProyecto;
 }
 
 /** Dos guardados casi juntos pueden chocar creando la misma cuota: el segundo intento ya la encuentra. */

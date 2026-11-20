@@ -19,7 +19,7 @@ import { roleHasCapability } from "@/lib/capabilities";
 import type { SessionUser } from "@/lib/session";
 import type { Prisma } from "@/generated/prisma/client";
 import { configProyectos } from "./datos.server";
-import { venceDeLaCuota, previstaDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, veLaPlataDelProyecto, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { venceDeLaCuota, previstaDeLaCuota, ajustarAPagado, cambioDeVenta, COLUMNAS_OCULTAS_BASE, cuotaPrevista, rolDelActor, mailDeAviso, permisoDe, planDeCuotas, cerradoEnProyectoAjeno, veLaPlataDelProyecto, veTodosLosProyectos, type ItemFicha, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { tiposDeCambio, trabarCobranza } from "./cobranza.server";
 import { tomarCuotas } from "./comprobantes.server";
 import { cubiertasPorSusPartes, descontarPartes, partesEnMonedaDelPlan, SALDADA_CON_PARTES } from "./pago-parcial-core";
@@ -36,7 +36,7 @@ export interface Actor {
   nombre: string;
   rol: RolGestion;
   permisos: { rol: string; modulo: string; ver: boolean; editar: boolean; columnasOcultas: unknown }[];
-  /** MIA-238 · el actor en un proyecto que no es de su cartera (`actorDelProyecto`): sin costos ni cobros. */
+  /** MIA-238/239 · el actor en un proyecto que no es de su cartera (`actorDelProyecto`): sin ningún importe ni cotizaciones. */
   ajeno?: boolean;
 }
 
@@ -62,7 +62,7 @@ export async function actorActual(): Promise<Actor> {
 }
 
 export function puede(a: Actor, modulo: ModuloGestion, accion: "ver" | "editar"): boolean {
-  if (a.ajeno && modulo === "costos") return false;
+  if (a.ajeno && cerradoEnProyectoAjeno(modulo, accion)) return false;
   return permisoDe(a.rol, modulo, a.permisos)[accion];
 }
 
@@ -74,6 +74,15 @@ export async function actorDelProyecto(a: Actor, proyectoId: string): Promise<Ac
   if (a.rol !== "COMERCIAL") return a;
   const enEquipo = !!a.personaId && !!(await prisma.proyectoEquipo.findFirst({ where: { tenantId: a.tenantId, proyectoId, personaId: a.personaId }, select: { id: true } }));
   return veLaPlataDelProyecto(a.rol, enEquipo) ? a : { ...a, ajeno: true };
+}
+
+/**
+ * MIA-239 · el filtro de los proyectos cuya plata ve esta persona: el de `filtroDeProyectos`, y para el productor comercial
+ * sólo los de su equipo (el mismo control que `actorDelProyecto`, como filtro de Prisma para listas y sumas).
+ */
+export function filtroDeProyectosConPlata(a: Actor): Prisma.ProyectoWhereInput {
+  const visibles = filtroDeProyectos(a);
+  return veLaPlataDelProyecto(a.rol, false) ? visibles : { ...visibles, equipo: { some: { personaId: a.personaId ?? "-" } } };
 }
 
 /** Para las pantallas: sin permiso, de vuelta a Inicio. */

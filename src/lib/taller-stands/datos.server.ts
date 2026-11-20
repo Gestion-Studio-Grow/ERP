@@ -7,7 +7,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { tallerStandsEnabled } from "@/modules/flags";
 import { configProyectos } from "@/lib/proyectos/datos.server";
-import { filtroDeProyectos, tiposDeCambio, type Actor } from "@/lib/proyectos/gestion.server";
+import { filtroDeProyectosConPlata, tiposDeCambio, type Actor } from "@/lib/proyectos/gestion.server";
 import { faltaLaTabla, papelParaMia, tallerVisible, type LineaDespiece } from "./core";
 
 /** Flag prendida, módulo asignado y rubro del taller. Para todo lo demás (MIA incluida), no existe. */
@@ -58,7 +58,8 @@ export async function despieceDelProyecto(tenantId: string, proyectoId: string):
 
 /** El presupuesto para la productora: la última versión (o la pedida), sin costo ni margen. */
 export async function papelMiaDelProyecto(a: Actor, proyectoId: string, versionId?: string | null) {
-  const p = await prisma.proyecto.findFirst({ where: { ...filtroDeProyectos(a), id: proyectoId }, select: { id: true, nombre: true, lugar: true, fechaEvento: true, client: { select: { name: true } } } });
+  // MIA-239: el papel lleva la venta; el productor comercial, sólo de los proyectos de su equipo.
+  const p = await prisma.proyecto.findFirst({ where: { ...filtroDeProyectosConPlata(a), id: proyectoId }, select: { id: true, nombre: true, lugar: true, fechaEvento: true, client: { select: { name: true } } } });
   if (!p) return null;
   const version = await prisma.proyectoPresupuesto.findFirst({
     where: { tenantId: a.tenantId, proyectoId: p.id, ...(versionId ? { id: versionId } : {}) },
