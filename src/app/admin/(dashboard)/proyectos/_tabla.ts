@@ -54,7 +54,7 @@ export function cssTarjetas(ambito: string, etiquetas: readonly string[]): strin
   );
 }
 
-type ColumnasFicha = { costoUnit: boolean; costoTotal: boolean; recargo: boolean; margen: boolean };
+type ColumnasFicha = { costoUnit: boolean; costoTotal: boolean; recargo: boolean; margen: boolean; venta?: boolean };
 
 /** Las etiquetas de las tarjetas del teléfono, en el orden de las columnas de `TablaFicha` (_tabla-ficha.tsx:95-110). */
 export function etiquetasFicha(c: ColumnasFicha, editable: boolean, moneda: string): string[] {
@@ -64,7 +64,7 @@ export function etiquetasFicha(c: ColumnasFicha, editable: boolean, moneda: stri
     ...(c.costoUnit ? ["Costo u.", "Moneda"] : []),
     ...(c.recargo ? ["Recargo %"] : []),
     ...(c.costoTotal ? [`Costo ${m}`, "Costo real $"] : []),
-    `Venta u. ${m}`, `Venta ${m}`,
+    ...(c.venta !== false ? [`Venta u. ${m}`, `Venta ${m}`] : []),
     ...(c.margen ? ["Margen"] : []),
     "Fecha límite", "Estado", "Visible", "Adjuntos",
     ...(editable ? [""] : []),

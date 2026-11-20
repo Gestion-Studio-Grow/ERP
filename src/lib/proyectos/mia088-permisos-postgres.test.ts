@@ -181,14 +181,24 @@ test("PRY-100 · el camino de dos pasos: con «Equipo» en Comercial (se lo dio 
 test("PRY-100 · quien tiene «Equipo» carga personas, pero no se cambia de ficha (desvincularse es el primer paso para cambiarse el rol)", async (t) => {
   const p = await preparar(t);
   if (!p) return;
-  const { como, usuarios, fichas, gestion, form, foto } = p;
+  const { como, usuarios, fichas, gestion, form, foto, formPermisos, E } = p;
+  const noPasa = (x: Salida<unknown>) => esRechazo(x) || (x.tipo === "respuesta" && !(x.valor as { ok: boolean }).ok);
   const antes = await foto();
   const suelta = await como(usuarios.adm, () => gestion.guardarPersona(form({ id: fichas.adm.id, nombre: "Admin", email: "admin@mia088.test", rol: "ADMINISTRACION" })));
-  assert.ok(suelta.tipo === "respuesta" && !(suelta.valor as { ok: boolean }).ok, `Administración no desvincula su propia cuenta de su ficha (vino ${JSON.stringify(suelta)})`);
+  assert.ok(noPasa(suelta), `Administración no desvincula su propia cuenta de su ficha (vino ${JSON.stringify(suelta)})`);
   assert.deepEqual(await foto(), antes, "0 cambios: sigue vinculada, con su rol");
-  // Cargar a otra persona sí: es lo que da «Equipo».
-  const alta = await como(usuarios.adm, () => gestion.guardarPersona(form({ nombre: "Armador nuevo", rol: "PRODUCCION" })));
-  assert.deepEqual(alta.tipo === "respuesta" && alta.valor, { ok: true }, `Administración con Equipo da de alta a una persona: ${JSON.stringify(alta)}`);
+  // MIA-237 (dueño, 20/11: «Administración no es dirección»): «Equipo» le queda fijo en sin acceso aunque Dirección se lo
+  // guarde (la precondición de `armar`): no carga personas ni roles.
+  const altaAdm = await como(usuarios.adm, () => gestion.guardarPersona(form({ nombre: "Armador nuevo", rol: "PRODUCCION" })));
+  assert.ok(noPasa(altaAdm), `Administración ya no da de alta personas (vino ${JSON.stringify(altaAdm)})`);
+  assert.deepEqual(await foto(), antes, "0 cambios");
+  // Cargar a otra persona sí, para quien tiene «Equipo»: Dirección se lo abre a Comercial.
+  const abre = await como(usuarios.duenia, async () => gestion.guardarPermisos(await formPermisos({ "COMERCIAL:equipo": E })));
+  assert.ok(abre.tipo === "redireccion" && abre.destino === PERMISOS_OK, `Dirección le abre Equipo a Comercial: ${JSON.stringify(abre)}`);
+  const alta = await como(usuarios.com, () => gestion.guardarPersona(form({ nombre: "Armador nuevo", rol: "PRODUCCION" })));
+  assert.deepEqual(alta.tipo === "respuesta" && alta.valor, { ok: true }, `Comercial con Equipo da de alta a una persona: ${JSON.stringify(alta)}`);
+  const cierra = await como(usuarios.duenia, async () => gestion.guardarPermisos(await formPermisos({ "COMERCIAL:equipo": { ver: false, editar: false } })));
+  assert.ok(cierra.tipo === "redireccion", "Dirección vuelve a cerrarle Equipo a Comercial");
 });
 
 test("PRY-100 · Dirección sigue pudiendo todo: la dueña sin ficha y una Dirección con ficha cambian la matriz, con su renglón", async (t) => {

@@ -222,6 +222,8 @@ export async function PestanaCotizacion({ a, cab, vista, ver, cambios }: { a: Ac
 
 // ── Finanzas ────────────────────────────────────────────────────────────────
 
+// MIA-237: acá «costos» es lo de proveedores (pagos, deudas, costo real, saldo de caja): `vista.deudas`. El productor
+// comercial abre la pestaña por sus cobros y no ve nada de eso.
 export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab: Cabecera; vista: Vista; filtro?: string }) {
   const cuentas = vista.editaPagos ? await prisma.proyectoCuentaBanco.findMany({ where: { tenantId: a.tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true } }) : [];
   const { proyecto: p, totales: t, faltanCambio } = cab;
@@ -257,7 +259,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
           La versión {cab.viva.version} es un borrador: las cuotas, lo que falta cobrar y estos importes siguen saliendo de la versión aprobada ({cab.base.version}). El borrador no mueve plata hasta que se aprueba.
         </p>
       )}
-      {vista.costos && cab.sinProveedor.cuantos > 0 && (
+      {vista.deudas && cab.sinProveedor.cuantos > 0 && (
         <p role="status" className="rounded-md border border-danger/30 bg-danger-soft px-3 py-2.5 text-sm text-danger">
           {cab.sinProveedor.cuantos === 1 ? "1 ítem con costo no tiene" : `${cab.sinProveedor.cuantos} ítems con costo no tienen`} proveedor: {pesos(cab.sinProveedor.monto)} no están en este cashflow, y el saldo se ve mejor de lo que es.
         </p>
@@ -266,8 +268,8 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
           <Numero titulo="Venta presupuestada" valor={enEvento(t.venta)} />
           {verCosto && <Numero titulo="Costo presupuestado" valor={enEvento(t.costo)} />}
-          {vista.costos && <Numero titulo="Saldo final" valor={enCaja(d.flujo.saldoFinal)} alerta={d.flujo.saldoFinal < 0} />}
-          {vista.costos && <Numero titulo="Máximo a financiar" valor={enCaja(d.flujo.maximoAFinanciar)} alerta={d.flujo.maximoAFinanciar > 0} />}
+          {vista.deudas && <Numero titulo="Saldo final" valor={enCaja(d.flujo.saldoFinal)} alerta={d.flujo.saldoFinal < 0} />}
+          {vista.deudas && <Numero titulo="Máximo a financiar" valor={enCaja(d.flujo.maximoAFinanciar)} alerta={d.flujo.maximoAFinanciar > 0} />}
         </dl>
         {faltanCambio.length > 0 && <p role="alert" className="mt-3 text-sm font-medium text-danger">Falta el tipo de cambio de {faltanCambio.join(", ")}: esos importes están valiendo cero.</p>}
       </section>
@@ -392,13 +394,13 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         )}
         {vista.editaPagos && (
           <div className="grid gap-3 border-t border-line pt-3">
-            {(admite("COBRO") || vista.costos) && <details>
+            {(admite("COBRO") || vista.deudas) && <details>
               <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-strong">Movimiento manual</summary>
               <FormAccion accion={crearMovimientoManual} limpiar claveDeEnvio className="grid gap-2 pt-2 sm:grid-cols-3">
                 <input type="hidden" name="proyectoId" value={p.id} />
                 <select name="tipo" aria-label="Tipo" defaultValue={perdido ? "PAGO" : "COBRO"} className={campo}>
                   {admite("COBRO") && <option value="COBRO">Cobro</option>}
-                  {vista.costos && <option value="PAGO">Pago</option>}
+                  {vista.deudas && <option value="PAGO">Pago</option>}
                 </select>
                 <input name="concepto" required maxLength={200} aria-label="Concepto" placeholder="Concepto" className={cn(campo, "sm:col-span-2")} />
                 <input name="monto" required inputMode="decimal" aria-label="Monto" placeholder="Monto" className={campo} />
@@ -419,7 +421,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
         )}
       </section>
 
-      {vista.costos && (
+      {vista.deudas && (
         <section className={tarjeta} aria-label="Costo real">
           <h2 className="mb-1 font-semibold text-strong">Costo real</h2>
           <dl className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-5">

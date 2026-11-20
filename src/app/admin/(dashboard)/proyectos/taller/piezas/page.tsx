@@ -17,7 +17,8 @@ export default async function CatalogoPiezas({ searchParams }: { searchParams: P
   await requireApp("proyectos");
   const a = await exigirVer("cotizaciones");
   if (!puede(a, "costos", "ver") || !(await tallerActivo(a.tenantId))) notFound();
-  const edita = puede(a, "cotizaciones", "editar");
+  // MIA-237: el taller escribe costos; el productor comercial los ve pero no los cambia (`entrar`, taller-stands/acciones.ts).
+  const edita = puede(a, "costos", "editar") && puede(a, "cotizaciones", "editar");
   const [{ aviso }, { sinMigrar, piezas }, productos] = await Promise.all([searchParams, piezasDelTaller(a.tenantId), edita ? productosParaPiezas(a.tenantId) : Promise.resolve([])]);
   const nombreProducto = new Map(productos.map((p) => [p.id, p.nombre]));
   return (

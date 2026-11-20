@@ -281,8 +281,18 @@ export function esCapacidadPorUsuario(cap: string): cap is Capability {
   return (CAPACIDADES_POR_USUARIO as readonly string[]).includes(cap);
 }
 
-/** Override si existe y la capability está en la matriz; si no, el default del rol. */
+/**
+ * MIA-237 · capacidades que el PUESTO puede apagar aunque el rol del ERP las traiga (techo de puesto): Administración
+ * entra como OWNER por Facturación pero no administra usuarios ni permisos (`DECISIONES_DE_PUESTOS.capacidadesNegadas`).
+ * Sólo apagan: un `allowed: true` de estas no prende nada (sigue el candado de la matriz).
+ */
+export const CAPACIDADES_NEGABLES_POR_PUESTO: readonly Capability[] = ["users:manage"] as const;
+
+/** Override si existe y la capability está en la matriz; si no, el default del rol. Una negación de puesto gana. */
 export function permisoEfectivo(user: UsuarioConPermisos, cap: Capability): boolean {
+  if ((CAPACIDADES_NEGABLES_POR_PUESTO as readonly string[]).includes(cap) && (user.overrides ?? []).some((o) => o.capability === cap && o.allowed === false)) {
+    return false;
+  }
   if (esCapacidadPorUsuario(cap)) {
     // `?? []`: el tipo lo exige, pero un usuario armado a mano (fixture, cast) sin la lista no puede
     // tumbar la autorización: vale el rol.

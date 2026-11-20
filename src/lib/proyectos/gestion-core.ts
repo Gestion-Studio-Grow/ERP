@@ -674,7 +674,7 @@ export function movimientoDeCuenta(d: { tipo: string; monto: number; moneda: str
 export const ROLES_GESTION = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "DISENO", "PRODUCCION", "PRODUCCION_CAMPO"] as const;
 /** `SIN_FICHA` no se asigna: es quien entra sin estar cargado en el equipo, y no abre nada más que Inicio. */
 export type RolGestion = (typeof ROLES_GESTION)[number] | "SIN_FICHA";
-export const ROL_LABEL: Record<RolGestion, string> = { DIRECCION: "Dirección", ADMINISTRACION: "Administración", COMERCIAL: "Comercial", DISENO: "Diseño", PRODUCCION: "Producción", PRODUCCION_CAMPO: "Producción de campo", SIN_FICHA: "Sin ficha" };
+export const ROL_LABEL: Record<RolGestion, string> = { DIRECCION: "Dirección", ADMINISTRACION: "Administración", COMERCIAL: "Productor comercial", DISENO: "Diseño", PRODUCCION: "Producción", PRODUCCION_CAMPO: "Productor de campo", SIN_FICHA: "Sin ficha" };
 
 /** Sólo el dueño entra como Dirección sin ficha: tiene que poder armar el equipo. Cualquier otro espera a que lo carguen. */
 export function rolDelActor(rolDeLaFicha: string | null | undefined, rolDelErp: string): RolGestion {
@@ -716,7 +716,8 @@ export const PERMISOS_BASE: Record<Exclude<RolGestion, "DIRECCION">, Record<Modu
   PRODUCCION: { pipeline: E, ficha: E, costos: E, proveedores: E, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
   DISENO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: V, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: N },
   ADMINISTRACION: { pipeline: V, ficha: V, costos: V, proveedores: E, cotizaciones: V, diseno: N, pagos: E, empresa: E, liquidaciones: E, direccion: N, equipo: N, ia: N, rendiciones: E },
-  COMERCIAL: { pipeline: E, ficha: V, costos: N, proveedores: N, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
+  // MIA-237 · productor comercial (dueño, 20/11: «es B, ve costos tmb»): costos en «ver», fijo (`FIJOS_DEL_PUESTO`).
+  COMERCIAL: { pipeline: E, ficha: V, costos: V, proveedores: N, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
   // O47: la ficha y el proyecto en «ver» (tareas, lista de control, agenda); «rendiciones» en ver = rinde lo propio. Nada de
   // costos, cotizaciones, pagos, empresa ni liquidaciones: no le llegan precios, márgenes ni costos ajenos.
   PRODUCCION_CAMPO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: N, diseno: N, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: N, rendiciones: V },
@@ -733,6 +734,17 @@ const ROLES_QUE_APRUEBAN_RENDICIONES: readonly RolGestion[] = ["DIRECCION", "ADM
 
 /** MIA-223 · el rol de gestión que ve y mueve la plata de Proyectos (lo usa `veLaPlata`, datos.server.ts). PURA. */
 export const rolVeLaPlata = (rol: RolGestion): boolean => ROLES_QUE_APRUEBAN_RENDICIONES.includes(rol);
+
+/**
+ * MIA-237 · lo que cada puesto ve de la plata de un proyecto (dueño, 20/11 13:05Z, confirmado 13:25Z):
+ *  · Dirección y Administración: toda (`rolVeLaPlata`).
+ *  · Productor comercial: lo cobrado y lo que falta cobrar, y los costos; no los pagos ni las deudas con proveedores.
+ *  · Producción: los costos para presupuestar (P3), sin cobros ni pagos. Diseño, como estaba.
+ *  · Productor de campo y quien no tiene ficha: ningún importe, ni la venta. Rinde lo suyo igual.
+ * PURAS: las usan la vista de la ficha (`vistaDe`, ficha.server.ts) y sus lecturas.
+ */
+export const veLosCobros = (rol: RolGestion): boolean => rolVeLaPlata(rol) || rol === "COMERCIAL";
+export const veImportes = (rol: RolGestion): boolean => rol !== "PRODUCCION_CAMPO" && rol !== "SIN_FICHA";
 
 /** Rendir lo mío: un rol que rinde y que está en el `ProyectoEquipo` del proyecto (ver todos no alcanza). PURA. */
 export function puedeRendir(rol: RolGestion, estaEnEquipo: boolean): boolean {
@@ -789,7 +801,8 @@ const APPS_DEL_ERP: Partial<Record<RolGestion, readonly string[]>> = {
 const BARRA_DEL_ROL: Record<RolGestion, readonly string[]> = {
   // Caja a la vista de Dirección (QA MIA #6): el rol del ERP sigue siendo el techo (`appsVisibles` pide orders:read).
   DIRECCION: ["gestion-inicio", "gestion-direccion", "gestion-administracion", "proyectos", "gestion-calendario", "gestion-equipo", "cuentas-a-cobrar", "cuentas-a-pagar", "flujo-de-fondos", "caja-del-dia", "reportes", "eventos-sponsors", "crm-comercial"],
-  ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "cuentas-a-cobrar", "cuentas-a-pagar", "flujo-de-fondos", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
+  // MIA-237: «ve toda la adm y los proyectos tmb».
+  ADMINISTRACION: ["gestion-inicio", "gestion-administracion", "proyectos", "cuentas-a-cobrar", "cuentas-a-pagar", "flujo-de-fondos", "gestion-proveedores", "caja-del-dia", "libro-de-caja", "cierre-del-dia", "facturacion", "gestion-mi-liquidacion"],
   COMERCIAL: ["gestion-inicio", "proyectos", "clientes", "eventos-sponsors", "crm-comercial", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   DISENO: ["gestion-inicio", "gestion-diseno", "proyectos", "gestion-propuesta-ia", "gestion-agentes", "gestion-calendario", "gestion-mi-liquidacion"],
   PRODUCCION: ["gestion-inicio", "proyectos", "gestion-proveedores", "gestion-calendario", "gestion-agentes", "gestion-mi-liquidacion"],
@@ -804,7 +817,7 @@ export const COLUMNAS_OCULTAS_BASE: Record<Exclude<RolGestion, "DIRECCION">, rea
   PRODUCCION: [],
   DISENO: ["costoUnit", "costoTotal", "recargo", "margen"],
   ADMINISTRACION: [],
-  COMERCIAL: ["costoUnit", "costoTotal", "recargo", "margen"],
+  COMERCIAL: [],
   PRODUCCION_CAMPO: ["costoUnit", "costoTotal", "recargo", "margen"],
   SIN_FICHA: ["costoUnit", "costoTotal", "recargo", "margen"],
 };
@@ -817,11 +830,25 @@ export const COLUMNAS_OCULTAS_BASE: Record<Exclude<RolGestion, "DIRECCION">, rea
  */
 export const MODULOS_DE_PLATA: readonly ModuloGestion[] = ["pagos", "empresa", "liquidaciones", ...(DECISIONES_DE_PUESTOS.costosSonPlata ? (["costos"] as const) : [])];
 
-/** La casilla rol × módulo no se puede cambiar: Dirección ve todo, y la plata no se le da a quien no la ve. PURA. */
-export const permisoFijo = (rol: RolGestion, modulo: ModuloGestion): boolean => rol === "DIRECCION" || (!rolVeLaPlata(rol) && MODULOS_DE_PLATA.includes(modulo));
+/**
+ * MIA-237 · casillas que el puesto fija, ni de fábrica ni guardadas por Dirección: el productor comercial ve los costos y no
+ * los cambia; el productor de campo no abre ningún módulo con importes; Administración no carga personas ni roles
+ * (Equipo: «no administra usuarios ni permisos»). PURA.
+ */
+const FIJOS_DEL_PUESTO: Partial<Record<RolGestion, Partial<Record<ModuloGestion, Permiso>>>> = {
+  COMERCIAL: { costos: V },
+  PRODUCCION_CAMPO: { costos: N, cotizaciones: N, proveedores: N, direccion: N },
+  ADMINISTRACION: { equipo: N },
+};
+
+/** La casilla rol × módulo no se puede cambiar: Dirección ve todo, la plata no se le da a quien no la ve y el puesto fija lo suyo. PURA. */
+export const permisoFijo = (rol: RolGestion, modulo: ModuloGestion): boolean =>
+  rol === "DIRECCION" || (!rolVeLaPlata(rol) && MODULOS_DE_PLATA.includes(modulo)) || FIJOS_DEL_PUESTO[rol]?.[modulo] !== undefined;
 
 export function permisoDe(rol: RolGestion, modulo: ModuloGestion, guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean }[]): Permiso {
   if (rol === "DIRECCION") return E;
+  const fijo = FIJOS_DEL_PUESTO[rol]?.[modulo];
+  if (fijo) return fijo;
   if (permisoFijo(rol, modulo)) return N;
   const g = guardados.find((p) => p.rol === rol && p.modulo === modulo);
   return g ? { ver: g.ver, editar: g.editar } : PERMISOS_BASE[rol][modulo];

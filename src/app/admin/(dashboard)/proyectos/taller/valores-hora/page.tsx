@@ -22,7 +22,8 @@ export default async function ValoresHora({ searchParams }: { searchParams: Prom
   const a = await exigirVer("cotizaciones");
   if (!puede(a, "costos", "ver") || !(await tallerActivo(a.tenantId))) notFound();
   const [{ aviso }, { sinMigrar, valores }, personas] = await Promise.all([searchParams, valoresHoraDelTaller(a.tenantId), personasDelTaller(a.tenantId)]);
-  const edita = puede(a, "equipo", "editar") || puede(a, "cotizaciones", "editar");
+  // MIA-237: el taller escribe costos; el productor comercial los ve pero no los cambia (`entrar`, taller-stands/acciones.ts).
+  const edita = puede(a, "costos", "editar") && (puede(a, "equipo", "editar") || puede(a, "cotizaciones", "editar"));
   const hoy = new Date();
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-5">

@@ -273,8 +273,10 @@ test("cada rol ve su mapa y ninguna app de la barra le rebota", () => {
   for (const [rol, apps] of Object.entries(barra)) for (const app of apps) assert.equal(appDeGestionVisible(app, rol as "DISENO", []), true, `${rol} ${app}`);
 });
 
-test("Comercial y Diseño no ven costos ni márgenes", () => {
-  assert.equal(permisoDe("COMERCIAL", "costos", []).ver, false);
+// MIA-237 (dueño, 20/11: «el productor comercial es B, ve costos tmb»): Comercial ve costos y no los edita; Diseño, igual.
+test("Comercial ve costos sin editarlos; Diseño no ve costos ni márgenes", () => {
+  assert.equal(permisoDe("COMERCIAL", "costos", []).ver, true);
+  assert.equal(permisoDe("COMERCIAL", "costos", []).editar, false);
   assert.equal(permisoDe("COMERCIAL", "cotizaciones", []).editar, true);
   assert.equal(permisoDe("DISENO", "cotizaciones", []).ver, true);
   assert.equal(permisoDe("DISENO", "costos", []).ver, false);

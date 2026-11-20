@@ -38,10 +38,17 @@ function volver(ruta: string, aviso: string): never {
   redirect(`${ruta}${sep}aviso=${encodeURIComponent(aviso)}`);
 }
 
-/** Permiso de edición de alguno de estos módulos de proyectos + ver costos + taller activo. Devuelve el motivo si no. */
+/**
+ * Permiso de edición de alguno de estos módulos de proyectos + ver costos + taller activo. Devuelve el motivo si no.
+ * MIA-237: desde que el productor comercial VE costos (sin editarlos), cada escritura del taller (catálogo, valor hora,
+ * despiece y su pase a la cotización, horas, pedidos) pide además «Costos · editar», lo mismo que la ficha
+ * (`guardarCampoItem`). Salvo la que entra por «Pagos · editar» (recibir o anular un pedido): ésa es de la plata y
+ * Administración la sigue haciendo con costos en «ver». Producción y Dirección, igual que antes.
+ */
 async function entrar(modulos: readonly ModuloGestion[]): Promise<Actor | string> {
   const a = await actorActual();
-  // El despiece y el catálogo muestran el costo interno: además, el permiso de ver costos.
+  const porLaPlata = modulos.includes("pagos") && puede(a, "pagos", "editar");
+  if (!porLaPlata && !puede(a, "costos", "editar")) return "El taller escribe costos (catálogo, despiece, horas y pedidos): hace falta poder editar costos.";
   if (!modulos.some((m) => puede(a, m, "editar")) || !puede(a, "costos", "ver")) return "No tenés permiso para hacer esto.";
   if (!(await tallerActivo(a.tenantId))) return "El taller de stands no está activo en este negocio.";
   return a;

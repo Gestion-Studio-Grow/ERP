@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireApp } from "@/lib/require-app";
 import { exigirVer, puede } from "@/lib/proyectos/gestion.server";
 import { proveedorParaEditar } from "@/lib/proyectos/gestion-lecturas.server";
+import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { tarjeta } from "../../../_vista";
 import { FormProveedor } from "../../FormProveedor";
 
@@ -20,7 +21,7 @@ export default async function EditarProveedor({ params }: { params: Promise<{ id
     <main className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-5">
       <Link href={`/admin/proyectos/proveedores/${id}`} className="inline-flex min-h-11 items-center text-sm text-strong underline">Volver a {proveedor.name}</Link>
       <h1 className="text-2xl font-bold text-strong">Editar proveedor</h1>
-      <section className={tarjeta}><FormProveedor valores={proveedor} /></section>
+      <section className={tarjeta}><FormProveedor valores={proveedor} editaAnticipo={await veLaPlata(a.user)} /></section>
     </main>
   );
 }

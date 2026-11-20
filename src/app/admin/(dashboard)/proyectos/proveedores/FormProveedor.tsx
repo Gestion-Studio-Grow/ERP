@@ -16,7 +16,8 @@ export interface ValoresProveedor {
   fichaDeProyecto: { rubro: string | null; ciudad: string | null; contacto: string | null; condiciones: string; anticipoPct: number; evaluacion: number; moneda: string; notas: string } | null;
 }
 
-export function FormProveedor({ valores }: { valores?: ValoresProveedor }) {
+/** `editaAnticipo`: el % mueve las cuotas a pagar, así que sólo lo cambia quien ve la plata (MIA-237); el resto lo ve. */
+export function FormProveedor({ valores, editaAnticipo }: { valores?: ValoresProveedor; editaAnticipo: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [ocupado, iniciar] = useTransition();
   const router = useRouter();
@@ -53,11 +54,19 @@ export function FormProveedor({ valores }: { valores?: ValoresProveedor }) {
       <label className={etiqueta}>Teléfono<input name="phone" type="tel" defaultValue={valores?.phone ?? ""} className={campo} /></label>
       <label className={etiqueta}>Mail<input name="email" type="email" defaultValue={valores?.email ?? ""} className={campo} /></label>
       <label className={cn(etiqueta, "sm:col-span-2")}>Condiciones<input name="condiciones" maxLength={300} defaultValue={f?.condiciones ?? "50% anticipo / 50% contra entrega"} className={campo} /></label>
-      <label className={etiqueta}>
-        % de anticipo
-        <input name="anticipoPct" type="number" min={0} max={100} step={1} required defaultValue={f?.anticipoPct ?? 50} className={campo} />
-        <span className="text-xs font-normal text-muted">Al guardar se ponen al día las cuotas sin pagar de los proyectos abiertos con este proveedor.</span>
-      </label>
+      {editaAnticipo ? (
+        <label className={etiqueta}>
+          % de anticipo
+          <input name="anticipoPct" type="number" min={0} max={100} step={1} required defaultValue={f?.anticipoPct ?? 50} className={campo} />
+          <span className="text-xs font-normal text-muted">Al guardar se ponen al día las cuotas sin pagar de los proyectos abiertos con este proveedor.</span>
+        </label>
+      ) : (
+        <div className={etiqueta}>
+          % de anticipo
+          <p className="py-2 text-sm text-strong">{f?.anticipoPct ?? 50} %</p>
+          <span className="text-xs font-normal text-muted">Lo cambia Dirección o Administración: mueve las cuotas a pagar.</span>
+        </div>
+      )}
       <label className={etiqueta}>
         Evaluación (1 a 5)
         <input name="evaluacion" type="number" min={1} max={5} step={0.1} required defaultValue={f?.evaluacion ?? 4} className={campo} />

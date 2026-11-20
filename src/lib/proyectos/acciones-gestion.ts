@@ -18,6 +18,7 @@ import { fechaCorta, leerNumero } from "./core";
 import { actorActual, avisar, exigirEditar, proyectoVisible, puede, regenerarCuotasDe, registrarCambio, usuariosDeLaPlata, usuariosDelEquipo, type Actor } from "./gestion.server";
 import { cambiaLosPermisos, COLUMNAS_OCULTAS_BASE, MONEDAS, permisoDe, permisoFijo, ROLES_GESTION, RUBROS, TIPOS_AVISO, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { entre, matrizDelFormulario, respuestaDePresentacion } from "./gestion-lecturas-core";
+import { veLaPlata } from "./datos.server";
 import { esLoPropio } from "./empresa-core";
 
 export type Resultado<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -115,11 +116,21 @@ export async function crearReunion(formData: FormData): Promise<Resultado> {
 
 // ── Proveedores ─────────────────────────────────────────────────────────────
 
-/** Cambiar el % de anticipo pone al día las cuotas de los proyectos abiertos con ese proveedor. */
+/**
+ * Cambiar el % de anticipo pone al día las cuotas de los proyectos abiertos con ese proveedor. MIA-237: eso es plata (las
+ * cuotas a pagar), así que el % lo cambia sólo quien ve la plata (`veLaPlata`); el resto edita la ficha del proveedor y el %
+ * queda como estaba. Sin el campo (o vacío), se conserva el que tenía: antes un vacío lo pasaba a 0 % sin avisar.
+ */
 export async function guardarProveedor(formData: FormData): Promise<Resultado<{ id: string }>> {
   const a = await exigirEditar("proveedores");
   const { tenantId } = a;
   const id = txt(formData.get("id"), 40) || null;
+  const pctPrevio = id ? ((await prisma.proyectoProveedorFicha.findFirst({ where: { supplierId: id, tenantId }, select: { anticipoPct: true } }))?.anticipoPct ?? 50) : 50;
+  const pctCrudo = String(formData.get("anticipoPct") ?? "").trim();
+  const anticipoPct = pctCrudo === "" ? pctPrevio : entre(leerNumero(pctCrudo), 0, 100, pctPrevio);
+  if (anticipoPct !== pctPrevio && !(await veLaPlata(a.user))) {
+    return { ok: false, error: "El % de anticipo cambia las cuotas a pagar: lo cambia Dirección o Administración. No se guardó nada." };
+  }
   const v = validateSupplierInput({ name: txt(formData.get("name"), 120), taxId: txt(formData.get("taxId"), 20) || null, phone: txt(formData.get("phone"), 40) || null, email: txt(formData.get("email"), 160) || null });
   if (!v.ok) return { ok: false, error: mensajeDeProveedor(v.error) };
   const { name, taxId, phone, email } = v.value;
@@ -130,7 +141,7 @@ export async function guardarProveedor(formData: FormData): Promise<Resultado<{ 
     ciudad: txt(formData.get("ciudad"), 80) || null,
     contacto: txt(formData.get("contacto"), 120) || null,
     condiciones: txt(formData.get("condiciones"), 300),
-    anticipoPct: entre(leerNumero(String(formData.get("anticipoPct") ?? "")), 0, 100, 50),
+    anticipoPct,
     evaluacion: entre(leerNumero(String(formData.get("evaluacion") ?? "")), 1, 5, 4),
     moneda: (MONEDAS as readonly string[]).includes(moneda) ? moneda : "ARS",
     notas: txt(formData.get("notas"), 2000),

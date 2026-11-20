@@ -15,7 +15,8 @@ const MODULOS = ["pipeline", "ficha", "costos", "proveedores", "cotizaciones", "
 const FABRICA: Record<RolGestion, { niveles: string[]; ocultas: string[]; laCambia: string }> = {
   DIRECCION: { niveles: [E, E, E, E, E, E, E, E, E, E, E, E, E], ocultas: [], laCambia: "nadie (fija)" },
   ADMINISTRACION: { niveles: [V, V, V, E, V, N, E, E, E, N, N, N, E], ocultas: [], laCambia: "Dirección" },
-  COMERCIAL: { niveles: [E, V, N, N, E, E, N, N, N, N, N, E, V], ocultas: OCULTAS_DE_COSTO, laCambia: "Dirección" },
+  // MIA-237: productor comercial, «ve costos tmb» (dueño 20/11): Costos en «ver» y sin columnas de costo ocultas.
+  COMERCIAL: { niveles: [E, V, V, N, E, E, N, N, N, N, N, E, V], ocultas: [], laCambia: "Dirección" },
   DISENO: { niveles: [V, V, N, N, V, E, N, N, N, N, N, E, N], ocultas: OCULTAS_DE_COSTO, laCambia: "Dirección" },
   // MIA-229: «Pagos y cobros del evento» de Producción a sin acceso («Producción no», orden del dueño 20/11).
   PRODUCCION: { niveles: [E, E, E, E, E, E, N, N, N, N, N, E, V], ocultas: [], laCambia: "Dirección" },

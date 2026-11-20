@@ -15,15 +15,17 @@ export interface PuestoDelAlta {
   puesto: (typeof ROLES_GESTION)[number] | null;
 }
 
+// MIA-237 · orden y nombres del dueño (20/11 13:05Z: «reordenemos? Es productor comercial y productor de campo»).
 export const PUESTOS_DEL_ALTA: readonly PuestoDelAlta[] = [
   { valor: "DUENIO", etiqueta: "Dueño/a (todo, también usuarios y precios)", rolErp: "OWNER", puesto: null },
   { valor: "DIRECCION", etiqueta: "Dirección (todos los proyectos y la plata)", rolErp: D.rolErpDeDireccion, puesto: "DIRECCION" },
-  { valor: "ADMINISTRACION", etiqueta: "Administración (cobros, pagos, cuentas y facturación)", rolErp: D.rolErpDeAdministracion, puesto: "ADMINISTRACION" },
-  // Comercial necesita Clientes («clients:read»): RECEPTION. La plata la frena su rol de gestión, no el del ERP.
-  { valor: "COMERCIAL", etiqueta: "Comercial (leads, clientes y propuestas; sin la plata)", rolErp: "RECEPTION", puesto: "COMERCIAL" },
-  { valor: "DISENO", etiqueta: "Diseño (tareas y versiones; sin la plata)", rolErp: "PROFESSIONAL", puesto: "DISENO" },
+  // OWNER por Facturación; el techo de puesto (`capacidadesNegadas`) le saca usuarios y permisos.
+  { valor: "ADMINISTRACION", etiqueta: "Administración (toda la plata, facturación y los proyectos; sin usuarios ni permisos)", rolErp: D.rolErpDeAdministracion, puesto: "ADMINISTRACION" },
+  // Necesita Clientes («clients:read»): RECEPTION. Lo que ve de la plata lo decide su rol de gestión, no el del ERP.
+  { valor: "COMERCIAL", etiqueta: "Productor comercial (leads, propuestas, cobros y costos; sin pagos a proveedores)", rolErp: "RECEPTION", puesto: "COMERCIAL" },
+  { valor: "PRODUCCION_CAMPO", etiqueta: "Productor de campo (tareas y rendiciones; sin importes)", rolErp: "PROFESSIONAL", puesto: "PRODUCCION_CAMPO" },
   { valor: "PRODUCCION", etiqueta: D.costosSonPlata ? "Producción (arma el evento; sin costos ni plata)" : "Producción (arma el evento y presupuesta; sin cobros ni pagos)", rolErp: "PROFESSIONAL", puesto: "PRODUCCION" },
-  { valor: "PRODUCCION_CAMPO", etiqueta: "Producción de campo (tareas y rendiciones)", rolErp: "PROFESSIONAL", puesto: "PRODUCCION_CAMPO" },
+  { valor: "DISENO", etiqueta: "Diseño (tareas y versiones; sin la plata)", rolErp: "PROFESSIONAL", puesto: "DISENO" },
 ];
 
 export const puestoDelAlta = (valor: string): PuestoDelAlta | null => PUESTOS_DEL_ALTA.find((p) => p.valor === valor) ?? null;

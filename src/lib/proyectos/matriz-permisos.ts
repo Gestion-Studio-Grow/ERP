@@ -128,7 +128,7 @@ export const PUERTAS_DE_ACCIONES: Readonly<Record<string, string>> = {
   "acciones-gestion#editarReunion": "E:pipeline|diseno",
   "acciones-gestion#cancelarReunion": "E:pipeline|diseno",
   "acciones-gestion#crearReunion": "E:pipeline|diseno",
-  "acciones-gestion#guardarProveedor": "E:proveedores",
+  "acciones-gestion#guardarProveedor": "E:proveedores — además, el % de anticipo sólo con la plata (`veLaPlata`, MIA-237): sin ella se rechaza y no se guarda",
   "acciones-gestion#cambiarEstadoProveedor": "E:proveedores",
   "acciones-gestion#guardarPersona": "E:equipo",
   "acciones-gestion#cambiarEstadoPersona": "E:equipo",

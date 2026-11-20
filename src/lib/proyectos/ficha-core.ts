@@ -238,9 +238,10 @@ export interface FilaFicha {
   moneda: string;
   recargoPct?: number | null;
   /** El precio fijado a mano; 0 si sale del recargo. */
-  precioManual: number;
-  ventaUnitaria: number;
-  venta: number;
+  precioManual?: number;
+  ventaUnitaria?: number;
+  /** MIA-237: sin importes (productor de campo) no viajan la venta ni el precio. */
+  venta?: number;
   costoTotal?: number;
   margen?: number;
   fechaLimite: string;
@@ -273,9 +274,7 @@ export function filaDeFicha(
     proveedorTexto: i.supplier?.name ?? i.proveedor,
     cantidad: i.cantidad,
     moneda: i.moneda,
-    precioManual: i.precio,
-    ventaUnitaria: i.cantidad > 0 ? redondear(venta / i.cantidad) : 0,
-    venta,
+    ...(!ocultas.has("venta") && { precioManual: i.precio, ventaUnitaria: i.cantidad > 0 ? redondear(venta / i.cantidad) : 0, venta }),
     fechaLimite: i.fechaLimite,
     estadoItem: i.estadoItem,
     visibleCliente: i.visibleCliente,
@@ -309,8 +308,10 @@ export function filtrarCashflow<T extends CuotaLeida>(lineas: readonly LineaCash
 const CAMPOS_DE_COSTO = ["Costo", "Recargo", "Moneda", "Plus"];
 
 /** El historial no le muestra a nadie lo que su permiso le esconde en la ficha. */
-export function cambioVisible(c: { entidad: string; campo: string }, permisos: { costos: boolean; pagos: boolean }): boolean {
+export function cambioVisible(c: { entidad: string; campo: string }, permisos: { costos: boolean; pagos: boolean; importes?: boolean }): boolean {
   if (c.campo === "Asiento" || c.campo === "Cuenta movida" || c.campo === "Envío") return false;
+  // MIA-237: sin importes (productor de campo), tampoco el precio que se cambió.
+  if (permisos.importes === false && (c.campo.startsWith("Precio") || c.campo.startsWith("Venta"))) return false;
   if (!permisos.pagos && (c.entidad === "ProyectoCuota" || c.entidad === "ProyectoPago" || c.entidad === "ProyectoGasto")) return false;
   if (!permisos.costos && CAMPOS_DE_COSTO.some((k) => c.campo.startsWith(k))) return false;
   return true;

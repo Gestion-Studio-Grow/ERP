@@ -49,13 +49,15 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
   const verFicha = puede(a, "ficha", "ver");
   // Taller de stands (GSG-MIA-004): sólo con flag + módulo + rubro del taller (la productora no la ve) y a quien ve costos.
   const verDespiece = vista.cotizaciones && vista.costos && (await tallerActivo(a.tenantId));
+  // MIA-237: el taller escribe costos (`entrar`, taller-stands/acciones.ts): el productor comercial lo ve sin botones.
+  const tallerEdita = vista.editaCostos && (puede(a, "ficha", "editar") || puede(a, "cotizaciones", "editar"));
   const pestanas = [
     { id: "resumen", label: "Resumen", ve: true },
     { id: "ficha", label: "Ficha del evento", ve: verFicha },
     { id: "cotizacion", label: "Cotización", ve: vista.cotizaciones },
     { id: "diseno", label: "Diseño", ve: puede(a, "diseno", "ver") },
     { id: "despiece", label: "Despiece", ve: verDespiece },
-    { id: "finanzas", label: "Finanzas", ve: vista.pagos },
+    { id: "finanzas", label: "Finanzas", ve: vista.pagos || vista.cobros },
     { id: "rendiciones", label: "Rendiciones", ve: puede(a, "rendiciones", "ver") },
     { id: "liquidacion", label: "Liquidación", ve: vista.cotizaciones || puede(a, "liquidaciones", "ver") || !!a.personaId },
     { id: "seguimiento", label: "Seguimiento", ve: verFicha },
@@ -85,7 +87,7 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
           {wa && <a href={wa} target="_blank" rel="noopener noreferrer" className={buttonClasses("outline", "md")}>WhatsApp</a>}
         </div>
         <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3 text-sm sm:grid-cols-3">
-          <Numero titulo="Venta" valor={p.moneda === "ARS" ? pesos(t.venta) : `${ventaEn(t.venta, p.moneda, cambioDeVenta(p.moneda, cab.base?.tcVenta, tc))} (≈ ${pesos(t.venta)})`} />
+          {vista.importes && <Numero titulo="Venta" valor={p.moneda === "ARS" ? pesos(t.venta) : `${ventaEn(t.venta, p.moneda, cambioDeVenta(p.moneda, cab.base?.tcVenta, tc))} (≈ ${pesos(t.venta)})`} />}
           {verCosto && <Numero titulo="Costo" valor={costoParaMostrar(t)} />}
           {verMargen && <Numero titulo="Margen" valor={margenParaMostrar(t, pesos)} alerta={t.costoCargado && t.margen < 0} />}
         </dl>
@@ -130,9 +132,9 @@ export default async function FichaProyecto({ params, searchParams }: { params: 
       )}
       {tab === "despiece" && (
         <>
-          <PestanaDespiece tenantId={a.tenantId} proyectoId={p.id} edita={puede(a, "ficha", "editar") || puede(a, "cotizaciones", "editar")} cotiza={puede(a, "cotizaciones", "editar")} aviso={q.aviso} />
-          <SeccionHoras tenantId={a.tenantId} proyectoId={p.id} edita={puede(a, "ficha", "editar") || puede(a, "cotizaciones", "editar")} />
-          <SeccionPedidos tenantId={a.tenantId} proyectoId={p.id} edita={puede(a, "ficha", "editar") || puede(a, "cotizaciones", "editar")} paga={puede(a, "pagos", "editar")} />
+          <PestanaDespiece tenantId={a.tenantId} proyectoId={p.id} edita={tallerEdita} cotiza={vista.editaCostos && puede(a, "cotizaciones", "editar")} aviso={q.aviso} />
+          <SeccionHoras tenantId={a.tenantId} proyectoId={p.id} edita={tallerEdita} />
+          <SeccionPedidos tenantId={a.tenantId} proyectoId={p.id} edita={tallerEdita} paga={puede(a, "pagos", "editar")} />
         </>
       )}
       {tab === "finanzas" && <PestanaFinanzas a={a} cab={cab} vista={vista} filtro={q.filtro} />}

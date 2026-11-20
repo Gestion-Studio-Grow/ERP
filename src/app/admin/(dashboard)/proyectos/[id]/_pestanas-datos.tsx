@@ -115,8 +115,8 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
             <dl className="grid grid-cols-2 gap-3 text-sm">
               <Numero titulo="Cobrado" valor={pesos(finanzas.cobrado)} />
               <Numero titulo="A cobrar" valor={pesos(finanzas.aCobrar)} alerta={finanzas.cantCobrosVencidos > 0} />
-              {vista.costos && <Numero titulo="Pagado a proveedores" valor={pesos(finanzas.pagado)} />}
-              {vista.costos && <Numero titulo="A pagar" valor={pesos(finanzas.aPagar)} alerta={finanzas.cantPagosVencidos > 0} />}
+              {vista.deudas && <Numero titulo="Pagado a proveedores" valor={pesos(finanzas.pagado)} />}
+              {vista.deudas && <Numero titulo="A pagar" valor={pesos(finanzas.aPagar)} alerta={finanzas.cantPagosVencidos > 0} />}
             </dl>
             {p.perdidoEl && <p className="mt-3 text-xs text-muted">Proyecto perdido: no se le cobra más. Lo cobrado queda como cobrado.</p>}
             {avance !== null && (
@@ -138,7 +138,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
           <p className="mb-2 text-sm text-muted">Con los ítems de la ficha se arman solos la planilla de venta, los cobros, los pagos y las fechas de la agenda.</p>
           <ul className="grid gap-1 text-sm">
             <li><Link className="flex min-h-11 items-center underline" href={`?tab=ficha`}>{contar(cab.totales.items, "ítem", "ítems")} en la ficha</Link></li>
-            {vista.pagos && <li><Link className="flex min-h-11 items-center underline" href={`?tab=finanzas`}>{contar(cantCuotas, "movimiento", "movimientos")} en el cashflow</Link></li>}
+            {(vista.pagos || vista.cobros) && <li><Link className="flex min-h-11 items-center underline" href={`?tab=finanzas`}>{contar(cantCuotas, "movimiento", "movimientos")} en el cashflow</Link></li>}
             <li><Link className="flex min-h-11 items-center underline" href={`?tab=seguimiento`}>{contar(cantChecklist, "punto", "puntos")} en el checklist</Link></li>
           </ul>
         </section>
@@ -216,13 +216,13 @@ export async function PestanaFicha({ a, cab, vista }: { a: Actor; cab: Cabecera;
   const verCosto = !vista.ocultas.has("costoTotal");
   const verMargen = !vista.ocultas.has("margen");
   const cambioVenta = cambioDeVenta(proyecto.moneda, viva?.tcVenta, cab.tc);
-  const columnas = { costoUnit: !vista.ocultas.has("costoUnit"), costoTotal: verCosto, recargo: !vista.ocultas.has("recargo"), margen: verMargen };
+  const columnas = { costoUnit: !vista.ocultas.has("costoUnit"), costoTotal: verCosto, recargo: !vista.ocultas.has("recargo"), margen: verMargen, venta: vista.importes };
   const editable = vista.fichaEdita && !!viva && enBorrador;
   return (
     <section className={tarjeta} aria-label="Ficha del evento">
       <dl className="mb-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <Numero titulo="Ítems" valor={String(t.items)} />
-        <Numero titulo="Venta total" valor={importeDeVenta(t.venta, proyecto.moneda, cambioVenta)} />
+        {vista.importes && <Numero titulo="Venta total" valor={importeDeVenta(t.venta, proyecto.moneda, cambioVenta)} />}
         {verCosto && <Numero titulo="Costo total" valor={costoParaMostrar(t)} />}
         {verMargen && <Numero titulo="Margen" valor={margenParaMostrar(t, pesos)} alerta={t.costoCargado && t.margen < 0} />}
       </dl>
@@ -321,7 +321,7 @@ export async function PestanaSeguimiento({ a, cab, vista }: { a: Actor; cab: Cab
           </ul>
         </section>
 
-        {vista.pagos && (
+        {(vista.pagos || vista.cobros) && (
           <section className={tarjeta} aria-label="Pagos del cliente">
             <h2 className="mb-2 font-semibold text-strong">Pagos del cliente</h2>
             {cuotas.length === 0 && pagos.length === 0 && <p className="text-sm text-muted">Los cobros aparecen cuando el proyecto se confirma.</p>}

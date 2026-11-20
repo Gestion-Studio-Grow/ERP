@@ -137,7 +137,10 @@ test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
     // MIA-50 T12: Dirección suma `aprobarAjusteTardio` (SOLO:DIRECCION) → 163; los demás roles no cambian.
     // MIA-229 («Producción no», orden del dueño 20/11): Producción pierde las 15 acciones que pedían «Pagos · editar»
     // (122 → 107); las rutas no cambian (39). Los demás roles, igual.
-    { DIRECCION: [48, 163], ADMINISTRACION: [37, 67], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 107], PRODUCCION_CAMPO: [15, 12], SIN_FICHA: [10, 11] },
+    // MIA-237 (productor comercial «ve costos tmb», dueño 20/11): Comercial con Costos fijo en «ver» suma 4 rutas
+    // (/[id]/precio, /[id]/precio/calculadora, /taller/piezas, /taller/valores-hora) y las 3 de acciones-precio
+    // (E:cotizaciones V:costos): 24 → 28 y 89 → 92. Los demás roles, igual.
+    { DIRECCION: [48, 163], ADMINISTRACION: [37, 67], COMERCIAL: [28, 92], DISENO: [23, 56], PRODUCCION: [39, 107], PRODUCCION_CAMPO: [15, 12], SIN_FICHA: [10, 11] },
   );
 });
 
@@ -206,6 +209,9 @@ test("MIA-237 · las puertas de MIA-236: % de anticipo de un proveedor sólo con
   const cuerpo = gestion.slice(gestion.indexOf("export async function guardarProveedor"), gestion.indexOf("export async function cambiarEstadoProveedor"));
   assert.match(cuerpo, /veLaPlata\(a\.user\)/, "guardarProveedor pregunta por la plata");
   const taller = leerFuente("src/lib/taller-stands/acciones.ts");
+  // Verde: la puerta común del taller (`entrar`, que usa despieceAlPresupuesto) pide editar costos para toda escritura.
+  const puerta = taller.slice(taller.indexOf("async function entrar("), taller.indexOf("async function conTabla"));
+  assert.match(puerta, /puede\(a, "costos", "editar"\)/, "el taller pide editar costos");
   const pase = taller.slice(taller.indexOf("export async function despieceAlPresupuesto"));
-  assert.match(pase.slice(0, 600), /editaCostos: true/, "despieceAlPresupuesto pide editar costos");
+  assert.match(pase.slice(0, 600), /await entrar\(/, "despieceAlPresupuesto pasa por esa puerta");
 });

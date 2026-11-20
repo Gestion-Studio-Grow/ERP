@@ -36,9 +36,11 @@ test("H1 y H2 · con «Equipo» y sin ser Dirección no se cambia quién es Dire
 
   const adm = await duenio.user.create({ data: { tenantId: a.id, name: "Admin", email: "admin@mia091.test", passwordHash: "x", role: "RECEPTION" }, select: { id: true } });
   const socio = await duenio.user.create({ data: { tenantId: a.id, name: "Socio", email: "socio@mia091.test", passwordHash: "x", role: "OWNER" }, select: { id: true } });
-  await duenio.proyectoPersona.create({ data: { tenantId: a.id, userId: adm.id, nombre: "Admin", email: "admin@mia091.test", rol: "ADMINISTRACION" } });
+  // MIA-237: Administración ya no tiene «Equipo» (fijo en sin acceso: no administra personas ni roles). El caso es «con Equipo
+  // y sin ser Dirección»: lo hace Producción con Equipo abierto por Dirección.
+  await duenio.proyectoPersona.create({ data: { tenantId: a.id, userId: adm.id, nombre: "Admin", email: "admin@mia091.test", rol: "PRODUCCION" } });
   const fSocio = await duenio.proyectoPersona.create({ data: { tenantId: a.id, userId: socio.id, nombre: "Socio", email: "socio@mia091.test", rol: "COMERCIAL" }, select: { id: true } });
-  await duenio.proyectoPermiso.create({ data: { tenantId: a.id, rol: "ADMINISTRACION", modulo: "equipo", ver: true, editar: true } });
+  await duenio.proyectoPermiso.create({ data: { tenantId: a.id, rol: "PRODUCCION", modulo: "equipo", ver: true, editar: true } });
   const dueniaMail = (await duenio.user.findUniqueOrThrow({ where: { id: a.duenia.id }, select: { email: true } })).email;
   const foto = () => duenio.proyectoPersona.findMany({ where: { tenantId: a.id }, orderBy: { nombre: "asc" }, select: { id: true, userId: true, rol: true, activa: true } });
   const antes = await foto();

@@ -16,6 +16,7 @@ import type { PermisoOverride } from "@/lib/capabilities";
 import { esTablaAusente, leerOverridesTolerante } from "@/lib/permisos-overrides";
 import { tenantTransaction } from "@/lib/rls";
 import { agenteDelUsuario } from "@/lib/cuadrilla/consola-core";
+import { DECISIONES_DE_PUESTOS } from "@/lib/proyectos/decisiones-puestos";
 
 export type SessionUser = {
   id: string;
@@ -77,8 +78,23 @@ const leerSesionDeLaCookie = cache(async (): Promise<SesionDelPanel | null> => {
       select: { capability: true, allowed: true },
     }),
   );
-  return { user: { ...user, overrides }, mustChangePassword: mustChangePassword === true };
+  const negadas = user.role === "OWNER" ? await capacidadesNegadasDelPuesto(user.id, tenantId) : [];
+  return { user: { ...user, overrides: [...overrides, ...negadas] }, mustChangePassword: mustChangePassword === true };
 });
+
+// MIA-237 · TECHO DE PUESTO. Administración entra como OWNER (Facturación lo exige) pero no administra usuarios ni
+// permisos: su ficha de Proyectos lo marca y la sesión le suma la negación, que `permisoEfectivo` respeta en la página,
+// la app y la acción (`requireCapability`). Sólo para OWNER (los demás roles no tienen nada que apagar). Sin la tabla de
+// Proyectos (Gate 2) no hay fichas: nada que negar; otro error se relanza (falla cerrado).
+async function capacidadesNegadasDelPuesto(userId: string, tenantId: string): Promise<PermisoOverride[]> {
+  try {
+    const persona = await prisma.proyectoPersona.findFirst({ where: { tenantId, userId, activa: true }, select: { rol: true } });
+    return (DECISIONES_DE_PUESTOS.capacidadesNegadas[persona?.rol ?? ""] ?? []).map((capability) => ({ capability, allowed: false }));
+  } catch (e) {
+    if (esTablaAusente(e)) return [];
+    throw e;
+  }
+}
 
 // GUARDIA DEL AGENTE OWNER (GSG-MIA-080, seguridad). El usuario de un agente de la Cuadrilla con rol OWNER (cargado
 // antes del techo de GSG-MIA-076 o a mano en la base) es un estado anómalo: un agente nunca es dueño. Para ese

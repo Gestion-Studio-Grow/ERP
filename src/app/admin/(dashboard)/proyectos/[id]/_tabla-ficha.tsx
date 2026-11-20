@@ -15,7 +15,8 @@ import { campo } from "../_vista";
 import { AdjuntosItem } from "./_adjuntos-item";
 import { FormAccion } from "./_cliente";
 
-type Columnas = { costoUnit: boolean; costoTotal: boolean; recargo: boolean; margen: boolean };
+// MIA-237: `venta` falso = sin importes (productor de campo): ni la venta ni el precio.
+type Columnas = { costoUnit: boolean; costoTotal: boolean; recargo: boolean; margen: boolean; venta: boolean };
 
 const aTexto = (n: number | null | undefined): string => (n == null ? "" : String(n).replace(".", ","));
 
@@ -70,7 +71,8 @@ export function TablaFicha({
     });
   };
 
-  const cantColumnas = 8 + Object.values(columnas).filter(Boolean).length + (columnas.costoUnit ? 1 : 0) + (editable ? 1 : 0);
+  const { venta: conVenta, ...deCosto } = columnas;
+  const cantColumnas = (conVenta ? 8 : 6) + Object.values(deCosto).filter(Boolean).length + (columnas.costoUnit ? 1 : 0) + (editable ? 1 : 0);
 
   return (
     <div className="grid gap-3">
@@ -106,8 +108,8 @@ export function TablaFicha({
                 {columnas.recargo && <th className="pr-2 font-medium">Recargo %</th>}
                 {columnas.costoTotal && <th className="pr-2 text-right font-medium">Costo {simbolo}</th>}
                 {columnas.costoTotal && <th className="pr-2 font-medium">Costo real $</th>}
-                <th className="pr-2 font-medium">Venta u. {simbolo}</th>
-                <th className="pr-2 text-right font-medium">Venta {simbolo}</th>
+                {conVenta && <th className="pr-2 font-medium">Venta u. {simbolo}</th>}
+                {conVenta && <th className="pr-2 text-right font-medium">Venta {simbolo}</th>}
                 {columnas.margen && <th className="pr-2 text-right font-medium">Margen</th>}
                 <th className="pr-2 font-medium">Fecha límite</th>
                 <th className="pr-2 font-medium">Estado</th>
@@ -122,7 +124,7 @@ export function TablaFicha({
                   <th colSpan={cantColumnas} className="pt-3 text-left">
                     <span className="sticky left-0 inline-flex flex-wrap items-baseline gap-2 bg-surface-raised pr-2">
                       <span className="text-xs font-semibold uppercase tracking-wide text-strong">{g.rubro}</span>
-                      <span className="text-xs font-normal text-muted">Subtotal {venta(g.items.reduce((s, i) => s + i.venta, 0))}</span>
+                      {conVenta && <span className="text-xs font-normal text-muted">Subtotal {venta(g.items.reduce((s, i) => s + (i.venta ?? 0), 0))}</span>}
                     </span>
                   </th>
                 </tr>
@@ -155,7 +157,7 @@ export function TablaFicha({
                         )}
                         {columnas.recargo && (
                           <td className="py-1 pr-2 min-w-24">
-                            <Entrada id={i.id} nombre="recargoPct" valor={aTexto(i.recargoPct)} etiqueta="Recargo" guardar={guardar} numero bloqueado={!editaCostos} ayuda={i.precioManual > 0 && i.recargoPct == null ? "a mano" : `${recargoGeneral}`} />
+                            <Entrada id={i.id} nombre="recargoPct" valor={aTexto(i.recargoPct)} etiqueta="Recargo" guardar={guardar} numero bloqueado={!editaCostos} ayuda={(i.precioManual ?? 0) > 0 && i.recargoPct == null ? "a mano" : `${recargoGeneral}`} />
                           </td>
                         )}
                         {columnas.costoTotal && <td className="py-1 pr-2 pt-3 text-right tabular-nums">{venta(i.costoTotal ?? 0)}</td>}
@@ -164,10 +166,12 @@ export function TablaFicha({
                             <Entrada id={i.id} nombre="costoReal" valor={i.costoReal == null ? "" : aTexto(i.costoReal)} etiqueta="Costo real" guardar={guardar} numero bloqueado={!editaCostos} />
                           </td>
                         )}
-                        <td className="py-1 pr-2 min-w-36">
-                          <Entrada id={i.id} nombre="precio" valor={i.precioManual > 0 ? aTexto(enMonedaDeVenta(i.precioManual, cambio)) : ""} etiqueta="Precio de venta unitario" guardar={guardar} numero bloqueado={!editaCostos} ayuda={aTexto(enMonedaDeVenta(i.ventaUnitaria, cambio))} />
-                        </td>
-                        <td className="py-1 pr-2 pt-3 text-right font-medium text-strong tabular-nums">{venta(i.venta)}</td>
+                        {conVenta && (
+                          <td className="py-1 pr-2 min-w-36">
+                            <Entrada id={i.id} nombre="precio" valor={(i.precioManual ?? 0) > 0 ? aTexto(enMonedaDeVenta(i.precioManual ?? 0, cambio)) : ""} etiqueta="Precio de venta unitario" guardar={guardar} numero bloqueado={!editaCostos} ayuda={aTexto(enMonedaDeVenta(i.ventaUnitaria ?? 0, cambio))} />
+                          </td>
+                        )}
+                        {conVenta && <td className="py-1 pr-2 pt-3 text-right font-medium text-strong tabular-nums">{venta(i.venta ?? 0)}</td>}
                         {columnas.margen && <td className={cn("py-1 pr-2 pt-3 text-right tabular-nums", (i.margen ?? 0) < 0 && "text-danger")}>{venta(i.margen ?? 0)}</td>}
                         <td className="py-1 pr-2 min-w-40"><Entrada id={i.id} nombre="fechaLimite" valor={i.fechaLimite} etiqueta="Fecha límite" guardar={guardar} tipo="date" /></td>
                         <td className="py-1 pr-2 min-w-36">
@@ -195,8 +199,8 @@ export function TablaFicha({
                             <Entrada id={i.id} nombre="costoReal" valor={i.costoReal == null ? "" : aTexto(i.costoReal)} etiqueta="Costo real" guardar={guardar} numero bloqueado={!editaCostos} />
                           </td>
                         )}
-                        <td className="py-2 pr-2 tabular-nums">{venta(i.ventaUnitaria)}</td>
-                        <td className="py-2 pr-2 text-right font-medium text-strong tabular-nums">{venta(i.venta)}</td>
+                        {conVenta && <td className="py-2 pr-2 tabular-nums">{venta(i.ventaUnitaria ?? 0)}</td>}
+                        {conVenta && <td className="py-2 pr-2 text-right font-medium text-strong tabular-nums">{venta(i.venta ?? 0)}</td>}
                         {columnas.margen && <td className={cn("py-2 pr-2 text-right tabular-nums", (i.margen ?? 0) < 0 && "text-danger")}>{venta(i.margen ?? 0)}</td>}
                         <td className="py-2 pr-2">{i.fechaLimite || "—"}</td>
                         <td className="py-2 pr-2">{ESTADO_ITEM_LABEL[i.estadoItem] ?? i.estadoItem}</td>

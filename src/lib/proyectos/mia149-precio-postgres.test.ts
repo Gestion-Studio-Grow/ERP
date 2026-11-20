@@ -192,17 +192,13 @@ test("T07 · precio por total, foto, plan de cobro y equipo en Postgres real", a
   assert.match((await direccion(() => guardar({ total: "1.500.000", motivo: "ajuste" }))).error ?? "", /no cambia/);
   const tres = await direccion(() => guardar({ total: "1.490.000", rentabilidad: "31", margenError: "4", iibGa: "8", motivo: "Ajuste de Dirección después de aprobar" }));
   assert.equal(tres.ok, true, tres.error);
-  // Comercial tampoco (vuelta MIA-155): la recepcionista pasa a Comercial. Por defecto Comercial no ve costos y no entra; con
-  // los costos habilitados por el negocio, llega y se rechaza igual. Ningún rechazo escribe.
+  // Comercial tampoco (vuelta MIA-155): la recepcionista pasa a Comercial. MIA-237: el productor comercial ve costos de
+  // fábrica (fijo, «ve costos tmb»), así que llega y se rechaza por la regla del aprobado. El rechazo no escribe.
   await duenio.proyectoPersona.update({ where: { id: prod.id }, data: { rol: "COMERCIAL" } });
   const precioAntes = await fila();
   const deComercial = () => produccion(() => guardar({ total: "1.490.000", rentabilidad: "33", motivo: "Lo pide Comercial" }));
-  assert.match((await deComercial()).error ?? "", /no tenés permiso para verlos/);
-  const permisoCostos = { tenantId: a.id, rol: "COMERCIAL", modulo: "costos" };
-  await duenio.proyectoPermiso.upsert({ where: { tenantId_rol_modulo: permisoCostos }, create: { ...permisoCostos, ver: true }, update: { ver: true } });
   assert.match((await deComercial()).error ?? "", /sólo Dirección/);
   assert.deepEqual(await fila(), precioAntes, "el rechazo de Comercial no escribe");
-  await duenio.proyectoPermiso.delete({ where: { tenantId_rol_modulo: permisoCostos } });
   await duenio.proyectoPersona.update({ where: { id: prod.id }, data: { rol: "PRODUCCION" } });
   // … y el equipo: sale Comercial (su reparto se va con él).
   assert.equal((await direccion(() => ficha.quitarEquipo(form({ proyectoId: p.id, id: eqCom.id })))).ok, true);

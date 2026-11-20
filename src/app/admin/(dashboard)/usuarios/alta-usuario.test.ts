@@ -72,9 +72,10 @@ test("MIA-229 · productora: se da de alta por puesto; el rol del ERP y la ficha
     DIRECCION: { role: "RECEPTION", puesto: "DIRECCION" },
     ADMINISTRACION: { role: "OWNER", puesto: "ADMINISTRACION" },
     COMERCIAL: { role: "RECEPTION", puesto: "COMERCIAL" },
-    DISENO: { role: "PROFESSIONAL", puesto: "DISENO" },
-    PRODUCCION: { role: "PROFESSIONAL", puesto: "PRODUCCION" },
+    // MIA-237: el orden del dueño (productor comercial, productor de campo, producción, diseño).
     PRODUCCION_CAMPO: { role: "PROFESSIONAL", puesto: "PRODUCCION_CAMPO" },
+    PRODUCCION: { role: "PROFESSIONAL", puesto: "PRODUCCION" },
+    DISENO: { role: "PROFESSIONAL", puesto: "DISENO" },
   };
   assert.deepEqual(rolesParaAlta(false, true).map((o) => o.valor), Object.keys(esperado));
   for (const [valor, e] of Object.entries(esperado)) {
