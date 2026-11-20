@@ -21,7 +21,7 @@ export default async function ConfigProyectos() {
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-5">
       <h1 className="mb-4 text-2xl font-bold text-strong">Configuración</h1>
-      <BarraProyectos activa="/admin/proyectos/config" conPlata={veLaPlata(user)} />
+      <BarraProyectos activa="/admin/proyectos/config" conPlata={await veLaPlata(user)} />
       <p className="mb-4 text-sm text-muted">
         Las etapas, la rentabilidad, el reparto, el cierre del mes y el resto de las reglas del negocio están en{" "}
         <Link href="/admin/proyectos/config/parametros" className="underline">Parámetros del módulo</Link> (los cambia Dirección).

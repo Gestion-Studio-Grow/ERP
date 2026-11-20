@@ -19,13 +19,25 @@ import { SIN_COMPROBANTES } from "./rendiciones-core";
 import { anotarCongelados, cobranzaDe, originalesDeCobros, SELECT_COBRANZA, tiposDeCambio } from "./cobranza.server";
 import { totalesEnPesos } from "./cobranza-core";
 import { topeDeAdicionalesPorProyecto } from "./presupuesto-m2.server";
-import { aPesos } from "./gestion-core";
+import { aPesos, rolDelActor, rolVeLaPlata } from "./gestion-core";
 import { COLUMNAS_PAGO } from "./pago-columnas";
 import { costoRealDeProyectos } from "./comprobantes.server";
 import { modoDeLaPropuesta } from "./precio-proyecto.server";
 import { itemsParaElCliente, totalesDelNeto } from "./precio-proyecto-core";
 
-export const veLaPlata = (u: SessionUser): boolean => permisoFueraDeLaAgenda(u, "agenda:manage");
+/**
+ * MIA-223 · la plata de Proyectos (ver costos, márgenes y cobros; cobrar, pagar, órdenes, comprobantes) la ven y la mueven
+ * Dirección y Administración, y nadie más: el rol de gestión (la ficha del equipo; la dueña sin ficha entra como
+ * Dirección) además del techo del ERP («agenda:manage» fuera de la agenda). Producción no ve ni mueve plata aunque su
+ * usuario del ERP sea RECEPTION u OWNER, ni un puesto al que se le guarde «Pagos · editar» (decisión de ORQ-007 con el
+ * «avanzá» del dueño, 20/11; reversible). Un solo lugar: todas las pantallas y acciones de plata de Proyectos pasan por acá.
+ */
+export async function veLaPlata(u: SessionUser): Promise<boolean> {
+  if (!permisoFueraDeLaAgenda(u, "agenda:manage")) return false;
+  const tenantId = await getCurrentTenantId();
+  const persona = await prisma.proyectoPersona.findFirst({ where: { tenantId, userId: u.id, activa: true }, select: { rol: true } });
+  return rolVeLaPlata(rolDelActor(persona?.rol, u.role));
+}
 
 export async function configProyectos(tenantId: string, db: Prisma.TransactionClient = prisma) {
   const c = await db.proyectoConfig.findUnique({ where: { tenantId } });
@@ -75,14 +87,14 @@ export async function tableroProyectos() {
       entregables: { where: { anuladoEl: null }, select: { versiones: { select: { numero: true, estado: true } } } },
     },
   });
-  return { conPlata: veLaPlata(user), proyectos };
+  return { conPlata: (await veLaPlata(user)), proyectos };
 }
 
 /** La ficha completa. Las imágenes viajan aparte: acá sólo su ficha, para no bajar megas de más. */
 export async function fichaProyecto(id: string) {
   const user = await requireCapability("agenda:read");
   const tenantId = await getCurrentTenantId();
-  const conPlata = veLaPlata(user);
+  const conPlata = await veLaPlata(user);
   const proyecto = await prisma.proyecto.findFirst({
     where: { id, tenantId },
     include: {

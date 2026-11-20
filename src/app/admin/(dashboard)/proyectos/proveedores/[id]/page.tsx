@@ -26,7 +26,7 @@ export default async function DetalleProveedor({ params }: { params: Promise<{ i
   const { proveedor: s, historial, cuotas, gastosPorPagar, verPlata, verCostos } = d;
   const f = s.fichaDeProyecto;
   const edita = puede(a, "proveedores", "editar");
-  const paga = verPlata && puede(a, "pagos", "editar") && veLaPlata(a.user);
+  const paga = verPlata && puede(a, "pagos", "editar") && (await veLaPlata(a.user));
   const datos = [
     ["Rubro", f?.rubro ?? "Sin rubro"],
     ["Ciudad", f?.ciudad ?? "—"],

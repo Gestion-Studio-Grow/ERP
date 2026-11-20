@@ -729,6 +729,9 @@ export const PERMISOS_BASE: Record<Exclude<RolGestion, "DIRECCION">, Record<Modu
 const ROLES_QUE_RINDEN: readonly RolGestion[] = ["DIRECCION", "ADMINISTRACION", "COMERCIAL", "PRODUCCION", "PRODUCCION_CAMPO"];
 const ROLES_QUE_APRUEBAN_RENDICIONES: readonly RolGestion[] = ["DIRECCION", "ADMINISTRACION"];
 
+/** MIA-223 · el rol de gestión que ve y mueve la plata de Proyectos (lo usa `veLaPlata`, datos.server.ts). PURA. */
+export const rolVeLaPlata = (rol: RolGestion): boolean => ROLES_QUE_APRUEBAN_RENDICIONES.includes(rol);
+
 /** Rendir lo mío: un rol que rinde y que está en el `ProyectoEquipo` del proyecto (ver todos no alcanza). PURA. */
 export function puedeRendir(rol: RolGestion, estaEnEquipo: boolean): boolean {
   return estaEnEquipo && ROLES_QUE_RINDEN.includes(rol);

@@ -23,7 +23,7 @@ export default async function FichaProductora({ id, user }: { id: string; user: 
   // Sin `clients:contact` (casilla 5 de la matriz) teléfono y mail salen enmascarados del servidor.
   const client = enmascararContacto(crudo, user);
   const puedeEditar = permisoEfectivo(user, "clients:manage");
-  const conPlata = veLaPlata(user);
+  const conPlata = await veLaPlata(user);
   const contacto = contactoDeLaFicha({ telefono: client.phone, noQuiere: false, puedeEditar });
   const vendido = redondear(proyectos.reduce((s, p) => s + (p.t?.total ?? 0), 0));
   const cobrado = redondear(proyectos.reduce((s, p) => s + p.cobrado, 0));

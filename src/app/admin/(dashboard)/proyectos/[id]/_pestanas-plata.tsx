@@ -230,7 +230,7 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
   const lineas = filtrarCashflow(d.flujo.lineas, activo);
   const hoy = fechaParaInput(new Date());
   // Con cuotas, se cobra y se paga marcándolas: cargar además por acá contaría dos veces. Sin cuotas, es el único camino.
-  const cargaDirecta = vista.editaPagos && veLaPlata(a.user);
+  const cargaDirecta = vista.editaPagos && (await veLaPlata(a.user));
   // MIA-208 · 3: marcar cobrado o pagado y anular también piden ver la plata (el servidor lo exige, `acciones-ficha.ts`
   // SIN_PLATA): el productor tiene «Pagos · editar» pero no ve estos botones.
   const conCobros = d.cuotas.some((c) => c.tipo === "COBRO" && !c.anuladoEl);

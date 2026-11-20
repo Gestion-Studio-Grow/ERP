@@ -23,7 +23,7 @@ const TRATAMIENTO_LABEL = Object.fromEntries(TRATAMIENTOS.map((t) => [t.id, t.la
 
 export default async function Comprobante({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("gestion-proveedores");
-  const { a, vePlata, carga, paga } = permisosDeCompras(await exigirVer("proveedores"));
+  const { a, vePlata, carga, paga } = await permisosDeCompras(await exigirVer("proveedores"));
   const { id } = await params;
   if (!vePlata) return <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-5"><SinPlata /></main>;
   const c = await siHayM1(() => comprobanteParaVer(a.tenantId, id));

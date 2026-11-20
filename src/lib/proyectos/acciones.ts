@@ -216,7 +216,7 @@ export async function registrarCobro(formData: FormData): Promise<Resultado<{ li
   const { user, tenantId } = a;
   // MIA-213: el cobro asienta una VENTA en el libro. «Pagos · editar» lo tiene PRODUCCION; ver la plata, no. La pantalla
   // esconde el formulario (`cargaDirecta`, `_pestanas-plata.tsx`); acá es donde de verdad se frena.
-  if (!veLaPlata(user)) return { ok: false, error: SIN_PLATA };
+  if (!(await veLaPlata(user))) return { ok: false, error: SIN_PLATA };
   const proyectoId = txt(formData.get("proyectoId"));
   const medio = txt(formData.get("medio")) as MedioPago;
   const original = redondear(numero(formData.get("monto")));
@@ -381,7 +381,7 @@ export async function registrarGasto(formData: FormData): Promise<Resultado> {
   const { user, tenantId } = a;
   // MIA-213: «pagado» asienta un EGRESO en el libro. La pantalla muestra el formulario sólo a quien ve la plata
   // (`cargaDirecta`, `_pestanas-plata.tsx`); el servidor pide lo mismo.
-  if (!veLaPlata(user)) return { ok: false, error: SIN_PLATA };
+  if (!(await veLaPlata(user))) return { ok: false, error: SIN_PLATA };
   const proyectoId = txt(formData.get("proyectoId"));
   if (!(await proyectoDelActor(a, proyectoId))) return { ok: false, error: "Ese proyecto no existe." };
   const p = await prisma.proyecto.findFirst({ where: { id: proyectoId, tenantId }, select: { numero: true, nombre: true } });
@@ -467,7 +467,7 @@ export async function pagarGasto(formData: FormData): Promise<Resultado> {
   const a = await actorActual();
   const { user, tenantId } = a;
   if (!puede(a, "pagos", "editar")) return { ok: false, error: "Para pagar un gasto hace falta el permiso de editar Pagos: pedíselo a quien administra." };
-  if (!veLaPlata(user)) return { ok: false, error: "Tu usuario no ve la plata del negocio: el pago lo tiene que hacer Administración." };
+  if (!(await veLaPlata(user))) return { ok: false, error: "Tu usuario no ve la plata del negocio: el pago lo tiene que hacer Administración." };
   const id = txt(formData.get("id"));
   const medio = txt(formData.get("medio")) as MedioPago;
   if (!MEDIOS.includes(medio)) return { ok: false, error: "Elegí cómo se pagó." };

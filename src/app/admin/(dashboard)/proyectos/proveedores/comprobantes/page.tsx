@@ -17,7 +17,7 @@ export const metadata = { title: "Comprobantes de proveedores" };
 // O27 · los comprobantes de proveedor: alta con su PDF (el duplicado lo frena la base) y la lista con lo que falta imputar y pagar.
 export default async function Comprobantes({ searchParams }: { searchParams: Promise<{ proveedor?: string }> }) {
   await requireApp("gestion-proveedores");
-  const { a, vePlata, carga } = permisosDeCompras(await exigirVer("proveedores"));
+  const { a, vePlata, carga } = await permisosDeCompras(await exigirVer("proveedores"));
   const sp = await searchParams;
   const supplierId = (sp.proveedor ?? "").slice(0, 40);
   const [filas, p, proveedores, proyectos] = vePlata

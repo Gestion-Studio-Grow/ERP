@@ -48,7 +48,7 @@ function refrescar(proyectoIds: readonly (string | null)[] = []) {
 async function actorDePagos(): Promise<Actor | string> {
   const a = await actorActual();
   if (!puede(a, "pagos", "editar")) return "Para las órdenes de pago hace falta el permiso de editar Pagos: pedíselo a quien administra.";
-  if (!veLaPlata(a.user)) return "Tu usuario no ve la plata del negocio: las órdenes de pago son de Administración.";
+  if (!(await veLaPlata(a.user))) return "Tu usuario no ve la plata del negocio: las órdenes de pago son de Administración.";
   return a;
 }
 

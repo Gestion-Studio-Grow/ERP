@@ -14,7 +14,7 @@ export const metadata = { title: "IVA crédito fiscal" };
 // O30 · el IVA que se imputó como crédito fiscal en el mes, comprobante por comprobante, listo para el contador.
 export default async function IvaCredito({ searchParams }: { searchParams: Promise<{ mes?: string }> }) {
   await requireApp("gestion-proveedores");
-  const { a, vePlata } = permisosDeCompras(await exigirVer("proveedores"));
+  const { a, vePlata } = await permisosDeCompras(await exigirVer("proveedores"));
   const mes = mesDelParametro((await searchParams).mes);
   const datos = vePlata ? await siHayM1(() => ivaCreditoDelPeriodo(a.tenantId, mes)) : null;
 

@@ -18,7 +18,7 @@ export default async function RentabilidadProyectos() {
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-5">
       <h1 className="mb-4 text-2xl font-bold text-strong">Rentabilidad</h1>
-      <BarraProyectos activa="/admin/proyectos/reportes" conPlata={veLaPlata(user)} />
+      <BarraProyectos activa="/admin/proyectos/reportes" conPlata={await veLaPlata(user)} />
       <dl className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className={tarjeta}><dt className="text-sm text-muted">Vendido (neto, aprobado)</dt><dd className="text-xl font-bold text-strong">{pesos(neto)}</dd></div>
         <div className={tarjeta}><dt className="text-sm text-muted">Ganancia presupuestada</dt><dd className="text-xl font-bold text-strong">{pesos(ganancia)}{neto > 0 && ` · ${porcentaje(redondear((ganancia / neto) * 100))}`}</dd></div>

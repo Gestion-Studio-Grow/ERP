@@ -55,7 +55,7 @@ function refrescar(proyectoIds: readonly (string | null)[] = []) {
 async function exigirAlguno(modulos: readonly ModuloGestion[]): Promise<Actor | string> {
   const a = await actorActual();
   if (!modulos.some((m) => puede(a, m, "editar"))) return "Para cargar comprobantes hace falta el permiso de editar Proveedores o Pagos: pedíselo a quien administra.";
-  if (!veLaPlata(a.user)) return "Tu usuario no ve la plata del negocio: los comprobantes los carga Administración.";
+  if (!(await veLaPlata(a.user))) return "Tu usuario no ve la plata del negocio: los comprobantes los carga Administración.";
   return a;
 }
 const actorDeComprobantes = () => exigirAlguno(["proveedores", "pagos"]);

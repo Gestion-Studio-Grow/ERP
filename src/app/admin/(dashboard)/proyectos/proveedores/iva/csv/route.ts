@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   await requireApp("gestion-proveedores");
   const a = await exigirVer("proveedores");
-  if (!veLaPlata(a.user)) return new Response("No autorizado.", { status: 403 });
+  if (!(await veLaPlata(a.user))) return new Response("No autorizado.", { status: 403 });
   const mes = mesDelParametro(new URL(request.url).searchParams.get("mes"));
   const datos = await siHayM1(() => ivaCreditoDelPeriodo(a.tenantId, mes));
   if (!datos) return new Response("Falta una actualización de la base.", { status: 409 });

@@ -23,7 +23,7 @@ export const metadata = { title: "Orden de pago" };
 
 export default async function Orden({ params }: { params: Promise<{ id: string }> }) {
   await requireApp("gestion-proveedores");
-  const { a, vePlata, paga } = permisosDeCompras(await exigirVer("proveedores"));
+  const { a, vePlata, paga } = await permisosDeCompras(await exigirVer("proveedores"));
   const { id } = await params;
   if (!vePlata) return <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-5"><SinPlata /></main>;
   const o = await siHayM1(() => ordenParaVer(a.tenantId, id));

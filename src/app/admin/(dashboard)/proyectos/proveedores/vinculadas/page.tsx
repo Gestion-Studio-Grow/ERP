@@ -13,7 +13,7 @@ export const metadata = { title: "Compras a sociedades vinculadas" };
 // O44 · lo que este negocio le compró a sus sociedades vinculadas, con la referencia que las une. Nunca lee otro negocio.
 export default async function Vinculadas({ searchParams }: { searchParams: Promise<{ referencia?: string }> }) {
   await requireApp("gestion-proveedores");
-  const { a, vePlata } = permisosDeCompras(await exigirVer("proveedores"));
+  const { a, vePlata } = await permisosDeCompras(await exigirVer("proveedores"));
   const referencia = ((await searchParams).referencia ?? "").trim();
   const [filas, p] = vePlata ? await Promise.all([siHayM1(() => comprasAVinculadas(a.tenantId)), parametrosDeComprobantes(a.tenantId)]) : [null, null];
   const visibles = (filas ?? []).filter((f) => !referencia || f.referenciaVinculada === referencia);

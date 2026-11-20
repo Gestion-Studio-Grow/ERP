@@ -27,7 +27,7 @@ export default async function ProveedoresDeProyectos({ searchParams }: { searchP
   const bajas = sp.bajas === "1";
   const { proveedores, pendientes, porPagar, porPagarCuotas, porPagarComprobantes, verPlata } = await listaDeProveedores(a, { rubro, q, bajas });
   const edita = puede(a, "proveedores", "editar");
-  const paga = verPlata && puede(a, "pagos", "editar") && veLaPlata(a.user);
+  const paga = verPlata && puede(a, "pagos", "editar") && (await veLaPlata(a.user));
 
   return (
     <main className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-5">

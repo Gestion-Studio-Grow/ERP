@@ -31,8 +31,8 @@ export const plata = (centavos: number | bigint): string => pesos(Number(centavo
 
 /** Qué puede en Compras quien ya pasó `exigirVer("proveedores")` (la página lo pide a la vista, para la matriz A1): ver la plata
  *  del negocio; cargar = editar Proveedores o Pagos; pagar = editar Pagos. */
-export function permisosDeCompras(a: Actor): { a: Actor; vePlata: boolean; carga: boolean; paga: boolean } {
-  const vePlata = veLaPlata(a.user);
+export async function permisosDeCompras(a: Actor): Promise<{ a: Actor; vePlata: boolean; carga: boolean; paga: boolean }> {
+  const vePlata = await veLaPlata(a.user);
   return { a, vePlata, carga: vePlata && (puede(a, "proveedores", "editar") || puede(a, "pagos", "editar")), paga: vePlata && puede(a, "pagos", "editar") };
 }
 

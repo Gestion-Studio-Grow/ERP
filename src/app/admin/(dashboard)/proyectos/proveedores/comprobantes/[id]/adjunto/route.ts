@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_pedido: Request, { params }: { params: Promise<{ id: string }> }) {
   await requireApp("gestion-proveedores");
   const a = await actorActual();
-  if (!puede(a, "proveedores", "ver") || !veLaPlata(a.user)) return new NextResponse(null, { status: 404 });
+  if (!puede(a, "proveedores", "ver") || !(await veLaPlata(a.user))) return new NextResponse(null, { status: 404 });
   const { id } = await params;
   const f = await siHayM1(() => adjuntoDe(a.tenantId, id));
   if (!f) return new NextResponse(null, { status: 404 });

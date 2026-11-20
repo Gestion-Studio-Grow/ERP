@@ -14,7 +14,7 @@ export const metadata = { title: "Órdenes de pago" };
 // O33 · a pagar por comprobante (agrupado por proveedor) y las órdenes de pago del negocio, con número correlativo.
 export default async function Ordenes() {
   await requireApp("gestion-proveedores");
-  const { a, vePlata } = permisosDeCompras(await exigirVer("proveedores"));
+  const { a, vePlata } = await permisosDeCompras(await exigirVer("proveedores"));
   const [aPagar, ordenes] = vePlata ? await Promise.all([siHayM1(() => aPagarPorComprobante(a.tenantId)), siHayM1(() => ordenesDelNegocio(a.tenantId))]) : [null, null];
   const total = (aPagar ?? []).reduce((s, g) => s + g.porPagar, 0);
 
