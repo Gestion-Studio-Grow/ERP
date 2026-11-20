@@ -27,7 +27,8 @@ import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenioBase } from "@/te
 
 const laBase = baseEfimeraDelArchivo();
 const DIA = 86_400_000;
-const PLAZO_MS = 20_000;
+/** Techo de cada espera por una condición (con la suite entera en paralelo la base va lenta), no un dato del test. */
+const PLAZO_MS = 60_000;
 const VUELTAS = 2;
 /** Fecha fija de los datos (evento): el resultado no depende del reloj. */
 const AHORA = Date.parse("2026-11-10T12:00:00Z");
@@ -99,6 +100,7 @@ test("MIA-219 · regenerar el plan mientras la cuota que sobra se enlaza y entra
     await c.connect();
     let enlace: unknown = null;
     let orden: unknown = null;
+    let ventanaMs = 0;
     try {
       await c.query("BEGIN");
       await c.query(`SELECT id FROM "ProyectoCuota" WHERE id = $1 FOR UPDATE`, [anticipo.id]);
@@ -128,10 +130,13 @@ test("MIA-219 · regenerar el plan mientras la cuota que sobra se enlaza y entra
       })().finally(() => (listo = true));
       administracion.catch(() => {});
       // Espera a que Administración termine o quede trabada detrás del ajuste (también una condición).
+      const hastaAdministracion = performance.now() + PLAZO_MS;
+      const ventana = performance.now();
       while (!listo && (await trabadosDetras(ajustePid)).length === 0) {
-        if (performance.now() > hasta) assert.fail(`Administración no terminó ni se trabó en ${PLAZO_MS} ms`);
+        if (performance.now() > hastaAdministracion) assert.fail(`Administración no terminó ni se trabó en ${PLAZO_MS} ms`);
         await new Promise((x) => setImmediate(x));
       }
+      ventanaMs = Math.round(performance.now() - ventana);
       await c.query("ROLLBACK");
       await ajuste;
       await administracion;
@@ -149,7 +154,7 @@ test("MIA-219 · regenerar el plan mientras la cuota que sobra se enlaza y entra
       };
     });
     const pagos = await duenio.proyectoCuota.findMany({ where: { tenantId: b.id, proyectoId: proy.id, tipo: "PAGO", anuladoEl: null }, select: { monto: true } });
-    const foto = { saldoPrimero, anulada: !!saldo.anuladoEl, enlazada, enOrdenViva, enlace, orden, aPagar: pagos.reduce((s, x) => s + x.monto, 0) };
+    const foto = { saldoPrimero, anulada: !!saldo.anuladoEl, enlazada, enOrdenViva, enlace, orden, aPagar: pagos.reduce((s, x) => s + x.monto, 0), ventanaMs };
     assert.ok(!(foto.anulada && foto.enOrdenViva), `«…:saldo» quedó anulada dentro de una orden viva (la orden no se puede pagar): ${json(foto)}`);
     assert.ok(!(foto.anulada && foto.enlazada), `«…:saldo» quedó anulada y enlazada a su comprobante: ${json(foto)}`);
     assert.equal(saldo.pagadoEl, null, "nadie pagó nada");
