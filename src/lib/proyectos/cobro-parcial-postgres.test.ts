@@ -341,3 +341,45 @@ test("cert. F2: precio tipeado y «Guardar textos» con otro cambio a la vez, en
   const eb = await enUsd(b.presupuestoId, b.itemId, b.x);
   assert.deepEqual({ tc: eb.tc, y: eb.y, x: eb.x }, { tc: 1400, y: 4033.33, x: 0 });
 });
+
+// MIA-199 · P4-2 (veedor P1 «Aurora», paso 4): el doble clic no cobró dos veces porque el navegador mandó un solo
+// pedido, y el cobro quedó con `claveEnvio` vacío: no estaba demostrado que el SERVIDOR frene dos pedidos iguales.
+// Acá los pedidos van directo a la acción (sin pantalla), a la vez, en fila detrás del candado de la cobranza.
+test("P4-2 · dos pedidos directos iguales con la misma clave (todo, con cuenta): un cobro, el banco sube una vez y la clave queda en el cobro", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { id } = await p.proyecto();
+  const q = await p.cuota(id, 605, 5);
+  const banco = await p.cuenta();
+  const pedido = p.cobrar(q, { cuenta: banco, envio: "aurora-anticipo" });
+  const rs = await enFila(p.base, p.clave(id), [pedido, pedido]);
+  assert.deepEqual(rs.map((r) => r.ok), [true, true], "el segundo es el mismo envío: no es un error");
+  assert.deepEqual(await p.caja(id), { cobros: 1, cobrado: 605, caja: 605 }, "un solo cobro y un solo asiento");
+  assert.equal(await p.saldoCuenta(banco), 605, "el banco sube una vez (0 + 605)");
+  const pagos = await p.duenio.proyectoPago.findMany({ where: { proyectoId: id }, select: { claveEnvio: true } });
+  assert.equal(pagos.length, 1);
+  assert.ok(pagos[0].claveEnvio, "la clave del envío queda en el cobro: el índice único la frena aunque falle el candado");
+  // El mismo envío una vez más, ya terminado el primero: sigue siendo uno.
+  assert.equal((await pedido()).ok, true);
+  assert.deepEqual(await p.caja(id), { cobros: 1, cobrado: 605, caja: 605 });
+  assert.equal(await p.saldoCuenta(banco), 605);
+});
+
+test("P4-2 · dos pedidos directos iguales SIN clave (una parte de 100): entra uno solo; con un formulario nuevo, el segundo sí", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { id } = await p.proyecto();
+  const q = await p.cuota(id, 605, 5);
+  const banco = await p.cuenta();
+  const pedido = p.cobrar(q, { monto: "100", cuenta: banco });
+  const rs = await enFila(p.base, p.clave(id), [pedido, pedido]);
+  assert.deepEqual(rs.map((r) => r.ok), [true, false], "el repetido sin clave se frena en el servidor");
+  assert.match(String((rs[1] as { error?: string }).error), /cobro igual/);
+  assert.deepEqual(await p.caja(id), { cobros: 1, cobrado: 100, caja: 100 });
+  assert.equal(await p.saldoCuenta(banco), 100);
+  // Otro cobro de 100 de verdad: el formulario recargado trae su clave y entra (100 + 100 = 200; falta 405).
+  assert.equal((await p.cobrar(q, { monto: "100", cuenta: banco, envio: "formulario-nuevo" })()).ok, true);
+  assert.deepEqual(await p.caja(id), { cobros: 2, cobrado: 200, caja: 200 });
+  assert.equal(await p.saldoCuenta(banco), 200);
+  assert.equal((await p.estado(id)).falta[q], 405);
+});
