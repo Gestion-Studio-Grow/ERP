@@ -507,14 +507,19 @@ test("V4 (MIA-099) · dos cambios de etapa a la vez, en los dos órdenes (5 vece
       const id = await p.proyecto("APROBADO");
       const [primero, segundo] = orden ? [y, x] : [x, y];
       const r = await enFila(p.base, p.claveCobranza(id), [primero, segundo].map((d) => () => p.mover(id, d, d === "PERDIDO" ? "carrera" : undefined)));
-      assert.ok(r.every((x) => x.ok), `${primero} y ${segundo}: los dos contestan bien ${JSON.stringify(r)}`);
+      // MIA-232 · H2 (D4): Confirmado que vuelve a Pedido pierde la aprobación y ya no pasa a Producción sin que el cliente
+      // apruebe: el segundo, que corre sobre lo que dejó el primero, contesta que no y no deja fila de etapa.
+      const frenado = primero === "PEDIDO" && segundo === "PRODUCCION";
+      if (frenado) {
+        assert.ok(r[0].ok && !r[1].ok && /volvió a Pedido/.test((r[1] as { error?: string }).error ?? ""), `${primero} y ${segundo}: el segundo frena por la aprobación quitada ${JSON.stringify(r)}`);
+      } else assert.ok(r.every((x) => x.ok), `${primero} y ${segundo}: los dos contestan bien ${JSON.stringify(r)}`);
       const e = await p.etapa(id);
       // Lo que tiene que quedar: el segundo pedido corre sobre lo que dejó el primero. Mover un perdido lo reabre en su etapa.
-      const esperado = segundo === "PERDIDO" ? { etapa: primero, perdidoEl: true } : primero === "PERDIDO" ? { etapa: "APROBADO", perdidoEl: false } : { etapa: segundo, perdidoEl: false };
+      const esperado = frenado ? { etapa: "PEDIDO", perdidoEl: false } : segundo === "PERDIDO" ? { etapa: primero, perdidoEl: true } : primero === "PERDIDO" ? { etapa: "APROBADO", perdidoEl: false } : { etapa: segundo, perdidoEl: false };
       assert.deepEqual({ etapa: e.etapa, perdidoEl: e.perdidoEl !== null }, esperado, `${primero} → ${segundo}`);
       const h = await historialDeEtapa(p, id);
-      assert.equal(h.length, 2, `${primero} → ${segundo}: dos filas de historial`);
-      assert.equal(h[1].antes, h[0].despues?.replace(/^Perdido: .*/, "Perdido"), `${primero} → ${segundo}: el segundo vio lo que dejó el primero (en fila, no pisado)`);
+      assert.equal(h.length, frenado ? 1 : 2, `${primero} → ${segundo}: ${frenado ? "una fila" : "dos filas"} de historial`);
+      if (!frenado) assert.equal(h[1].antes, h[0].despues?.replace(/^Perdido: .*/, "Perdido"), `${primero} → ${segundo}: el segundo vio lo que dejó el primero (en fila, no pisado)`);
       // La etapa y las cuotas coinciden: rehacer el plan de cuotas con la etapa final no cambia nada.
       const f = await p.foto(id);
       await p.enSesion(() => p.gestion.regenerarCuotas(p.a.id, id));

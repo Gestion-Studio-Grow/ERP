@@ -11,6 +11,14 @@ export const PREFIJO_CANCELADO = "Cancelado: ";
 /** Un proyecto fuera del tablero es cancelado si su motivo lo dice (la marca vive en Proyecto aunque M7b falte). */
 export const esCancelado = (motivoPerdida: string | null | undefined): boolean => !!motivoPerdida?.startsWith(PREFIJO_CANCELADO);
 
+/**
+ * MIA-232 · H1: «Cancelado: » es la marca de la cancelación de Dirección (`cancelarProyecto`), y la cancelación anula también
+ * la deuda con los proveedores. Un motivo de perdido que la traiga se rechaza: si no, una frase natural («Cancelado: el
+ * cliente se bajó») cancelaría sin Dirección y sin versión aprobada. Mismo criterio que `esCancelado`. PURA.
+ */
+export const rechazoDeMotivoDePerdido = (motivo: string): string | null =>
+  esCancelado(motivo) ? "«Cancelado:» al principio queda reservado para la cancelación que hace Dirección. Escribí el motivo de otra forma (por ejemplo, «El cliente canceló: …»)." : null;
+
 /** El motivo que se ve, sin el prefijo. */
 export const motivoDeCancelacion = (motivoPerdida: string): string => motivoPerdida.slice(PREFIJO_CANCELADO.length);
 

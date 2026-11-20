@@ -34,7 +34,7 @@ import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server"
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
-import { tipoDeArchivoSubido, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
+import { FALTA_REAPROBAR, frenaSinReaprobar, tipoDeArchivoSubido, VOLVIO_A_PEDIDO, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { evaluarPase, textoDelPase, type Pase } from "./compuertas-core";
@@ -48,7 +48,7 @@ import type { EnlaceDeArreglo, ModuloGestion } from "./gestion-core";
 import { siHayM1, tomarCuotas } from "./comprobantes.server";
 import { numeroDeOrden } from "./orden-pago-core";
 import { contextoDelPrecio, frenoDelPrecioTx, grabarFotoTx } from "./precio-proyecto.server";
-import { esCancelado } from "./cancelacion-core";
+import { esCancelado, rechazoDeMotivoDePerdido } from "./cancelacion-core";
 import { etapaQueSeEntra } from "./etapas-core";
 import { grabarFechaReal, hayM7b } from "./etapas-m7b.server";
 
@@ -212,6 +212,8 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
   const motivo = String(d.motivo ?? "").trim().slice(0, 300);
   const motivoForzar = String(d.motivoForzar ?? "").trim().slice(0, 300);
   if (d.destino === PERDIDO && !motivo) return mal("Escribí por qué se perdió.");
+  const reservado = d.destino === PERDIDO ? rechazoDeMotivoDePerdido(motivo) : null;
+  if (reservado) return mal(reservado);
   if (d.destino !== PERDIDO && !esEtapa(d.destino)) return mal("Esa etapa no existe.");
   if (d.forzar && a.rol !== "DIRECCION") return mal("Sólo Dirección puede forzar el paso de etapa.");
   if (d.forzar && !motivoForzar) return mal("Escribí por qué se fuerza el paso.");
@@ -244,6 +246,9 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
           return "Este proyecto ya tiene un cobro o un pago registrado: no vuelve a una etapa anterior a Confirmado. Primero anulá el cobro o el pago, o marcalo como perdido.";
         if (!p.perdidoEl) {
           const aprobada = (await tx.proyectoPresupuesto.count({ where: { tenantId, proyectoId: id, estado: "APROBADO" } })) > 0;
+          // H2: sin la aprobación que se quitó al volver a Pedido, no entra en Confirmado (ni más allá). Antes de la compuerta.
+          const aprobacionQuitada = !aprobada && (await tx.proyectoCambio.count({ where: { tenantId, proyectoId: id, entidad: "ProyectoPresupuesto", despues: VOLVIO_A_PEDIDO } })) > 0;
+          if (frenaSinReaprobar({ destino, aprobada, aprobacionQuitada })) return FALTA_REAPROBAR;
           const finEvento = p.fechaFin ?? p.fechaDesarme ?? p.fechaEvento;
           pase = evaluarPase(etapas, p.etapa, destino, { brief: p.brief, responsable: p.responsable, aprobada, finEvento, rendicionesPendientes }, new Date());
           if (pase.frena && !d.forzar) return { faltan: pase.faltan.map((f) => f.texto) };
@@ -290,7 +295,7 @@ async function quitarAprobacion(tx: Prisma.TransactionClient, tenantId: string, 
   for (const v of aprobadas) {
     const r = await tx.proyectoPresupuesto.updateMany({ where: { id: v.id, tenantId, estado: "APROBADO" }, data: { estado: "ENVIADO", respondidoEl: null, respondidoPor: null } });
     if (r.count === 0) continue;
-    await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPresupuesto", entidadId: v.id, campo: `Aprobación · versión ${v.version}`, antes: v.respondidoPor ? `Aprobada (${v.respondidoPor})` : "Aprobada", despues: "Volvió a Pedido: la tiene que aprobar el cliente de nuevo", autor });
+    await registrarCambio(tx, { tenantId, proyectoId, entidad: "ProyectoPresupuesto", entidadId: v.id, campo: `Aprobación · versión ${v.version}`, antes: v.respondidoPor ? `Aprobada (${v.respondidoPor})` : "Aprobada", despues: VOLVIO_A_PEDIDO, autor });
   }
 }
 

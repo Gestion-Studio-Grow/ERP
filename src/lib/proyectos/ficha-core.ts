@@ -38,10 +38,26 @@ export function planQueSigue<T extends { tipo: string }>(plan: readonly T[], p: 
 export const cobroFrenadoPorPerdido = (c: { tipo: string; pagadoEl: Date | string | null; proyecto?: { perdidoEl: Date | string | null } | null }): boolean => !c.pagadoEl && !!c.proyecto?.perdidoEl && !perdidoAdmite(c.tipo);
 
 /**
- * «Vendido (aprobado, con IVA)» de la ficha de un cliente: la suma del total aprobado de sus proyectos. PURA.
+ * «Vendido (aprobado, con IVA)» de la ficha de un cliente: el total aprobado de sus proyectos, sin los perdidos (decisión 1
+ * del dueño, 20/11, MIA-224; hallazgo H3 de GSG-PR215-v1), igual que Rentabilidad y Dirección. Reabierto vuelve a sumar. PURA.
  */
 export const vendidoDelCliente = (proyectos: readonly { t: { total: number } | null; perdidoEl: Date | string | null }[]): number =>
-  redondear(proyectos.reduce((s, p) => s + (p.t?.total ?? 0), 0));
+  redondear(proyectos.reduce((s, p) => s + (p.perdidoEl ? 0 : (p.t?.total ?? 0)), 0));
+
+/** La fila de historial que deja una aprobación quitada al volver a Pedido (MIA-224 · D4). */
+export const VOLVIO_A_PEDIDO = "Volvió a Pedido: la tiene que aprobar el cliente de nuevo";
+export const FALTA_REAPROBAR =
+  "Este proyecto volvió a Pedido y perdió la aprobación: no pasa a Confirmado hasta que el cliente apruebe una versión (por su link o con «Registrar respuesta»).";
+
+/**
+ * MIA-232 · H2 (D4 del dueño: «tiene que volver a aprobarlo el cliente»; default de ORQ-007): un proyecto que volvió a Pedido
+ * y perdió la aprobación no entra en Confirmado ni en una etapa posterior hasta que el cliente apruebe una versión. No se
+ * fuerza. Los demás pases siguen como hoy (un proyecto que nunca tuvo aprobación pasa con el aviso de la compuerta). PURA.
+ */
+export function frenaSinReaprobar(d: { destino: string; aprobada: boolean; aprobacionQuitada: boolean }): boolean {
+  const etapas: readonly string[] = ETAPAS;
+  return d.aprobacionQuitada && !d.aprobada && etapas.indexOf(d.destino) >= etapas.indexOf("APROBADO");
+}
 
 /** Un lead sigue abierto hasta que el cliente confirma o se pierde. */
 export const ETAPAS_DE_LEAD = ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"] as const;

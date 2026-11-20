@@ -177,3 +177,20 @@ test("contar: singular con 1, plural con 0 y con más («1 ítem», no «1 ítem
   assert.equal(contar(3, "movimiento", "movimientos"), "3 movimientos");
   assert.equal(contar(1, "punto", "puntos"), "1 punto");
 });
+
+test("MIA-232 · H1-H3: motivo reservado, freno sin re-aprobar y «Vendido» sin perdidos (reglas puras)", async () => {
+  const { rechazoDeMotivoDePerdido, esCancelado } = await import("./cancelacion-core");
+  const { frenaSinReaprobar, vendidoDelCliente } = await import("./ficha-core");
+  // H1: se rechaza exactamente lo que `esCancelado` tomaría como cancelación; lo demás pasa.
+  for (const m of ["Cancelado: el cliente se bajó", "Cancelado: "]) assert.ok(esCancelado(m) && rechazoDeMotivoDePerdido(m), m);
+  for (const m of ["El cliente canceló: se bajó", "cancelado: en minúscula", "Cancelado sin dos puntos", "Eligió otro proveedor"]) assert.equal(rechazoDeMotivoDePerdido(m), null, m);
+  // H2: sólo frena con la aprobación quitada, sin una nueva, y hacia Confirmado o después.
+  for (const destino of ["APROBADO", "PRODUCCION", "ARMADO", "DESARME", "CIERRE"]) assert.equal(frenaSinReaprobar({ destino, aprobada: false, aprobacionQuitada: true }), true, destino);
+  for (const destino of ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"]) assert.equal(frenaSinReaprobar({ destino, aprobada: false, aprobacionQuitada: true }), false, destino);
+  assert.equal(frenaSinReaprobar({ destino: "APROBADO", aprobada: true, aprobacionQuitada: true }), false, "el cliente volvió a aprobar");
+  assert.equal(frenaSinReaprobar({ destino: "APROBADO", aprobada: false, aprobacionQuitada: false }), false, "nunca tuvo aprobación: como hoy");
+  // H3: el perdido no suma; sin presupuesto aprobado tampoco.
+  const perdidoEl = new Date("2026-11-20T12:00:00Z");
+  assert.equal(vendidoDelCliente([{ t: { total: 1863.4 }, perdidoEl: null }, { t: { total: 1863.4 }, perdidoEl }, { t: null, perdidoEl: null }]), 1863.4);
+  assert.equal(vendidoDelCliente([]), 0);
+});

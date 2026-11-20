@@ -77,7 +77,7 @@ export default async function FichaProductora({ id, user }: { id: string; user: 
                   <span className="min-w-0">
                     <span className="block font-medium text-strong [overflow-wrap:anywhere]">#{p.numero} {p.nombre}</span>
                     <span className="block text-sm text-muted">
-                      {SERVICIO_LABEL[p.servicio as Servicio] ?? p.servicio} · {etapaLabel(p.etapa, p.servicio)}
+                      {SERVICIO_LABEL[p.servicio as Servicio] ?? p.servicio} · {p.perdidoEl ? "Perdido (no suma en Vendido)" : etapaLabel(p.etapa, p.servicio)}
                     </span>
                   </span>
                   {conPlata && (
