@@ -9,6 +9,9 @@
 //  C-O03  Pasar sin cumplir: aviso con la lista exacta (con el valor del rubro, avisa y pasa). Con la compuerta en
 //         «frena»: no pasa (0 filas, cuotas iguales); forzar como Comercial: rechazo, 0 filas; forzar como Dirección
 //         con motivo: pasa y deja 1 fila «Compuerta forzada» con autor y motivo.
+//         MIA-234 · «1 a»: sin versión aprobada no se entra en Confirmado, ni forzando, así que la compuerta de Comercial
+//         (que sólo pedía la aprobación) ya no se cruza sin cumplir. C-O03 se prueba con la de Producción: Desarme →
+//         Cierre con el evento sin terminar.
 // ============================================================================
 
 import { test } from "node:test";
@@ -17,7 +20,7 @@ import { ejecutarAccion, prepararAccionesDeServidor } from "@/test/accion-de-ser
 import { apuntarLaAppA, baseEfimeraDelArchivo, prismaComoDuenio, type BaseEfimera } from "@/test/base-efimera";
 
 const laBase = baseEfimeraDelArchivo();
-const AVISO_APROBACION = "Que el cliente apruebe una versión del presupuesto.";
+const AVISO_EVENTO = "Que termine el evento (la fecha de fin todavía no pasó).";
 
 let preparado: ReturnType<typeof armar> | null = null;
 async function armar(base: BaseEfimera) {
@@ -68,8 +71,8 @@ async function armar(base: BaseEfimera) {
   const etapa = async (id: string) => (await duenio.proyecto.findUniqueOrThrow({ where: { id }, select: { etapa: true } })).etapa;
   const cuotas = async (proyectoId: string) =>
     JSON.stringify(await duenio.proyectoCuota.findMany({ where: { proyectoId }, orderBy: [{ clave: "asc" }, { createdAt: "asc" }], select: { clave: true, tipo: true, monto: true, venceEl: true, prevista: true, pagadoEl: true, anuladoEl: true } }));
-  const ponerCompuerta = async (comercial: "AVISA" | "FRENA") => {
-    const lista = (await import("./parametros/catalogo")).defDe("etapas.lista").rubro.map((e) => (e.id === "COMERCIAL" ? { ...e, compuerta: comercial } : e));
+  const ponerCompuerta = async (produccion: "AVISA" | "FRENA") => {
+    const lista = (await import("./parametros/catalogo")).defDe("etapas.lista").rubro.map((e) => (e.id === "PRODUCCION" ? { ...e, compuerta: produccion } : e));
     await duenio.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${a.id}, true)`;
       await tx.proyectoParametro.deleteMany({ where: { tenantId: a.id, clave: "etapas.lista" } });
@@ -125,11 +128,11 @@ test("C-O03 · con el valor del rubro, avisa con la lista exacta y pasa", async 
   const p = await preparar(t);
   if (!p) return;
   await p.ponerCompuerta("AVISA");
-  const id = await p.proyecto("PROPUESTA");
-  const r = p.valor(await p.como(p.usuarios.com, () => p.ficha.moverProyecto({ id, destino: "APROBADO" })));
+  const id = await p.proyecto("DESARME", "APROBADO");
+  const r = p.valor(await p.como(p.usuarios.com, () => p.ficha.moverProyecto({ id, destino: "CIERRE" })));
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal((r as { aviso?: string }).aviso, `Para pasar a Producción falta: ${AVISO_APROBACION}`);
-  assert.equal(await p.etapa(id), "APROBADO");
+  assert.equal((r as { aviso?: string }).aviso, `Para pasar a Cierre y postventa falta: ${AVISO_EVENTO}`);
+  assert.equal(await p.etapa(id), "CIERRE");
   assert.deepEqual((await p.cambios(id)).map((c) => c.campo), ["Etapa", "Compuerta (aviso)"]);
 });
 
@@ -138,26 +141,26 @@ test("C-O03 · con «frena»: no pasa; Comercial no fuerza; Dirección fuerza co
   if (!p) return;
   await p.ponerCompuerta("FRENA");
   try {
-    const id = await p.proyecto("PROPUESTA");
+    const id = await p.proyecto("DESARME", "APROBADO");
     const cuotas0 = await p.cuotas(id);
-    const sinForzar = p.valor(await p.como(p.usuarios.com, () => p.ficha.moverProyecto({ id, destino: "APROBADO" })));
+    const sinForzar = p.valor(await p.como(p.usuarios.com, () => p.ficha.moverProyecto({ id, destino: "CIERRE" })));
     assert.equal(sinForzar.ok, false);
-    assert.deepEqual((sinForzar as { faltan?: string[] }).faltan, [AVISO_APROBACION], "la lista exacta");
+    assert.deepEqual((sinForzar as { faltan?: string[] }).faltan, [AVISO_EVENTO], "la lista exacta");
     assert.equal((sinForzar as { puedeForzar?: boolean }).puedeForzar, false);
-    const comercial = p.valor(await p.como(p.usuarios.com, () => p.ficha.moverProyecto({ id, destino: "APROBADO", forzar: true, motivoForzar: "El cliente dijo que sí por teléfono" })));
+    const comercial = p.valor(await p.como(p.usuarios.com, () => p.ficha.moverProyecto({ id, destino: "CIERRE", forzar: true, motivoForzar: "El evento terminó antes" })));
     assert.equal(comercial.ok, false, "Comercial no fuerza");
-    const sinMotivo = p.valor(await p.como(p.usuarios.direccion, () => p.ficha.moverProyecto({ id, destino: "APROBADO", forzar: true, motivoForzar: "  " })));
+    const sinMotivo = p.valor(await p.como(p.usuarios.direccion, () => p.ficha.moverProyecto({ id, destino: "CIERRE", forzar: true, motivoForzar: "  " })));
     assert.equal(sinMotivo.ok, false, "sin motivo no se fuerza");
     assert.equal((await p.cambios(id)).length, 0, "tres rechazos: 0 filas");
-    assert.equal(await p.etapa(id), "PROPUESTA");
+    assert.equal(await p.etapa(id), "DESARME");
     assert.equal(await p.cuotas(id), cuotas0, "las cuotas, idénticas");
-    const dir = p.valor(await p.como(p.usuarios.direccion, () => p.ficha.moverProyecto({ id, destino: "APROBADO", forzar: true, motivoForzar: "Aprobó por mail, se carga mañana" })));
+    const dir = p.valor(await p.como(p.usuarios.direccion, () => p.ficha.moverProyecto({ id, destino: "CIERRE", forzar: true, motivoForzar: "Se levantó un día antes" })));
     assert.equal(dir.ok, true, JSON.stringify(dir));
-    assert.equal(await p.etapa(id), "APROBADO");
+    assert.equal(await p.etapa(id), "CIERRE");
     const forzadas = (await p.cambios(id)).filter((c) => c.campo === "Compuerta forzada");
     assert.equal(forzadas.length, 1);
-    assert.equal(forzadas[0].antes, AVISO_APROBACION);
-    assert.equal(forzadas[0].despues, "Forzó Dirección: Aprobó por mail, se carga mañana");
+    assert.equal(forzadas[0].antes, AVISO_EVENTO);
+    assert.equal(forzadas[0].despues, "Forzó Dirección: Se levantó un día antes");
     assert.ok(forzadas[0].autor.length > 0, "con autor");
   } finally {
     await p.ponerCompuerta("AVISA");

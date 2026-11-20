@@ -48,15 +48,17 @@ export const vendidoDelCliente = (proyectos: readonly { t: { total: number } | n
 export const VOLVIO_A_PEDIDO = "Volvió a Pedido: la tiene que aprobar el cliente de nuevo";
 export const FALTA_REAPROBAR =
   "Este proyecto volvió a Pedido y perdió la aprobación: no pasa a Confirmado hasta que el cliente apruebe una versión (por su link o con «Registrar respuesta»).";
+export const FALTA_APROBACION =
+  "Este proyecto no tiene una versión aprobada por el cliente: no pasa a Confirmado hasta que el cliente apruebe una (por su link o con «Registrar respuesta»).";
 
 /**
- * MIA-232 · H2 (D4 del dueño: «tiene que volver a aprobarlo el cliente»; default de ORQ-007): un proyecto que volvió a Pedido
- * y perdió la aprobación no entra en Confirmado ni en una etapa posterior hasta que el cliente apruebe una versión. No se
- * fuerza. Los demás pases siguen como hoy (un proyecto que nunca tuvo aprobación pasa con el aviso de la compuerta). PURA.
+ * MIA-234 · «1 a» del dueño (20/11), que generaliza H2 de MIA-232: ningún proyecto entra en Confirmado ni en una etapa
+ * posterior sin una versión aprobada por el cliente, haya vuelto a Pedido o no. Vale también al reabrir un perdido (vuelve
+ * a su etapa). Freno duro: Dirección no lo fuerza. Las etapas comerciales no se miran. PURA.
  */
-export function frenaSinReaprobar(d: { destino: string; aprobada: boolean; aprobacionQuitada: boolean }): boolean {
+export function frenaSinAprobacion(d: { destino: string; aprobada: boolean }): boolean {
   const etapas: readonly string[] = ETAPAS;
-  return d.aprobacionQuitada && !d.aprobada && etapas.indexOf(d.destino) >= etapas.indexOf("APROBADO");
+  return !d.aprobada && etapas.indexOf(d.destino) >= etapas.indexOf("APROBADO");
 }
 
 /** Un lead sigue abierto hasta que el cliente confirma o se pierde. */

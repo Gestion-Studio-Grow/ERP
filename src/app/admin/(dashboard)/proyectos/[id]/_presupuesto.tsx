@@ -7,6 +7,7 @@ import SubmitButton from "@/components/SubmitButton";
 import { agregarLineaAdicional, aprobarAdicionalInterno, borrarLineaAdicional, crearAdicional, enviarAdicional, guardarAnticipoLinea, guardarLineaDetalle, marcarPrevision, responderAdicional } from "@/lib/proyectos/acciones-presupuesto";
 import { fechaCorta, porcentaje } from "@/lib/proyectos/core";
 import { parametrosDelNegocio } from "@/lib/proyectos/parametros/leer.server";
+import { veLaPlata } from "@/lib/proyectos/datos.server";
 import { importe } from "@/lib/proyectos/presupuesto-vista-core";
 import { anticipoDeLaLinea, cantidadDeLaLinea, ESTADO_ADICIONAL_LABEL, subtotalCentavos, totalesDelAdicional } from "@/lib/proyectos/presupuesto-core";
 import { adicionalesDelProyecto, detallesDeLineas, estadosDePrevision, hayM2 } from "@/lib/proyectos/presupuesto-m2.server";
@@ -287,7 +288,9 @@ export async function PrevisionDePagos({ a, vista, proyectoId, lineas }: { a: Ac
   const estados = await estadosDePrevision(prisma, a.tenantId, cuotas.map((c) => c.id));
   const delProveedor = new Map(fichas.map((f) => [f.supplierId, f.anticipoPct]));
   const palabras = par["prevision.palabras"];
-  const editaPct = vista.editaCotizaciones || vista.editaPagos;
+  // MIA-234 · «2a»: el % de anticipo es plata; quien edita cotizaciones sin verla no tiene el formulario (la acción lo rechaza igual).
+  const puedeEditarPct = vista.editaCotizaciones || vista.editaPagos;
+  const editaPct = puedeEditarPct && (await veLaPlata(a.user));
   const marca = vista.editaPagos && a.rol === "ADMINISTRACION";
   return (
     <section className={tarjeta} aria-label="Previsión de pagos">
@@ -319,6 +322,7 @@ export async function PrevisionDePagos({ a, vista, proyectoId, lineas }: { a: Ac
                   <p className="w-full text-xs text-muted">Vacío vuelve al del proveedor. Lo ya pagado no cambia.</p>
                 </FormAccion>
               )}
+              {puedeEditarPct && !editaPct && <p className="mt-2 text-xs text-muted">El anticipo y el saldo al proveedor los cambia Administración o Dirección.</p>}
             </li>
           );
         })}

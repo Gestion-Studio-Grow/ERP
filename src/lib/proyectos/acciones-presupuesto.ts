@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { tenantTransaction } from "@/lib/rls";
 import { getCurrentTenantId } from "@/lib/tenant";
 import { sePuedeEditar } from "./core";
+import { veLaPlata } from "./datos.server";
 import { numeroDe } from "./ficha-core";
 import type { ModuloGestion } from "./gestion-core";
 import { actorActual, proyectoVisible, puede, regenerarCuotas, registrarCambio, type Actor } from "./gestion.server";
@@ -99,9 +100,15 @@ export async function guardarLineaDetalle(formData: FormData): Promise<Resultado
   return { ok: true, listo: "Listo: guardaste la línea." };
 }
 
+/** MIA-234 · «2a»: el rechazo a quien edita cotizaciones pero no ve la plata (Producción, Comercial). */
+const ANTICIPO_SIN_PLATA = "Tu usuario no ve la plata del negocio: el anticipo y el saldo al proveedor los cambia Administración o Dirección.";
+
 /**
  * El % de anticipo de una línea (el saldo es el resto). Vale también con la versión aprobada: es el plan de pago al
  * proveedor, no el precio. Regenera sólo las dos cuotas de esa línea: lo ya pagado no se toca (`aplicarPlan`).
+ * MIA-234 · «2a» del dueño (20/11): sólo con `veLaPlata`. Sin plata se rechaza y no se guarda nada: guardar el % sin
+ * rehacer las cuotas dejaría un cambio escondido que la próxima regeneración (un pase de etapa, una aprobación) aplicaría
+ * sola, o sea, el plan de pago lo seguiría decidiendo quien no ve la plata.
  */
 export async function guardarAnticipoLinea(formData: FormData): Promise<ResultadoPresupuesto> {
   const tenantId = await getCurrentTenantId();
@@ -111,6 +118,7 @@ export async function guardarAnticipoLinea(formData: FormData): Promise<Resultad
   const proyectoId = item.presupuesto.proyectoId;
   const a = await entrar(["cotizaciones", "pagos"], proyectoId);
   if (typeof a === "string") return mal(a);
+  if (!(await veLaPlata(a.user))) return mal(ANTICIPO_SIN_PLATA);
   const pct = opcional(formData.get("anticipoPct"));
   if (pct != null) {
     const error = errorDeAnticipo(pct);

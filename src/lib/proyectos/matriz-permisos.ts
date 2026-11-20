@@ -144,7 +144,7 @@ export const PUERTAS_DE_ACCIONES: Readonly<Record<string, string>> = {
   "acciones-precio#aprobarPrecio": "E:cotizaciones V:costos — además, sólo Dirección (`a.rol`)",
   "acciones-precio#guardarReparto": "E:cotizaciones V:costos — además, con la propuesta aprobada sólo Dirección y con motivo (`momento`)",
   "acciones-presupuesto#guardarLineaDetalle": "E:cotizaciones|ficha",
-  "acciones-presupuesto#guardarAnticipoLinea": "E:cotizaciones|pagos",
+  "acciones-presupuesto#guardarAnticipoLinea": "E:cotizaciones|pagos — además, ver la plata (`veLaPlata`, MIA-234 «2a»): sin ella se rechaza y no se guarda",
   "acciones-presupuesto#marcarPrevision": "E:pagos — además, sólo Administración marca la previsión (`errorDeMarcaPrevision`)",
   "acciones-presupuesto#crearAdicional": "E:cotizaciones",
   "acciones-presupuesto#agregarLineaAdicional": "E:cotizaciones",

@@ -180,15 +180,14 @@ test("contar: singular con 1, plural con 0 y con más («1 ítem», no «1 ítem
 
 test("MIA-232 · H1-H3: motivo reservado, freno sin re-aprobar y «Vendido» sin perdidos (reglas puras)", async () => {
   const { rechazoDeMotivoDePerdido, esCancelado } = await import("./cancelacion-core");
-  const { frenaSinReaprobar, vendidoDelCliente } = await import("./ficha-core");
+  const { frenaSinAprobacion, vendidoDelCliente } = await import("./ficha-core");
   // H1: se rechaza exactamente lo que `esCancelado` tomaría como cancelación; lo demás pasa.
   for (const m of ["Cancelado: el cliente se bajó", "Cancelado: "]) assert.ok(esCancelado(m) && rechazoDeMotivoDePerdido(m), m);
   for (const m of ["El cliente canceló: se bajó", "cancelado: en minúscula", "Cancelado sin dos puntos", "Eligió otro proveedor"]) assert.equal(rechazoDeMotivoDePerdido(m), null, m);
-  // H2: sólo frena con la aprobación quitada, sin una nueva, y hacia Confirmado o después.
-  for (const destino of ["APROBADO", "PRODUCCION", "ARMADO", "DESARME", "CIERRE"]) assert.equal(frenaSinReaprobar({ destino, aprobada: false, aprobacionQuitada: true }), true, destino);
-  for (const destino of ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"]) assert.equal(frenaSinReaprobar({ destino, aprobada: false, aprobacionQuitada: true }), false, destino);
-  assert.equal(frenaSinReaprobar({ destino: "APROBADO", aprobada: true, aprobacionQuitada: true }), false, "el cliente volvió a aprobar");
-  assert.equal(frenaSinReaprobar({ destino: "APROBADO", aprobada: false, aprobacionQuitada: false }), false, "nunca tuvo aprobación: como hoy");
+  // H2 generalizado por «1 a» (MIA-234): sin una versión aprobada frena hacia Confirmado o después, la haya perdido o no.
+  for (const destino of ["APROBADO", "PRODUCCION", "ARMADO", "DESARME", "CIERRE"]) assert.equal(frenaSinAprobacion({ destino, aprobada: false }), true, destino);
+  for (const destino of ["PEDIDO", "DISENO", "RENDER", "PRESUPUESTO", "PROPUESTA"]) assert.equal(frenaSinAprobacion({ destino, aprobada: false }), false, destino);
+  for (const destino of ["APROBADO", "PRODUCCION", "CIERRE"]) assert.equal(frenaSinAprobacion({ destino, aprobada: true }), false, `${destino} con versión aprobada`);
   // H3: el perdido no suma; sin presupuesto aprobado tampoco.
   const perdidoEl = new Date("2026-11-20T12:00:00Z");
   assert.equal(vendidoDelCliente([{ t: { total: 1863.4 }, perdidoEl: null }, { t: { total: 1863.4 }, perdidoEl }, { t: null, perdidoEl: null }]), 1863.4);

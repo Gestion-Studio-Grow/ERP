@@ -34,7 +34,7 @@ import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server"
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
 import { avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
-import { FALTA_REAPROBAR, frenaSinReaprobar, tipoDeArchivoSubido, VOLVIO_A_PEDIDO, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
+import { FALTA_APROBACION, FALTA_REAPROBAR, frenaSinAprobacion, tipoDeArchivoSubido, VOLVIO_A_PEDIDO, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
 import { evaluarPase, textoDelPase, type Pase } from "./compuertas-core";
@@ -244,11 +244,14 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
         if (p.etapa === destino && !p.perdidoEl) return null;
         if (!p.perdidoEl && generaCuotas(p.etapa) && !generaCuotas(destino) && (await tienePlataRegistrada(tx, tenantId, id)))
           return "Este proyecto ya tiene un cobro o un pago registrado: no vuelve a una etapa anterior a Confirmado. Primero anulá el cobro o el pago, o marcalo como perdido.";
+        const aprobada = (await tx.proyectoPresupuesto.count({ where: { tenantId, proyectoId: id, estado: "APROBADO" } })) > 0;
+        // MIA-234 · «1 a»: sin una versión aprobada por el cliente no entra en Confirmado (ni más allá), tampoco al reabrir.
+        // Antes de la compuerta: Dirección no lo fuerza. El mensaje dice si la aprobación se perdió al volver a Pedido (H2).
+        if (frenaSinAprobacion({ destino, aprobada })) {
+          const quitada = (await tx.proyectoCambio.count({ where: { tenantId, proyectoId: id, entidad: "ProyectoPresupuesto", despues: VOLVIO_A_PEDIDO } })) > 0;
+          return quitada ? FALTA_REAPROBAR : FALTA_APROBACION;
+        }
         if (!p.perdidoEl) {
-          const aprobada = (await tx.proyectoPresupuesto.count({ where: { tenantId, proyectoId: id, estado: "APROBADO" } })) > 0;
-          // H2: sin la aprobación que se quitó al volver a Pedido, no entra en Confirmado (ni más allá). Antes de la compuerta.
-          const aprobacionQuitada = !aprobada && (await tx.proyectoCambio.count({ where: { tenantId, proyectoId: id, entidad: "ProyectoPresupuesto", despues: VOLVIO_A_PEDIDO } })) > 0;
-          if (frenaSinReaprobar({ destino, aprobada, aprobacionQuitada })) return FALTA_REAPROBAR;
           const finEvento = p.fechaFin ?? p.fechaDesarme ?? p.fechaEvento;
           pase = evaluarPase(etapas, p.etapa, destino, { brief: p.brief, responsable: p.responsable, aprobada, finEvento, rendicionesPendientes }, new Date());
           if (pase.frena && !d.forzar) return { faltan: pase.faltan.map((f) => f.texto) };

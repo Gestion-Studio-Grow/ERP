@@ -32,6 +32,7 @@ interface Requisito {
 const REQUISITOS: readonly Requisito[] = [
   { id: "brief", alcanzar: "DISENO", falta: (h) => (h.brief.trim() ? null : "Cargar el brief del proyecto.") },
   { id: "responsable", alcanzar: "DISENO", falta: (h) => (h.responsable?.trim() ? null : "Asignar el responsable comercial.") },
+  // MIA-234 · «1 a»: `moverProyecto` frena antes, sin forzar (`frenaSinAprobacion`); queda por si el freno duro se afloja.
   { id: "aprobacion", alcanzar: "APROBADO", falta: (h) => (h.aprobada ? null : "Que el cliente apruebe una versión del presupuesto.") },
   {
     id: "evento",
