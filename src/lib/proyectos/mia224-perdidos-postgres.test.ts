@@ -273,14 +273,55 @@ test("H2 · un proyecto que volvió a Pedido y perdió la aprobación no pasa a 
   assert.equal((await p.etapa(id)).etapa, "APROBADO");
 });
 
-test("H2 · contraprueba: un proyecto que nunca tuvo aprobación pasa de Pedido a Confirmado como hoy (con el aviso de la compuerta)", async (t) => {
+// ============================================================================
+// GSG-MIA-234 · decisión del dueño «1 a» (20/11): ningún proyecto entra en Confirmado (ni en una etapa posterior) sin una
+// versión aprobada por el cliente, haya vuelto a Pedido o no. Dirección no lo fuerza. Por el flujo real (`moverProyecto`).
+// Reemplaza la contraprueba de H2 que dejaba pasar a un proyecto que nunca tuvo aprobación.
+// ============================================================================
+
+test("1a · un proyecto que nunca tuvo aprobación no pasa a Confirmado ni más allá, ni forzado por Dirección; con la aprobación del cliente, sí", async (t) => {
   const p = await preparar(t);
   if (!p) return;
   const { id, presupuestoId } = await p.proyecto("PEDIDO");
   await p.duenio.proyectoPresupuesto.update({ where: { id: presupuestoId }, data: { estado: "ENVIADO", respondidoEl: null, respondidoPor: null } });
-  const r = await p.mover(id, "APROBADO");
+  for (const destino of ["APROBADO", "PRODUCCION", "CIERRE"]) {
+    const r = await p.mover(id, destino);
+    assert.equal(r.ok, false, `a ${destino} sin una versión aprobada: no pasa (${JSON.stringify(r)})`);
+    assert.match((r as { error: string }).error, /no pasa a Confirmado hasta que el cliente apruebe/);
+    assert.equal((await p.etapa(id)).etapa, "PEDIDO", `sigue en Pedido tras intentar ${destino}`);
+  }
+  const forzado = await p.enSesion(() => p.ficha.moverProyecto({ id, destino: "APROBADO", forzar: true, motivoForzar: "El cliente lo confirmó por teléfono" }));
+  assert.equal(forzado.ok, false, `Dirección no lo fuerza (${JSON.stringify(forzado)})`);
+  assert.equal(await p.duenio.proyectoCambio.count({ where: { proyectoId: id, campo: "Compuerta forzada" } }), 0, "no queda una compuerta forzada en el historial");
+  // Las etapas comerciales siguen como hoy.
+  assert.equal((await p.mover(id, "PROPUESTA")).ok, true, "a Propuesta pasa");
+  assert.equal((await p.mover(id, "APROBADO")).ok, false, "desde Propuesta tampoco pasa a Confirmado sin aprobar");
+  // Contraprueba: el cliente aprueba la versión y ahora sí pasa.
+  const r = await p.enSesion(() => p.ficha.registrarRespuesta(p.form({ id: presupuestoId, respuesta: "APROBADO", nombre: "Cliente" })));
   assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal((await p.mover(id, "APROBADO")).ok, true, "con la versión aprobada pasa a Confirmado");
   assert.equal((await p.etapa(id)).etapa, "APROBADO");
+});
+
+test("1a · un proyecto que ya está en Confirmado sin versión aprobada (dato viejo) no avanza a Producción; un perdido así no se reabre en Confirmado", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const viejo = await p.proyecto("APROBADO");
+  await p.duenio.proyectoPresupuesto.update({ where: { id: viejo.presupuestoId }, data: { estado: "ENVIADO", respondidoEl: null, respondidoPor: null } });
+  const r = await p.mover(viejo.id, "PRODUCCION");
+  assert.equal(r.ok, false, `sin versión aprobada no entra en Producción (${JSON.stringify(r)})`);
+  assert.equal((await p.etapa(viejo.id)).etapa, "APROBADO");
+  // Perdido en Producción sin versión aprobada: reabrir lo devolvería a Producción, así que no se reabre.
+  const perdido = await p.proyecto("PRODUCCION");
+  assert.equal((await p.mover(perdido.id, "PERDIDO", "El cliente eligió otra productora")).ok, true);
+  await p.duenio.proyectoPresupuesto.update({ where: { id: perdido.presupuestoId }, data: { estado: "ENVIADO", respondidoEl: null, respondidoPor: null } });
+  const reabrir = await p.mover(perdido.id, "PRODUCCION");
+  assert.equal(reabrir.ok, false, `no se reabre en Producción sin versión aprobada (${JSON.stringify(reabrir)})`);
+  assert.notEqual((await p.etapa(perdido.id)).perdidoEl, null, "sigue perdido");
+  // Contraprueba: con su versión aprobada, el perdido se reabre como siempre (D2 lo prueba dos veces).
+  await p.duenio.proyectoPresupuesto.update({ where: { id: perdido.presupuestoId }, data: { estado: "APROBADO", respondidoEl: new Date("2026-11-02T12:00:00Z"), respondidoPor: "Cliente" } });
+  assert.equal((await p.mover(perdido.id, "PRODUCCION")).ok, true);
+  assert.equal((await p.etapa(perdido.id)).perdidoEl, null);
 });
 
 test("H3 · la ficha del cliente no suma un perdido en «Vendido (aprobado, con IVA)»; un proyecto vivo sí", async (t) => {
