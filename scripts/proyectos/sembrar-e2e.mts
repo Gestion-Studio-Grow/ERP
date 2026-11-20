@@ -4,7 +4,8 @@
 //
 // Lo corre `scripts/proyectos/ambiente-e2e.mjs` como `neondb_owner`. Cada negocio sale del mismo alta que usa
 // la consola (`provisionTenant`, rubro productora) y queda en cero: caja 0, banco 0, sin proyectos, sueldos 0.
-// Una cuenta de banco en 0. Una persona por rol de Proyectos (Dirección, Administración, Producción, Producción de campo), con su cuenta.
+// Una cuenta de banco en 0. Un usuario por cada uno de los 7 puestos del alta (`PUESTOS_DEL_ALTA`, MIA-267): Dueño/a (OWNER
+// sin ficha), Dirección, Administración, Comercial, Producción, Producción de campo y Diseño, con su cuenta.
 // Reloj fijo: las altas llevan RELOJ como fecha (el navegador se fija aparte, en el recorrido).
 // Re-correrla no suma filas: usuarios y fichas se buscan por (negocio, email).
 //
@@ -29,12 +30,17 @@ const NEGOCIOS = [
   { slug: "prueba-tres", name: "Productora Tres (de prueba)" },
 ];
 // [local del email, nombre, rol en el ERP, rol de la ficha]. Administración es Dueño en el ERP: Facturación lo exige.
-const EQUIPO = [
+// «direccion» es el dueño que crea el alta (OWNER con ficha de Dirección, como lo usan los recorridos desde MIA-193); los
+// demás, con el rol del ERP de `PUESTOS_DEL_ALTA` (src/lib/proyectos/puestos-del-alta.ts). Sin ficha (null): la Dueña.
+const EQUIPO: ReadonlyArray<readonly [string, string, "OWNER" | "RECEPTION" | "PROFESSIONAL", string | null]> = [
   ["direccion", "Dirección de prueba", "OWNER", "DIRECCION"],
   ["administracion", "Administración de prueba", "OWNER", "ADMINISTRACION"],
   ["produccion", "Producción de prueba", "PROFESSIONAL", "PRODUCCION"],
   ["campo", "Campo de prueba", "PROFESSIONAL", "PRODUCCION_CAMPO"],
-] as const;
+  ["comercial", "Comercial de prueba", "RECEPTION", "COMERCIAL"],
+  ["diseno", "Diseño de prueba", "PROFESSIONAL", "DISENO"],
+  ["duenia", "Dueña de prueba", "OWNER", null],
+];
 
 const hash = await hashPassword(CLAVE);
 for (const n of NEGOCIOS) {
@@ -61,6 +67,7 @@ for (const n of NEGOCIOS) {
       (await prisma.user.findFirst({ where: { tenantId, email: email(local) }, select: { id: true } })) ??
       (await prisma.user.create({ data: { tenantId, name: nombre, email: email(local), passwordHash: hash, role, createdAt: RELOJ }, select: { id: true } }));
     await prisma.user.update({ where: { id: u.id }, data: { mustChangePassword: false, passwordHash: hash } });
+    if (!rol) continue;
     const ficha = await prisma.proyectoPersona.findFirst({ where: { tenantId, userId: u.id }, select: { id: true } });
     if (ficha) await prisma.proyectoPersona.update({ where: { id: ficha.id }, data: { rol, sueldoBase: 0, nombre, puesto: nombre.replace(" de prueba", "") } });
     else await prisma.proyectoPersona.create({ data: { tenantId, userId: u.id, nombre, email: email(local), rol, puesto: nombre.replace(" de prueba", ""), sueldoBase: 0, createdAt: RELOJ } });
