@@ -687,7 +687,7 @@ export async function generarLiquidaciones(formData: FormData): Promise<Resultad
       const sinReintegros = extrasRecalculados(leerExtras(fila.extras), delPeriodo);
       const conRendi = conReintegro ? await reclamarReintegrosTx(tx, a.tenantId, id, p.id, sinReintegros) : [...sinReintegros, ...leerExtras(fila.extras).filter((e) => e.reintegro)];
       // MIA-184 (A): después de las líneas, los ajustes aprobados de la persona, cada uno como línea aparte.
-      const extras = (await hayM5()) ? [...conRendi, ...(await reclamarLineasDeProyectoTx(tx, a.tenantId, id, deProyecto)), ...(await reclamarAjustesTx(tx, a.tenantId, id, ajustes))] : conRendi;
+      const extras = (await hayM5(tx)) ? [...conRendi, ...(await reclamarLineasDeProyectoTx(tx, a.tenantId, id, deProyecto)), ...(await reclamarAjustesTx(tx, a.tenantId, id, ajustes))] : conRendi;
       const total = totalLiquidacion(p.sueldoBase, extras);
       await tx.proyectoLiquidacion.updateMany({ where: { id, tenantId: a.tenantId, estado: "BORRADOR" }, data: { base: p.sueldoBase, extras: extras as unknown as Prisma.InputJsonValue, total, facturaA: p.facturaA } });
       generadas++;
