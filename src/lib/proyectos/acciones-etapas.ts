@@ -12,7 +12,7 @@ import { tenantTransaction } from "@/lib/rls";
 import { auditAdmin } from "@/lib/audit-core";
 import { etapaLabel, pesos } from "./core";
 import { trabarCobranza } from "./cobranza.server";
-import { avisar, exigirEditar, proyectoVisible, regenerarCuotasTx, registrarCambio, usuariosDeLaPlata, usuariosDelEquipo, type Actor } from "./gestion.server";
+import { avisar, exigirEditar, proyectoVisible, regenerarCuotasTx, rehaceLosPagos, registrarCambio, usuariosDeLaPlata, usuariosDelEquipo, type Actor } from "./gestion.server";
 import type { ModuloGestion } from "./gestion-core";
 import { valorDelNegocio } from "./parametros/leer.server";
 import { faltaLaMigracion } from "./rendiciones-core";
@@ -176,6 +176,8 @@ export async function cancelarProyecto(formData: FormData): Promise<ResultadoEta
     usuariosDelEquipo(tenantId, id, a.user.id),
     abiertosDeCampo(tenantId, id),
   ]);
+  // MIA-243 · 2A: quién rehace los pagos se decide afuera de la transacción (adentro la sesión no se lee).
+  const rehacePagos = await rehaceLosPagos();
   const r = await tenantTransaction(
     async (tx): Promise<string | { antes: string; nombre: string; anuladas: number; pendientes: string[] }> => {
       await trabarCobranza(tx, tenantId, id);
@@ -202,7 +204,7 @@ export async function cancelarProyecto(formData: FormData): Promise<ResultadoEta
       );
       const antes = etapaLabel(p.etapa, p.servicio);
       await tx.proyecto.updateMany({ where: { id, tenantId }, data: { perdidoEl: new Date(), motivoPerdida: `${PREFIJO_CANCELADO}${motivo}` } });
-      await regenerarCuotasTx(tx, tenantId, id);
+      await regenerarCuotasTx(tx, tenantId, id, rehacePagos);
       const pendientesDespues = await tx.proyectoCuota.count({ where: { tenantId, proyectoId: id, anuladoEl: null, pagadoEl: null } });
       const anuladas = Math.max(0, pendientesAntes - pendientesDespues);
       if (m7b) {

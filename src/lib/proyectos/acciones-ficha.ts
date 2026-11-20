@@ -33,7 +33,7 @@ import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, 
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
 import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, veTodosLosProyectos } from "./gestion-core";
-import { actorDelProyecto, avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
+import { actorDelProyecto, avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, rehaceLosPagos, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { FALTA_APROBACION, FALTA_REAPROBAR, frenaSinAprobacion, tipoDeArchivoSubido, VOLVIO_A_PEDIDO, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
 import { marcaDeGastoProyecto } from "./marcas";
@@ -228,6 +228,8 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
   const etapas = await valorDelNegocio(tenantId, "etapas.lista");
   const rendicionesPendientes = await rendicionesSinCerrar(tenantId, id);
   const m7b = await hayM7b(); // MIA-50 T09 · O05: la fecha real de la etapa, sólo con M7b (se mira antes de abrir)
+  // MIA-243 · 2A: quién rehace los pagos se decide afuera de la transacción (adentro la sesión no se lee).
+  const rehacePagos = await rehaceLosPagos();
   const r = await tenantTransaction(
     async (tx): Promise<string | null | { faltan: string[] } | { antes: string; despues: string; aviso: string | null }> => {
       await trabarCobranza(tx, tenantId, id);
@@ -280,7 +282,7 @@ export async function moverProyecto(d: { id: string; destino: string; motivo?: s
           ? { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Compuerta forzada", antes: faltaba, despues: `Forzó Dirección: ${motivoForzar}`, autor: a.nombre }
           : { tenantId, proyectoId: id, entidad: "Proyecto", entidadId: id, campo: "Compuerta (aviso)", antes: faltaba, despues: `Pasó a ${despues} con faltantes`, autor: a.nombre });
       await avisar(tx, { tenantId, destinatarios: destinatarios0, tipo: "etapa", texto: `${p.nombre} pasó a ${despues}`, enlace: `${RAIZ}/${id}` });
-      await regenerarCuotasTx(tx, tenantId, id);
+      await regenerarCuotasTx(tx, tenantId, id, rehacePagos);
       return { antes, despues, aviso: pase.faltan.length > 0 && !pase.frena ? textoDelPase(etapas, d.destino, pase) : null };
     },
     { tenantId, timeoutMs: 15_000 },

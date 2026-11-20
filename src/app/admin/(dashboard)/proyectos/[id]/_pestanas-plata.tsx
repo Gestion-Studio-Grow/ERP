@@ -7,6 +7,7 @@ import { Badge, buttonClasses, cn } from "@/components/ui";
 import SubmitButton from "@/components/SubmitButton";
 import { pagarGasto, registrarCobro } from "@/lib/proyectos/acciones";
 import { anularCobroFicha, anularGastoFicha, aprobarInterno, pedirAprobacion, crearMovimientoManual, enviarCotizacion, guardarTextos, marcarCuota, nuevaVersion, quitarMovimiento, recalcularCuotas, registrarRespuesta } from "@/lib/proyectos/acciones-ficha";
+import { pagosPorRevisar } from "@/lib/proyectos/gestion.server";
 import { fechaCorta, fechaParaInput, MEDIOS, MEDIO_LABEL, pesos, porcentaje, redondear, sePuedeEditar, totalDelGasto, waLink, type MedioPago } from "@/lib/proyectos/core";
 import { MEDIO_RETENCION } from "@/lib/proyectos/moneda-bancos-core";
 import { esFoto, FILTROS_CASHFLOW, filtrarCashflow, fotoDeVersion, margenDeFoto, perdidoAdmite, planillaDeVenta } from "@/lib/proyectos/ficha-core";
@@ -252,8 +253,21 @@ export async function PestanaFinanzas({ a, cab, vista, filtro }: { a: Actor; cab
 
   // minmax(0,1fr): sin eso la columna de la grilla toma el ancho de la tabla (920 px) y en un celular la página
   // entera desborda (QA MIA #7). Así la tabla se desliza adentro de su contenedor con overflow-x-auto.
+  // MIA-243 · 2A: las cuotas a proveedores que quedaron sin rehacer (las regeneró alguien sin la plata): sólo las ve quien la ve.
+  const porRevisar = vista.deudas && vista.editaPagos && (await veLaPlata(a.user)) ? await pagosPorRevisar(a.tenantId, cab.proyecto.id) : 0;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)] gap-4">
+      {porRevisar > 0 && (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface-raised px-3 py-2.5 text-sm text-body">
+          <p className="min-w-0 flex-1">
+            <strong className="font-medium text-strong">Pagos por revisar.</strong> {porRevisar === 1 ? "Una cuota a proveedores no sigue" : `${porRevisar} cuotas a proveedores no siguen`} a la ficha: alguien sin permiso de plata cambió la ficha, y los pagos quedaron como estaban.
+          </p>
+          <FormAccion accion={recalcularCuotas}>
+            <input type="hidden" name="proyectoId" value={cab.proyecto.id} />
+            <SubmitButton className={buttonClasses("solid", "md")}>Rehacer los pagos</SubmitButton>
+          </FormAccion>
+        </div>
+      )}
       {cab.borradorSobreAprobada && cab.base && cab.viva && (
         <p role="status" className="rounded-md border border-line bg-surface-raised px-3 py-2.5 text-sm text-body">
           La versión {cab.viva.version} es un borrador: las cuotas, lo que falta cobrar y estos importes siguen saliendo de la versión aprobada ({cab.base.version}). El borrador no mueve plata hasta que se aprueba.
