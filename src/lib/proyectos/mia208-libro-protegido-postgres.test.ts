@@ -231,8 +231,10 @@ test("4 · A-06: deleteLibroEntry rechaza borrar la venta de un cobro de proyect
   if (!p) return;
   const { duenio } = p;
   const { deleteLibroEntry } = await import("@/lib/libro-caja-actions");
+  const borrar = deleteLibroEntry as unknown as (previo: never, fd: FormData) => Promise<{ ok?: boolean; error?: string } | null>;
   for (const id of [p.venta, p.contra]) {
-    const r = await p.en("duenia", () => deleteLibroEntry({ ok: false } as never, p.form({ id })));
+    const r: { ok?: boolean; error?: string } | null = await p.en("duenia", (): Promise<{ ok?: boolean; error?: string } | null> => borrar({ ok: false } as never, p.form({ id })));
+    assert.ok(r, "la acción contesta");
     assert.equal(r.ok, false, `${id}: ${JSON.stringify(r)}`);
     assert.match((r as { error?: string }).error ?? "", /proyecto/i, "dice por qué: es de un proyecto");
   }
@@ -267,7 +269,7 @@ test("3 · el productor (PRODUCCION, no ve la plata) no puede marcar cobrado ni 
     "Anular gasto": () => p.ficha.anularGastoFicha(p.form({ id: gasto.id })),
   };
   for (const [que, fn] of Object.entries(intentos)) {
-    const r = await p.en("recepcion", fn);
+    const r: { ok: boolean; error?: string } = await p.en("recepcion", fn);
     assert.equal(r.ok, false, `${que}: ${JSON.stringify(r)}`);
     assert.match((r as { error?: string }).error ?? "", /plata del negocio/, `${que}: dice por qué`);
   }
