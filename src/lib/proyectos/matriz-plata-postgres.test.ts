@@ -329,6 +329,7 @@ test("MIA-215 · matriz de plata: cada rol que no ve la plata rechaza cada acci�
   await t.test("MIA-244 · productor de campo en el equipo: el Pipeline (tablero y lista: ninguna tarjeta con venta) y el papel sin ningún importe; Dirección y Comercial en su proyecto siguen viendo la venta", () => probarCampoPipeline(m));
   await t.test("MIA-237 · puertas de MIA-236: % de anticipo del proveedor y costos al presupuesto, sólo quien corresponde", () => probarPuertasMia236(m));
   await t.test("MIA-243 · 2A: Producción guarda costo, cantidad e ítems; los cobros siguen a la ficha, los pagos quedan «por revisar» y Administración los rehace", () => probarRegla2A(m));
+  await t.test("MIA-249 · Producción ve sólo los costos: ni venta ni margen en Pipeline, papel, IA, Cotización y adicionales; no escribe precio, recargo ni cambio de venta; Dirección, Administración y Comercial siguen viendo la venta", () => probarProduccionSoloCostos(m));
   await t.test("MIA-243 · 2A en carrera: Producción guarda y Administración rehace a la vez; los pagos los decide Administración y nada se duplica", () => probarCarrera2A(m));
 });
 
@@ -503,6 +504,15 @@ async function probarCarrera2A(m: Mundo) {
     const prod = await intentar(m, "PRODUCCION/PROFESSIONAL", () => fichaAcc.guardarCampoItem({ id: p.itemId, campo: "costo", valor: "200" }));
     assert.ok(prod.paso, prod.salida);
     assert.equal(suma(await activas(m, p.id, "PAGO")), 100, `vuelta ${vuelta}: el costo de Producción no llega a los pagos`);
+    // MIA-249: la parte concurrente sola caza «rehaceLosPagos siempre true». Producción cambia la cantidad mientras Dirección
+    // cambia el estado del ítem (que no toca cuotas): en cualquier orden, los pagos siguen en 100 y quedan «por revisar».
+    const juntos = await Promise.all([
+      m.como("PRODUCCION/PROFESSIONAL", () => fichaAcc.guardarCampoItem({ id: p.itemId, campo: "cantidad", valor: "2" })),
+      m.como("DIRECCION/OWNER", () => fichaAcc.guardarCampoItem({ id: p.itemId, campo: "estadoItem", valor: "COTIZANDO" })),
+    ]);
+    for (const r of juntos) assert.ok(r.tipo === "respuesta" && (r as { valor: { ok?: boolean } }).valor?.ok !== false, JSON.stringify(r));
+    assert.equal(suma(await activas(m, p.id, "PAGO")), 100, `vuelta ${vuelta}: en la carrera, Producción no rehízo los pagos`);
+    assert.ok((await gestion.pagosPorRevisar(m.a.id, p.id)) > 0, `vuelta ${vuelta}: quedan «por revisar»`);
     const corridas = await Promise.all([
       m.como("PRODUCCION/PROFESSIONAL", () => fichaAcc.guardarCampoItem({ id: p.itemId, campo: "cantidad", valor: "3" })),
       m.como("ADMINISTRACION/RECEPTION", () => fichaAcc.recalcularCuotas(form({ proyectoId: p.id }))),
@@ -510,7 +520,7 @@ async function probarCarrera2A(m: Mundo) {
     for (const r of corridas) assert.ok(r.tipo === "respuesta" && (r as { valor: { ok?: boolean } }).valor?.ok !== false, JSON.stringify(r));
     const pagos = await activas(m, p.id, "PAGO");
     assert.equal(new Set(pagos.map((c) => c.clave)).size, pagos.length, "una cuota viva por clave");
-    assert.ok([200, 600].includes(suma(pagos)), `vuelta ${vuelta}: los pagos suman ${suma(pagos)}`);
+    assert.ok([400, 600].includes(suma(pagos)), `vuelta ${vuelta}: los pagos suman ${suma(pagos)}`);
     const cobros = await activas(m, p.id, "COBRO");
     await m.direccion(() => fichaAcc.recalcularCuotas(form({ proyectoId: p.id })));
     assert.deepEqual(await activas(m, p.id, "COBRO"), cobros, `vuelta ${vuelta}: los cobros quedaron al día`);
@@ -746,6 +756,86 @@ async function probarOwnerDeBaja(m: Mundo) {
  * precio, reparto, el estimado o el equipo (sumarse al equipo le abriría la plata). Ve el lead: nombre, cliente y etapa.
  * Mismo control de MIA-238 (`actorDelProyecto` / `veLaPlataDelProyecto`). Hecho a mano: ítem de $ 1.000 de venta.
  */
+/**
+ * MIA-249 · «Producción: solo los costos» (dueño, 20/11), vuelta de GSG-PR214-v9 C4. Lo decide `veLaVenta` (y
+ * `columnasSinVenta`) en el servidor, para cada puerta: Pipeline, papel (ficha y productora), IA, datos de la Cotización y
+ * las escrituras de venta (precio, recargo, precio de un adicional, cambio de venta). Hecho a mano: el ítem vende
+ * $ 1.000 y cuesta $ 400; Producción ve «Costo total 400» y ninguna venta ni margen. Mata a M1 (el Pipeline vuelve a
+ * `veLaPlataDelProyecto`) y a M2 (`filtroDeProyectosConVenta` devuelve todo).
+ */
+async function probarProduccionSoloCostos(m: Mundo) {
+  const gestion = await import("./gestion.server");
+  const ficha = await import("./ficha.server");
+  const ia = await import("./ia.server");
+  const taller = await import("@/lib/taller-stands/datos.server");
+  const accFicha = await import("./acciones-ficha");
+  const accPres = await import("./acciones-presupuesto");
+  const p = await m.proyecto();
+  await m.duenio.proyectoItem.update({ where: { id: p.itemId }, data: { costo: 400 } });
+  // Las tablas de adicionales fuerzan RLS también para la dueña: se leen con el negocio puesto.
+  const conNegocio = <R>(fn: (tx: typeof m.duenio) => Promise<R>) =>
+    m.duenio.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${m.a.id}, true)`;
+      return fn(tx as unknown as typeof m.duenio);
+    });
+  await m.direccion(() => accPres.crearAdicional(form({ proyectoId: p.id, nombre: "Pantalla extra" })));
+  const ad = await conNegocio((tx) => tx.proyectoAdicional.findFirstOrThrow({ where: { proyectoId: p.id }, select: { id: true } }));
+  const lineas = () => conNegocio((tx) => tx.proyectoAdicionalLinea.count({ where: { adicionalId: ad.id } }));
+  const leer = async (clave: string) => {
+    const r = await m.como(clave, async () => {
+      const a0 = await gestion.actorActual();
+      const tarjetas = await ficha.tableroPipeline(a0);
+      const t = tarjetas.find((x) => x.id === p.id);
+      assert.ok(t, `${clave} ve su proyecto en el Pipeline`);
+      const a = await gestion.actorDelProyecto(a0, p.id);
+      const ias = await Promise.all((["analista", "administrador"] as const).map((ag) => ia.contextoDeAgente(a0, ag, p.id)));
+      const versiones = await ficha.datosCotizacion(a, p.id);
+      return {
+        pipeline: t.venta ?? t.ventaTexto ?? null,
+        conImporte: tarjetas.filter((x) => x.venta != null || x.ventaTexto != null).length > 0,
+        papel: !!(await ficha.planillaParaPapel(a, p.id)),
+        papelMia: !!(await taller.papelMiaDelProyecto(a, p.id)),
+        iaVenta: ias.some((c) => /venta|margen/i.test(c)),
+        iaCosto: /Costo total 400/.test(ias[0]),
+        cotizacion: versiones.flatMap((v) => [v.token !== "", v.foto != null, v.congelado != null, ...v.items.map((i) => i.precio !== 0 || i.recargoPct != null)]).some(Boolean),
+        importes: ficha.vistaDe(a).importes,
+      };
+    });
+    assert.equal(r.tipo, "respuesta", `${clave}: ${JSON.stringify(r)}`);
+    return (r as { valor: Record<string, unknown> }).valor;
+  };
+  const SOLO_COSTOS = { pipeline: null, conImporte: false, papel: false, papelMia: false, iaVenta: false, iaCosto: true, cotizacion: false, importes: false };
+  for (const clave of ["PRODUCCION/PROFESSIONAL", "PRODUCCION/RECEPTION", "PRODUCCION/OWNER"]) assert.deepEqual(await leer(clave), SOLO_COSTOS, clave);
+  // Contraprueba: Dirección, Administración y Comercial (en su proyecto) ven la venta de $ 1.000 por las mismas puertas.
+  for (const clave of ["DIRECCION/OWNER", "ADMINISTRACION/RECEPTION", "COMERCIAL/RECEPTION"]) {
+    const v = await leer(clave);
+    assert.deepEqual([v.pipeline != null, v.papel, v.iaVenta, v.cotizacion, v.importes], [true, true, true, true, true], `${clave}: ${JSON.stringify(v)}`);
+  }
+
+  // Escrituras de venta, como Producción («Costos · editar» y «Cotizaciones · editar» de fábrica): se rechazan sin escribir.
+  const b = await proyectoConPagos(m);
+  const item = () => m.duenio.proyectoItem.findUniqueOrThrow({ where: { id: b.itemId }, select: { precio: true, recargoPct: true, costo: true } });
+  const antes = await item();
+  for (const [campo, valor] of [["precio", "5000"], ["recargoPct", "90"]]) {
+    const r = await intentar(m, "PRODUCCION/PROFESSIONAL", () => accFicha.guardarCampoItem({ id: b.itemId, campo, valor }));
+    assert.equal(r.paso, false, `Producción guarda ${campo}: ${r.salida}`);
+  }
+  assert.deepEqual(await item(), antes);
+  const costo = await intentar(m, "PRODUCCION/PROFESSIONAL", () => accFicha.guardarCampoItem({ id: b.itemId, campo: "costo", valor: "450" }));
+  assert.ok(costo.paso, `control: Producción sí guarda el costo: ${costo.salida}`);
+  const linea = { adicionalId: ad.id, sector: "Producción", categoria: RUBROS[0], detalle: "Pantalla", cantidad: "1" };
+  const conPrecio = await intentar(m, "PRODUCCION/PROFESSIONAL", () => accPres.agregarLineaAdicional(form({ ...linea, precio: "500" })));
+  assert.equal(conPrecio.paso, false, `Producción pone el precio de un adicional: ${conPrecio.salida}`);
+  assert.equal(await lineas(), 0);
+  await m.direccion(() => accPres.agregarLineaAdicional(form({ ...linea, precio: "500" })));
+  assert.equal(await lineas(), 1, "control: Dirección sí");
+  await m.duenio.proyecto.update({ where: { id: b.id }, data: { moneda: "USD" } });
+  await m.duenio.proyectoPresupuesto.update({ where: { id: b.presupuestoId }, data: { tcVenta: 1000 } });
+  const tc = await intentar(m, "PRODUCCION/PROFESSIONAL", () => accFicha.guardarTextos(form({ id: b.presupuestoId, ivaPct: "21", tcVenta: "2000" })));
+  assert.equal(tc.paso, false, `Producción cambia el cambio de venta: ${tc.salida}`);
+  assert.equal((await m.duenio.proyectoPresupuesto.findUniqueOrThrow({ where: { id: b.presupuestoId }, select: { tcVenta: true } })).tcVenta, 1000);
+}
+
 async function probarComercialVentaAjena(m: Mundo) {
   const gestion = await import("./gestion.server");
   const ficha = await import("./ficha.server");
