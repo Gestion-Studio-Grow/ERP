@@ -17,7 +17,7 @@ import { conPagosParciales, conPartesComoPagadas } from "./pago-parcial-core";
 import { cobroFrenadoPorPerdido } from "./ficha-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
 import { aPagarSinCuotas, costoRealDeProyectos } from "./comprobantes.server";
-import { cuentasConMovimientos } from "./moneda-bancos.server";
+import { cuentasConMovimientos, hayM8 } from "./moneda-bancos.server";
 
 const MESES_PROYECCION = 6;
 
@@ -157,6 +157,8 @@ export function faltaCambio(tc: Readonly<Record<string, number>>, filas: readonl
 // ── Bancos ──────────────────────────────────────────────────────────────────
 
 export async function datosDeBancos(tenantId: string) {
+  // MIA-267: con M8, un renglón conciliado con un movimiento de la cuenta (O38) tampoco está «sin conciliar». Sin M8, la columna no existe.
+  const conOrigen = await hayM8();
   const [cuentas, movimientos, sinConciliar, { cuotas, tc }, conciliadas] = await Promise.all([
     prisma.proyectoCuentaBanco.findMany({ where: { tenantId }, orderBy: { createdAt: "asc" }, select: { id: true, nombre: true, moneda: true, saldo: true } }),
     prisma.proyectoMovBanco.findMany({
@@ -175,7 +177,7 @@ export async function datosDeBancos(tenantId: string) {
         cuota: { select: { id: true, tipo: true, concepto: true, pagadoEl: true, anuladoEl: true, proyectoId: true, proyecto: { select: { perdidoEl: true } } } },
       },
     }),
-    prisma.proyectoMovBanco.groupBy({ by: ["cuentaId"], where: { tenantId, cuotaId: null }, _count: { _all: true } }),
+    prisma.proyectoMovBanco.groupBy({ by: ["cuentaId"], where: { tenantId, cuotaId: null, ...(conOrigen && { origenId: null }) }, _count: { _all: true } }),
     recuadrosDeCuotas(tenantId),
     prisma.proyectoMovBanco.findMany({ where: { tenantId, cuotaId: { not: null } }, select: { cuotaId: true } }),
   ]);
