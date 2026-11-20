@@ -80,7 +80,7 @@ export function itemsDelDespiece(lineas: readonly LineaDespiece[], margenPct: nu
 
 export interface PlanDePase {
   crear: ItemDeDespiece[];
-  actualizar: { id: string; item: ItemDeDespiece }[];
+  actualizar: { id: string; item: ItemDeDespiece; conservaPrecio: boolean }[];
   borrar: string[];
 }
 
@@ -88,7 +88,14 @@ export interface PlanDePase {
  * Volver a pasar el despiece actualiza los ítems que ya vinieron de él (mismo `origen`), crea los nuevos y saca los
  * de piezas que ya no están. Lo cargado a mano (otro origen o ninguno) no se toca. Nunca duplica.
  */
-export function planDePase(existentes: readonly { id: string; origen: string | null }[], items: readonly ItemDeDespiece[]): PlanDePase {
+/**
+ * MIA-256 · Dirección corrigió a mano el precio de un ítem del despiece: `guardarCampoItem` dejó en el historial
+ * «Precio de venta · …» o «Recargo % · …» con el id del ítem (el pase del despiece no escribe historial por ítem).
+ */
+export const esCorreccionDePrecio = (campo: string): boolean => campo.startsWith("Precio de venta · ") || campo.startsWith("Recargo % · ");
+
+/** `corregidos`: ítems con el precio corregido a mano (`esCorreccionDePrecio`): se actualizan sin pisar su precio. */
+export function planDePase(existentes: readonly { id: string; origen: string | null }[], items: readonly ItemDeDespiece[], corregidos: ReadonlySet<string> = new Set()): PlanDePase {
   const porOrigen = new Map<string, string[]>();
   for (const e of existentes) {
     if (!e.origen || !esOrigenDespiece(e.origen)) continue;
@@ -99,7 +106,7 @@ export function planDePase(existentes: readonly { id: string; origen: string | n
     const ids = porOrigen.get(item.origen);
     if (!ids) plan.crear.push(item);
     else {
-      plan.actualizar.push({ id: ids[0], item });
+      plan.actualizar.push({ id: ids[0], item, conservaPrecio: corregidos.has(ids[0]) });
       plan.borrar.push(...ids.slice(1)); // un duplicado viejo se limpia
     }
     porOrigen.delete(item.origen);

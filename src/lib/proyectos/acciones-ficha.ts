@@ -32,7 +32,7 @@ import { lugarParaCobroManual, pasaElTope } from "./cobranza-core";
 import { avisoMasQueLaCuota, avisoSaldoCambio, avisoTopeCuota, avisoTopeMarcar, CUOTA_ENLAZADA, cuotaEnOrdenPendiente, cuotaPagadaPorOrden, listoAnulado, listoMarcada, listoParcial } from "./avisos-cuota";
 import { pagosParcialesDeCuotas, pendienteDelPago } from "./pago-parcial.server";
 import { faltaDelPago, SALDADA_CON_PARTES } from "./pago-parcial-core";
-import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, columnasSinVenta, veLaVenta, veTodosLosProyectos } from "./gestion-core";
+import { cambioDeVenta, faltaCambioDeVenta, aPesos, generaCuotas, CHECKLIST_BASE, ESTADOS_ITEM, MONEDAS, RUBROS, TIPOS_EVENTO, columnasSinVenta, SOLO_LA_VENTA, veElPlus, veLaVenta, veTodosLosProyectos } from "./gestion-core";
 import { actorDelProyecto, avisar, columnasOcultas, exigirEditar, usuariosDelEquipo, usuariosDeDireccion, usuariosDeLaPlata, proyectoVisible, puede, regenerarCuotas, regenerarCuotasTx, rehaceLosPagos, registrarCambio, tiposDeCambio, type Actor } from "./gestion.server";
 import { FALTA_APROBACION, FALTA_REAPROBAR, frenaSinAprobacion, tipoDeArchivoSubido, VOLVIO_A_PEDIDO, clavesARenombrar, fechaAntesDe, fotoDeVersion, itemDeClave, linkSeguro, monedasSinCambio, numeroDe, PERDIDO, PERDIDO_NO_COBRA, perdidoAdmite, SIN_PLATA, precioAlCambiarCambio, precioAlCopiar, precioAlEnviar, servicioDeTipo } from "./ficha-core";
 import { asentarEnCajaTx, oPeriodoCerrado, PeriodoCerradoError, transaccionQueAsienta } from "./periodo-cerrado.server";
@@ -479,7 +479,7 @@ export async function asignarEquipo(formData: FormData): Promise<ResultadoFicha>
   if (funcion && !(await valorDelNegocio(tenantId, "equipo.funciones")).some((f) => f.id === funcion)) return mal("Elegí una función del negocio.");
   const textoPlus = txt(formData.get("plus"));
   // El plus es plata: sólo lo toca quien edita costos.
-  const editaPlus = puede(a, "costos", "editar");
+  const editaPlus = puede(a, "costos", "editar") && veElPlus(a.rol); // MIA-256: Comercial no ve el plus, tampoco lo escribe
   const plus = editaPlus && textoPlus ? numeroDe(textoPlus) : 0;
   if (plus === null) return mal("El plus no se entiende: escribilo como un número.");
   const previo = await prisma.proyectoEquipo.findUnique({ where: { proyectoId_personaId: { proyectoId, personaId } }, select: { plus: true } });
@@ -826,6 +826,7 @@ export async function enviarCotizacion(formData: FormData): Promise<ResultadoFic
   if (!pr) return mal("Esa versión no existe.");
   const a = await entrar("cotizaciones", pr.proyectoId);
   if (typeof a === "string") return mal(a);
+  if (!veLaVenta(a.rol)) return mal(SOLO_LA_VENTA);
   if (!sePuedeEditar(pr.estado)) return mal("Esta versión ya se envió.");
   if (pr.items.length === 0) return mal("Cargá al menos un ítem antes de enviar.");
   if (!pr.aprobadoInternoEl) return mal("Falta que Dirección apruebe los precios.");
@@ -876,6 +877,7 @@ export async function registrarRespuesta(formData: FormData): Promise<ResultadoF
   if (!pr) return mal("Esa versión no existe.");
   const a = await entrar("cotizaciones", pr.proyectoId);
   if (typeof a === "string") return mal(a);
+  if (!veLaVenta(a.rol)) return mal(SOLO_LA_VENTA);
   const aprueba = txt(formData.get("respuesta")) === "APROBADO";
   const nombre = txt(formData.get("nombre")).slice(0, 120);
   const motivo = txt(formData.get("motivo")).slice(0, 500);
@@ -923,6 +925,7 @@ export async function guardarTextos(formData: FormData): Promise<ResultadoFicha>
   if (!sePuedeEditar(pr.estado)) return mal("Esta versión ya se envió.");
   const iva = numeroDe(txt(formData.get("ivaPct")));
   if (iva === null) return mal("El IVA no se entiende: escribilo como un número.");
+  if (iva !== pr.ivaPct && !veLaVenta(a.rol)) return mal(SOLO_LA_VENTA);
   const textoCambio = txt(formData.get("tcVenta"));
   const tcVenta = pr.proyecto.moneda !== "ARS" && textoCambio ? numeroDe(textoCambio) : pr.tcVenta;
   if (tcVenta === null && textoCambio && pr.proyecto.moneda !== "ARS") return mal("El tipo de cambio no se entiende: escribilo como un número.");

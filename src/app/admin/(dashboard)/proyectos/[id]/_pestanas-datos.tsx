@@ -47,7 +47,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
   // MIA T07: las funciones del negocio (catálogo de parámetros): con ellas se cobra la comisión del precio por total.
   const funciones = await valorDelNegocio(a.tenantId, "equipo.funciones");
   // T12 (O25): con el reparto prendido y el precio aprobado con su foto, el plus no se paga: lo dice al lado de la persona.
-  const plusApagado = vista.costos && p.equipo.some((e) => e.plus > 0) && (await proyectosConReparto(prisma, a.tenantId, [p.id])).has(p.id);
+  const plusApagado = vista.plus && p.equipo.some((e) => e.plus > 0) && (await proyectosConReparto(prisma, a.tenantId, [p.id])).has(p.id);
   const clientes = vista.pipelineEdita ? await prisma.client.findMany({ where: { tenantId: a.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true } }) : [];
 
   return (
@@ -153,7 +153,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
             <li key={e.id} className="flex items-center justify-between gap-2 border-t border-line py-1 text-sm">
               <span className="min-w-0 flex-1">
                 <span className="font-medium text-strong">{e.persona.nombre}</span>
-                <span className="block text-xs text-muted">{[(e.funcion && funciones.find((f) => f.id === e.funcion)?.nombre) || e.funcion || e.persona.puesto, vista.costos && e.plus > 0 ? (plusApagado ? `plus ${pesos(e.plus)}: ${PLUS_APAGADO}` : `plus ${pesos(e.plus)}`) : null].filter(Boolean).join(" · ")}</span>
+                <span className="block text-xs text-muted">{[(e.funcion && funciones.find((f) => f.id === e.funcion)?.nombre) || e.funcion || e.persona.puesto, vista.plus && e.plus > 0 ? (plusApagado ? `plus ${pesos(e.plus)}: ${PLUS_APAGADO}` : `plus ${pesos(e.plus)}`) : null].filter(Boolean).join(" · ")}</span>
               </span>
               {vista.pipelineEdita && <BotonConConfirmacion accion={quitarEquipo} ocultos={{ id: e.id, proyectoId: p.id }} texto="Quitar" textoConfirma="Quitar" etiqueta={`Quitar a ${e.persona.nombre}`} />}
             </li>
@@ -173,7 +173,7 @@ export async function PestanaResumen({ a, cab, vista }: { a: Actor; cab: Cabecer
                 <option value="">Sin función que cobre</option>
                 {funciones.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
               </select>
-              {vista.editaCostos && <input name="plus" inputMode="decimal" aria-label="Plus por evento" placeholder="Plus por evento" className={campo} />}
+              {vista.editaCostos && vista.plus && <input name="plus" inputMode="decimal" aria-label="Plus por evento" placeholder="Plus por evento" className={campo} />}
               <SubmitButton className={buttonClasses("outline", "md")}>Asignar</SubmitButton>
             </FormAccion>
           )

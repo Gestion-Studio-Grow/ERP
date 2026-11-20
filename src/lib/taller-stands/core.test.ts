@@ -1,7 +1,7 @@
 // GSG-MIA-004 · T2 — núcleo del taller de stands.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { costoDespiece, costoLinea, esOrigenDespiece, faltaLaTabla, itemsDelDespiece, origenDespiece, papelParaMia, planDePase, RUBRO_DESPIECE, tallerVisible, validarPieza, type LineaDespiece } from "./core";
+import { costoDespiece, costoLinea, esCorreccionDePrecio, esOrigenDespiece, faltaLaTabla, itemsDelDespiece, origenDespiece, papelParaMia, planDePase, RUBRO_DESPIECE, tallerVisible, validarPieza, type LineaDespiece } from "./core";
 
 const lineas: LineaDespiece[] = [
   { id: "d1", nombre: "Panel MDF 18mm", unidad: "u", cantidad: 4, costoUnitSnap: 25000 },

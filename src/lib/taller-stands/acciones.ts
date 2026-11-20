@@ -16,7 +16,7 @@ import { leerNumero, pesos } from "@/lib/proyectos/core";
 import { configProyectos } from "@/lib/proyectos/datos.server";
 import { actorActual, proyectoVisible, puede, regenerarCuotas, registrarCambio, type Actor } from "@/lib/proyectos/gestion.server";
 import type { ModuloGestion } from "@/lib/proyectos/gestion-core";
-import { faltaLaTabla, itemsDelDespiece, planDePase, validarPieza, RUBRO_DESPIECE } from "./core";
+import { esCorreccionDePrecio, faltaLaTabla, itemsDelDespiece, planDePase, validarPieza, RUBRO_DESPIECE } from "./core";
 import { tallerActivo } from "./datos.server";
 import { leerFecha, personaDelNegocio, validarHoras, validarValorHora, valorHoraVigente } from "./horas";
 import { anularPedidoTx, MENSAJE_ANULAR, MENSAJE_RECIBIR, recibirPedidoTx, validarPedido } from "./pedidos";
@@ -182,13 +182,16 @@ export async function despieceAlPresupuesto(formData: FormData): Promise<void> {
       }
       const presupuestoId = borrador.id;
       const existentes = await tx.proyectoItem.findMany({ where: { tenantId, presupuestoId, origen: { startsWith: "despiece:" } }, select: { id: true, origen: true, costoReal: true, estadoItem: true } });
-      const plan = planDePase(existentes, items);
+      // MIA-256: lo que Dirección corrigió a mano (historial del ítem) conserva su precio; cantidad y costo siguen al taller.
+      const cambios = existentes.length === 0 ? [] : await tx.proyectoCambio.findMany({ where: { tenantId, proyectoId, entidad: "ProyectoItem", entidadId: { in: existentes.map((e) => e.id) } }, select: { entidadId: true, campo: true } });
+      const corregidos = new Set(cambios.filter((c) => c.entidadId && esCorreccionDePrecio(c.campo)).map((c) => c.entidadId as string));
+      const plan = planDePase(existentes, items, corregidos);
       // Un ítem que ya avanzó (tiene costo real o dejó de estar PENDIENTE) no se borra solo: queda para revisarlo a mano.
       const conAvance = new Set(existentes.filter((e) => e.costoReal != null || (e.estadoItem && e.estadoItem !== "PENDIENTE")).map((e) => e.id));
       const borrar = plan.borrar.filter((id) => !conAvance.has(id));
       if (borrar.length > 0) await tx.proyectoItem.deleteMany({ where: { tenantId, presupuestoId, id: { in: borrar } } });
-      for (const { id, item } of plan.actualizar) {
-        await tx.proyectoItem.updateMany({ where: { id, tenantId, presupuestoId }, data: { rubro: item.rubro, descripcion: item.descripcion, unidad: item.unidad, cantidad: item.cantidad, costo: item.costo, precio: item.precio } });
+      for (const { id, item, conservaPrecio } of plan.actualizar) {
+        await tx.proyectoItem.updateMany({ where: { id, tenantId, presupuestoId }, data: { rubro: item.rubro, descripcion: item.descripcion, unidad: item.unidad, cantidad: item.cantidad, costo: item.costo, ...(conservaPrecio ? {} : { precio: item.precio }) } });
       }
       if (plan.crear.length > 0) {
         const base = await tx.proyectoItem.count({ where: { tenantId, presupuestoId } });

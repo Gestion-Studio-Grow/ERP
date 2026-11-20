@@ -73,10 +73,16 @@ test("MIA-256 · Producción sin acciones de venta y el plus del equipo sólo pa
 
   // 1 · el adicional: envío y respuesta.
   assert.equal((await como("duenia", () => pres.crearAdicional(form({ proyectoId: p.id, nombre: "Pantalla extra" })))).ok, true);
-  const ad = await duenio.proyectoAdicional.findFirstOrThrow({ where: { tenantId: a.id, proyectoId: p.id }, select: { id: true } });
+  type Tx = Parameters<Parameters<typeof duenio.$transaction>[0]>[0];
+  const enA = <T>(fn: (tx: Tx) => Promise<T>): Promise<T> =>
+    duenio.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.current_tenant_id', ${a.id}, true)`;
+      return fn(tx);
+    });
+  const ad = await enA((tx) => tx.proyectoAdicional.findFirstOrThrow({ where: { tenantId: a.id, proyectoId: p.id }, select: { id: true } }));
   assert.equal((await como("duenia", () => pres.agregarLineaAdicional(form({ adicionalId: ad.id, sector: "Producción", categoria: RUBROS[0], cantidad: "1", detalle: "LED", precio: "500" })))).ok, true);
   assert.equal((await como("duenia", () => pres.aprobarAdicionalInterno(form({ adicionalId: ad.id })))).ok, true);
-  const adicional = () => duenio.proyectoAdicional.findUniqueOrThrow({ where: { id: ad.id }, select: { estado: true } });
+  const adicional = () => enA((tx) => tx.proyectoAdicional.findUniqueOrThrow({ where: { id: ad.id }, select: { estado: true } }));
   await conRol("PRODUCCION");
   await rechaza("enviar el adicional", () => pres.enviarAdicional(form({ adicionalId: ad.id })), adicional);
   await conRol("COMERCIAL");

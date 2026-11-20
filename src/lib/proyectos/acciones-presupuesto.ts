@@ -13,7 +13,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import { sePuedeEditar } from "./core";
 import { veLaPlata } from "./datos.server";
 import { numeroDe } from "./ficha-core";
-import { veLaVenta, type ModuloGestion } from "./gestion-core";
+import { SOLO_LA_VENTA, veLaVenta, type ModuloGestion } from "./gestion-core";
 import { actorActual, actorDelProyecto, proyectoVisible, puede, regenerarCuotas, registrarCambio, type Actor } from "./gestion.server";
 import { valoresDelNegocio } from "./parametros/leer.server";
 import { aCentavos, errorDeAnticipo, errorDeAprobador, errorDeListas, errorDeMarcaPrevision, errorDePersonal, esPersonal, ESTADO_ADICIONAL_LABEL, type EstadoAdicional } from "./presupuesto-core";
@@ -302,6 +302,7 @@ export async function enviarAdicional(formData: FormData): Promise<ResultadoPres
   const r = await adicionalEditable(txt(formData.get("adicionalId")), (p) => entrar(["cotizaciones"], p));
   if (typeof r === "string") return mal(r);
   const { a, ad, tenantId } = r;
+  if (!veLaVenta(a.rol)) return mal(SOLO_LA_VENTA);
   const envio = await tenantTransaction(async (tx) => {
     const actual = await tx.proyectoAdicional.findFirst({ where: { id: ad.id, tenantId }, select: { estado: true, aprobadoInternoEl: true, _count: { select: { lineas: true } } } });
     if (!actual || actual.estado !== "BORRADOR") return "Este adicional ya se envió.";
@@ -322,6 +323,7 @@ export async function responderAdicional(formData: FormData): Promise<ResultadoP
   const r = await adicionalEditable(txt(formData.get("adicionalId")), (p) => entrar(["cotizaciones"], p));
   if (typeof r === "string") return mal(r);
   const { a, ad, tenantId } = r;
+  if (!veLaVenta(a.rol)) return mal(SOLO_LA_VENTA);
   const aprueba = txt(formData.get("respuesta")) === "APROBADO";
   const nombre = txt(formData.get("nombre")).slice(0, 120);
   const motivo = txt(formData.get("motivo")).slice(0, 500);

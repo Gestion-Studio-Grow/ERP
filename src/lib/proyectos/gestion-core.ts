@@ -769,6 +769,10 @@ export const veImportes = (rol: RolGestion): boolean => rol !== "PRODUCCION_CAMP
  * (ficha.server.ts), `filtroDeProyectosConVenta` (gestion.server.ts) y el precio por total.
  */
 export const veLaVenta = (rol: RolGestion): boolean => veImportes(rol) && rol !== "PRODUCCION";
+/** MIA-256 (dueño, 20/11 17:36Z): mandar la versión, registrar la respuesta del cliente y cambiar el IVA son de quien ve la venta. */
+export const SOLO_LA_VENTA = "Enviar al cliente, registrar su respuesta y el IVA son la venta: tu puesto ve sólo los costos.";
+/** MIA-256 · el plus de cada integrante es sueldo: lo ven Dirección y Administración, no Comercial (que ve costos). PURA. */
+export const veElPlus = (rol: RolGestion): boolean => rol === "DIRECCION" || rol === "ADMINISTRACION";
 export const veLaVentaDelProyecto = (rol: RolGestion, estaEnEquipo: boolean): boolean => veLaPlataDelProyecto(rol, estaEnEquipo) && veLaVenta(rol);
 /** Columnas de la ficha que se cierran a quien no ve la venta, ni de fábrica ni guardadas por Dirección: el recargo es el margen en %. */
 const COLUMNAS_DE_VENTA: readonly string[] = ["venta", "margen", "recargo"];

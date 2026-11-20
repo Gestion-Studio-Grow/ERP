@@ -8,7 +8,7 @@ import { getCurrentTenantId } from "@/lib/tenant";
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { totalesCongelados } from "./precio-foto.server";
-import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, rolVeLaPlata, totalesFicha, columnasSinVenta, veLaVenta, veLaVentaDelProyecto, veLosCobros, ventaOEstimado, ventaTotalItem } from "./gestion-core";
+import { aPesos, COLUMNAS_FICHA, cashflowDelEvento, codigoProyecto, resumenCuotas, rolVeLaPlata, totalesFicha, columnasSinVenta, veElPlus, veLaVenta, veLaVentaDelProyecto, veLosCobros, ventaOEstimado, ventaTotalItem } from "./gestion-core";
 import { columnasOcultas, filtroDeProyectos, filtroDeProyectosConVenta, puede, tiposDeCambio, versionViva, versionDeLaPlata, aItemFicha, type Actor } from "./gestion.server";
 import { configProyectos, datosDelNegocio } from "./datos.server";
 import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDeCobros, SIN_PREVISTAS_SIN_MARCAR, totalesEnPesos } from "./cobranza-core";
@@ -122,6 +122,8 @@ export interface Vista {
   deudas: boolean;
   /** MIA-237 · la venta y lo que cobra el cliente: el productor de campo no ve ninguno; MIA-246 · Producción ve sólo los costos. */
   importes: boolean;
+  /** MIA-256 · el plus de cada integrante: Dirección y Administración. */
+  plus: boolean;
   ocultas: Set<string>;
 }
 
@@ -144,6 +146,7 @@ export function vistaDe(a: Actor): Vista {
     cobros: rolVeLaPlata(a.rol) ? pagos : veLosCobros(a.rol) && !a.ajeno,
     deudas: pagos && costos,
     importes,
+    plus: costos && veElPlus(a.rol),
     editaPagos: puede(a, "pagos", "editar"),
     pipelineEdita: puede(a, "pipeline", "editar"),
     fichaEdita: puede(a, "ficha", "editar"),
@@ -163,6 +166,8 @@ export async function cabeceraFicha(a: Actor, id: string) {
     },
   });
   if (!proyecto) return null;
+  // MIA-256: el plus de cada integrante no sale del servidor para quien no lo ve (Comercial ve costos, no el plus).
+  if (!veElPlus(a.rol)) for (const e of proyecto.equipo) e.plus = 0;
   const [viva, base, config, tc, negocio] = await Promise.all([versionViva(a.tenantId, id), versionDeLaPlata(a.tenantId, id), configProyectos(a.tenantId), tiposDeCambio(a.tenantId), datosDelNegocio(a.tenantId)]);
   const items = (viva?.items ?? []).map(aItemFicha);
   // P-06: la cabecera y las finanzas cuentan la versión aprobada; la pestaña Ficha, el borrador que se está editando.
@@ -348,7 +353,7 @@ export async function datosArchivos(a: Actor, cab: Cabecera) {
 
 export async function datosHistorial(a: Actor, proyectoId: string, vista: Vista) {
   const filas = await prisma.proyectoCambio.findMany({ where: { tenantId: a.tenantId, proyectoId }, orderBy: { createdAt: "desc" }, take: 300 });
-  return filas.filter((c) => cambioVisible(c, { costos: vista.costos, pagos: vista.pagos, importes: vista.importes }));
+  return filas.filter((c) => cambioVisible(c, { costos: vista.costos, pagos: vista.pagos, importes: vista.importes }) && (vista.plus || !c.campo.startsWith("Plus")));
 }
 
 /** Para las piezas y el armador, que siguen viviendo en la ficha. */
