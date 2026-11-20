@@ -475,3 +475,22 @@ test("MIA-205 · 1: un PAGO parcial a proveedor con cuenta deja su movimiento; e
   const cuota = await p.duenio.proyectoCuota.findUniqueOrThrow({ where: { id: q }, select: { pagadoEl: true, cuentaId: true } });
   assert.deepEqual(cuota, { pagadoEl: null, cuentaId: null });
 });
+
+test("MIA-205 · 3: el borde de los 2 minutos del cobro igual: a 119 s pide el sí; a 121 s entra sin preguntar", async (t) => {
+  const p = await preparar(t);
+  if (!p) return;
+  const { id } = await p.proyecto();
+  const q = await p.cuota(id, 605, 5);
+  assert.equal((await p.cobrar(q, { monto: "100", envio: "borde-1" })()).ok, true);
+  const primero = await p.duenio.proyectoPago.findFirstOrThrow({ where: { proyectoId: id }, select: { id: true } });
+  const haceSegundos = (s: number) => p.duenio.proyectoPago.update({ where: { id: primero.id }, data: { createdAt: new Date(Date.now() - s * 1000) } });
+  await haceSegundos(119);
+  const aviso = await p.cobrar(q, { monto: "100", envio: "borde-2" })();
+  assert.equal(aviso.ok, false, "a 119 s sigue siendo «de recién»");
+  assert.equal(typeof (aviso as { reenviar?: string }).reenviar, "string");
+  assert.deepEqual(await p.caja(id), { cobros: 1, cobrado: 100, caja: 100 });
+  await haceSegundos(121);
+  const entra = await p.cobrar(q, { monto: "100", envio: "borde-2" })();
+  assert.equal(entra.ok, true, `a 121 s entra sin el sí: ${JSON.stringify(entra)}`);
+  assert.deepEqual(await p.caja(id), { cobros: 2, cobrado: 200, caja: 200 });
+});
