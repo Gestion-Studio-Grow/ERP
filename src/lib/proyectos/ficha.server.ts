@@ -15,7 +15,7 @@ import { cobranza, conciliarConCobros, montoEnCashflow, pagadoDeCuota, repartoDe
 import { cobranzasDelNegocio } from "./cobranza.server";
 import { conPagosParciales, conPartesComoPagadas, porPagarComoGastos } from "./pago-parcial-core";
 import { pagosParcialesDeCuotas } from "./pago-parcial.server";
-import { costoRealDeProyectos, cuotasEnlazadas, lineasImputadasDe } from "./comprobantes.server";
+import { comprobantesEnElFlujo, costoRealDeProyectos, cuotasEnlazadas, lineasImputadasDe } from "./comprobantes.server";
 import { costoEnDuda, desvioPorRubro, fechaCorta, fechaParaInput, redondear, resultadoReal } from "./core";
 import { cambioDeVenta, costoSinProveedor, enMonedaDeVenta, ventaEn } from "./gestion-core";
 import { cambioVisible, columnaDe, filaDeFicha, iniciales, monedasSinCambio, planillaDeVenta } from "./ficha-core";
@@ -238,7 +238,11 @@ export async function datosFinanzas(a: Actor, cab: Cabecera, vista: Vista) {
   const visibles = vista.costos ? cuotas : cuotas.filter((c) => c.tipo === "COBRO");
   // Una cuota de cobro cuenta lo que entró por ella más lo que le falta (pagada o no), nunca su monto: si no, se pasa del total.
   // Lo cobrado que ninguna cuota viva tomó (un perdido, un proyecto sin plan) también entró: el saldo arranca con eso.
-  const flujo = cashflowDelEvento(visibles, cab.tc, montoEnCashflow, crudo.suelto);
+  // MIA-211 · H2: con permiso de costos, los comprobantes imputados al proyecto también salen (lo que se le paga a cada
+  // proveedor, pagado por orden o no); la cuota de pago enlazada a uno de ellos no cuenta otra vez (es la misma deuda).
+  const enFlujo = vista.costos ? await comprobantesEnElFlujo(tenantId, proyectoId) : { comprobantes: [], cuotas: new Set<string>() };
+  const delFlujo = [...visibles.filter((c) => c.tipo === "COBRO" || !enFlujo.cuotas.has(c.id)), ...enFlujo.comprobantes];
+  const flujo = cashflowDelEvento(delFlujo, cab.tc, (c) => ("comprobanteId" in c ? c.monto : montoEnCashflow(c)), crudo.suelto);
   // Pasados a pesos: un ítem en dólares no se puede comparar como si fueran pesos.
   const aprobadaEnPesos = aprobada?.items.map((i) => ({ rubro: i.rubro, cantidad: i.cantidad, costo: aPesos(i.costo, i.moneda, cab.tc), precio: i.cantidad > 0 ? ventaTotalItem(i, cab.tc, cab.config.margenPct) / i.cantidad : 0 })) ?? [];
   // MIA-199 · P3-2/P5-2: con foto, «Ganancia real» y los totales salen del precio vendido sin IVA, no de los renglones.

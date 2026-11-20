@@ -222,6 +222,67 @@ export async function lineasImputadasDe(tenantId: string, proyectoId: string) {
   return (filas ?? []).map((l) => ({ rubro: l.categoria, neto: n(l.costoCentavos) / 100, iva: 0, pagadoEl: null, anuladoEl: null, origen: `${l.comprobante.supplier.name} · ${l.comprobante.tipo} ${l.comprobante.numero}` }));
 }
 
+/** MIA-211 · H2: un comprobante de proveedor imputado al proyecto, como salida del cashflow del evento. */
+export interface ComprobanteEnFlujo {
+  /** «comprobante:<id>»: no choca con el id de una cuota. */
+  id: string;
+  comprobanteId: string;
+  tipo: "PAGO";
+  concepto: string;
+  proveedor: string;
+  /** Lo que se le paga al proveedor por lo imputado a ESTE proyecto (neto + IVA de sus líneas), en la moneda del comprobante. */
+  monto: number;
+  moneda: string;
+  /** La fecha del comprobante; pagado, la de la orden que lo terminó de pagar. */
+  venceEl: Date;
+  pagadoEl: Date | null;
+  anuladoEl: null;
+}
+
+/**
+ * MIA-211 · H2: los comprobantes imputados al proyecto (no anulados), uno por comprobante, con lo que se le paga al
+ * proveedor por la parte de este proyecto. Pagado = las órdenes PAGADAS cubren su total. `cuotas`: las cuotas enlazadas a
+ * esos comprobantes, que el flujo no cuenta otra vez (es la misma deuda). Sin M1, ninguno.
+ */
+export async function comprobantesEnElFlujo(tenantId: string, proyectoId: string): Promise<{ comprobantes: ComprobanteEnFlujo[]; cuotas: Set<string> }> {
+  const filas = await siHayM1(() =>
+    prisma.proyectoComprobante.findMany({
+      where: { tenantId, anuladoEl: null, lineas: { some: { proyectoId } } },
+      orderBy: { fecha: "asc" },
+      select: {
+        id: true,
+        tipo: true,
+        numero: true,
+        fecha: true,
+        moneda: true,
+        totalCentavos: true,
+        supplier: { select: { name: true } },
+        lineas: { where: { proyectoId }, select: { netoCentavos: true, ivaCentavos: true } },
+        pagos: { where: { orden: { estado: "PAGADA" } }, select: { importeCentavos: true, orden: { select: { pagadaEl: true } } } },
+        cuotas: { select: { cuotaId: true } },
+      },
+    }),
+  );
+  const comprobantes = (filas ?? []).map((c): ComprobanteEnFlujo => {
+    const pagado = c.pagos.reduce((x, p) => x + n(p.importeCentavos), 0);
+    const ultima = c.pagos.reduce<Date | null>((x, p) => (p.orden.pagadaEl && (!x || p.orden.pagadaEl > x) ? p.orden.pagadaEl : x), null);
+    const pagadoEl = pagado >= n(c.totalCentavos) ? (ultima ?? c.fecha) : null;
+    return {
+      id: `comprobante:${c.id}`,
+      comprobanteId: c.id,
+      tipo: "PAGO",
+      concepto: `${c.tipo === "SIN_FACTURA" ? "Comprobante sin factura" : `Factura ${c.tipo}`} ${c.numero}`,
+      proveedor: c.supplier.name,
+      monto: c.lineas.reduce((x, l) => x + n(l.netoCentavos) + n(l.ivaCentavos), 0) / 100,
+      moneda: c.moneda,
+      venceEl: pagadoEl ?? c.fecha,
+      pagadoEl,
+      anuladoEl: null,
+    };
+  });
+  return { comprobantes, cuotas: new Set((filas ?? []).flatMap((c) => c.cuotas.map((q) => q.cuotaId))) };
+}
+
 export const imputadoDe = (m: Map<string, Imputado>, id: string): Imputado => m.get(id) ?? SIN_IMPUTADO;
 
 /** Las cuotas de pago enlazadas a un comprobante: ya no son previstas (las cuenta su comprobante). Sin M1, ninguna. */
