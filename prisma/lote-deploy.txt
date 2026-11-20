@@ -181,3 +181,20 @@
 20261117120000_consola_cuadrilla
 20261117120000_mia_m7a_parametros_vistas
 20261117130000_cuadrilla_correcciones
+#
+# 2026-11-20 · GSG-PLAT-030 · publicación del #214 (MIA-50 «Aurora»). El build dpl_6BG4SraEaXQG82yvCeoD3FtjogTR frenó en
+# el paso 1b con estas nueve pendientes sin declarar. Revisadas una por una: ADITIVAS. Tablas nuevas con RLS
+# tenant_isolation adentro, columnas nullable ("CashMovement"."proyectoOrdenPagoId"; huella/origenId/origenTipo en
+# "ProyectoMovBanco"), FKs, índices, y funciones/disparadores nuevos (foto de precio inmutable; libro de caja de proyecto
+# inmutable sobre "CashMovement", sólo filas con proyecto). Los DROP son `DROP POLICY/TRIGGER IF EXISTS` de lo que la
+# misma migración recrea. Sin enum, sin DROP de tabla o columna, sin borrado ni reescritura de datos. Cada una trae
+# rollback.sql. Respaldo previo en Neon: respaldo-pre-214-20261120. Gate 2: orden del dueño del 20/11 22:52Z («Publica»).
+20261119100000_mia_m1_comprobantes
+20261119110000_mia_m2_presupuesto
+20261120100000_mia_m3_foto
+20261120110000_mia_m4_equipo
+20261120120000_mia_m6_moneda
+20261120130000_mia_m8_bancos
+20261120140000_mia_m7b_etapas
+20261121100000_mia_m5_liquidacion_proyecto
+20261121110000_caja_libro_proyecto_inmutable
