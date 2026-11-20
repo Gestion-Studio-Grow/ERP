@@ -7,7 +7,7 @@ import { cambiarEstadoPersona, guardarPermisos, reiniciarSegundoFactor } from "@
 import { prisma } from "@/lib/prisma";
 import { estadoDeDosPasos, rigeSegundoPaso } from "@/lib/proyectos/segundo-factor-core";
 import { rubroDe } from "@/lib/proyectos/segundo-factor.server";
-import { cambiaLosPermisos, COLUMNAS_FICHA, COLUMNAS_OCULTAS_BASE, MODULOS, permisoDe, ROL_LABEL, ROLES_GESTION, type RolGestion } from "@/lib/proyectos/gestion-core";
+import { cambiaLosPermisos, COLUMNAS_FICHA, COLUMNAS_OCULTAS_BASE, MODULOS, permisoDe, permisoFijo, ROL_LABEL, ROLES_GESTION, type RolGestion } from "@/lib/proyectos/gestion-core";
 import { exigirVer, puede, type Actor } from "@/lib/proyectos/gestion.server";
 import { personasDelEquipo, registroDeCambios } from "@/lib/proyectos/gestion-lecturas.server";
 import { pesos } from "@/lib/proyectos/core";
@@ -111,7 +111,7 @@ function Permisos({ a, ok }: { a: Actor; ok: boolean }) {
   };
   return (
     <form action={guardarPermisos} className="grid gap-4">
-      <p className="text-sm text-muted">Dirección es fija: ve y edita todo. Editar incluye ver. Dirección, Administración y Comercial ven todos los proyectos; el resto, sólo aquellos donde está en el equipo.</p>
+      <p className="text-sm text-muted">Dirección es fija: ve y edita todo. Editar incluye ver. Pagos, Cuentas y Liquidaciones son sólo de Dirección y Administración: al resto no se le pueden dar. Dirección, Administración y Comercial ven todos los proyectos; el resto, sólo aquellos donde está en el equipo.</p>
       {!edita && <p className="text-sm font-medium text-strong">Los permisos los cambia Dirección. Si a alguien le falta un acceso, pedíselo.</p>}
       {ok && <p role="status" className="text-sm font-medium text-strong">Permisos guardados.</p>}
       <section className={cn(tarjeta, "overflow-x-auto")} aria-label="Permisos por rol y módulo">
@@ -132,9 +132,11 @@ function Permisos({ a, ok }: { a: Actor; ok: boolean }) {
                 <th scope="row" className="py-1 pr-2 text-left font-normal text-strong">{m.label}</th>
                 {ROLES.flatMap((r) => {
                   const p = permisoDe(r, m.id, a.permisos);
+                  // MIA-229: la plata es de Dirección y Administración; para el resto la casilla queda apagada y fija.
+                  const fijo = !edita || permisoFijo(r, m.id);
                   return [
-                    <td key={`${r}-v`} className="text-center"><label className={casilla}><input type="checkbox" name={`ver:${r}:${m.id}`} defaultChecked={p.ver} disabled={!edita} aria-label={`${ROL_LABEL[r]} ve ${m.label}`} className="h-5 w-5" /></label></td>,
-                    <td key={`${r}-e`} className="text-center"><label className={casilla}><input type="checkbox" name={`editar:${r}:${m.id}`} defaultChecked={p.editar} disabled={!edita} aria-label={`${ROL_LABEL[r]} edita ${m.label}`} className="h-5 w-5" /></label></td>,
+                    <td key={`${r}-v`} className="text-center"><label className={casilla}><input type="checkbox" name={`ver:${r}:${m.id}`} defaultChecked={p.ver} disabled={fijo} aria-label={`${ROL_LABEL[r]} ve ${m.label}`} className="h-5 w-5" /></label></td>,
+                    <td key={`${r}-e`} className="text-center"><label className={casilla}><input type="checkbox" name={`editar:${r}:${m.id}`} defaultChecked={p.editar} disabled={fijo} aria-label={`${ROL_LABEL[r]} edita ${m.label}`} className="h-5 w-5" /></label></td>,
                   ];
                 })}
               </tr>

@@ -503,16 +503,11 @@ test("T12 · C-O46 · liquidaciones con vista: Comercial con permiso no recibe i
   const deRol = p.valor(await p.como(p.dir, () => guardarVista(f)));
   ok(deRol as Res);
   const idRol = (deRol as { id: string }).id;
+  // MIA-229: Liquidaciones es de Dirección y Administración; el permiso guardado para Comercial no lo abre (permisoFijo,
+  // gestion-core.ts), así que tampoco la vista de su rol: no recibe ni la lista.
   const leida = p.valor(await p.como(p.com.userId, async () => vistas.leerLiquidacionesConVista(await actorActual(), periodo, idRol)));
-  assert.equal(leida.ok, true, JSON.stringify(leida));
-  if (leida.ok) {
-    assert.equal(leida.actual.id, idRol, "la vista de su rol la ve");
-    assert.deepEqual(leida.columnas.map((c) => c.id), ["persona", "estado", "accion"], "las columnas ocultas no viajan");
-    assert.equal(leida.actual.orden, "contraparte:asc", "no ordena por el total oculto");
-    assert.equal(leida.montos, false);
-    assert.equal(leida.grupos.flatMap((g) => g.filas).length, 1);
-    assert.doesNotMatch(JSON.stringify(leida), /777001|33003|810004/, "ningún importe en la respuesta");
-  }
+  assert.equal(leida.ok, false, JSON.stringify(leida));
+  assert.doesNotMatch(JSON.stringify(leida), /777001|33003|810004/, "ningún importe en la respuesta");
   const deDireccion = p.valor(await p.como(p.dir, async () => vistas.leerLiquidacionesConVista(await actorActual(), periodo, "sistema:todas")));
   assert.ok(deDireccion.ok && deDireccion.grupos[0].filas[0].total === 810_004, "Dirección sí lo ve");
   const deAdm = p.valor(await p.como(p.admin.userId, async () => vistas.leerLiquidacionesConVista(await actorActual(), periodo, idRol)));

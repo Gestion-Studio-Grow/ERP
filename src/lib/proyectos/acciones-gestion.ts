@@ -16,7 +16,7 @@ import { auditAdmin, auditPublic } from "@/lib/audit-core";
 import { mensajeDeProveedor, validateSupplierInput } from "@/lib/suppliers/supplier";
 import { fechaCorta, leerNumero } from "./core";
 import { actorActual, avisar, exigirEditar, proyectoVisible, puede, regenerarCuotasDe, registrarCambio, usuariosDeLaPlata, usuariosDelEquipo, type Actor } from "./gestion.server";
-import { cambiaLosPermisos, COLUMNAS_OCULTAS_BASE, MONEDAS, permisoDe, ROLES_GESTION, RUBROS, TIPOS_AVISO, type ModuloGestion, type RolGestion } from "./gestion-core";
+import { cambiaLosPermisos, COLUMNAS_OCULTAS_BASE, MONEDAS, permisoDe, permisoFijo, ROLES_GESTION, RUBROS, TIPOS_AVISO, type ModuloGestion, type RolGestion } from "./gestion-core";
 import { entre, matrizDelFormulario, respuestaDePresentacion } from "./gestion-lecturas-core";
 import { esLoPropio } from "./empresa-core";
 
@@ -304,6 +304,8 @@ export async function guardarPermisos(formData: FormData): Promise<void> {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`proyecto-permisos:${tenantId}`}))`;
     const guardados = await tx.proyectoPermiso.findMany({ where: { tenantId }, select: { rol: true, modulo: true, ver: true, editar: true, columnasOcultas: true } });
     for (const f of filas) {
+      // MIA-229: la plata no se le da a un rol que no la ve (`permisoFijo`); una casilla así no se guarda aunque llegue en el POST.
+      if (permisoFijo(f.rol, f.modulo as ModuloGestion)) continue;
       const antes = permisoDe(f.rol, f.modulo as ModuloGestion, guardados);
       const fila = guardados.find((g) => g.rol === f.rol && g.modulo === f.modulo);
       const ocultasAntes = f.rol === "DIRECCION" ? [] : Array.isArray(fila?.columnasOcultas) ? (fila.columnasOcultas as string[]) : [...COLUMNAS_OCULTAS_BASE[f.rol]];

@@ -9,18 +9,17 @@
 // esos mismos (`rolAdmitidoEnAlta`): un Profesional sin agenda no entra ni por un POST a mano.
 
 import type { Role } from "@/lib/capabilities";
+import { etiquetaPorPuesto, PUESTOS_DEL_ALTA } from "@/lib/proyectos/puestos-del-alta";
 
 export type OpcionDeRol = { valor: Role; etiqueta: string };
+/** Lo que ofrece el alta: un rol del ERP, salvo en una productora, donde `valor` es un puesto (`PUESTOS_DEL_ALTA`, MIA-229). */
+export type OpcionDeAlta = { valor: string; etiqueta: string };
 
-export function rolesParaAlta(esMostrador: boolean, conProyectos = false): OpcionDeRol[] {
-  // Una productora no tiene agenda: Profesional es quien diseña y arma, y no ve la plata.
-  if (conProyectos) {
-    return [
-      { valor: "OWNER", etiqueta: "Dueño/a (todo)" },
-      { valor: "RECEPTION", etiqueta: "Administración (proyectos, clientes y cobros)" },
-      { valor: "PROFESSIONAL", etiqueta: "Equipo (proyectos, sin ver la plata)" },
-    ];
-  }
+export function rolesParaAlta(esMostrador: boolean): OpcionDeRol[];
+export function rolesParaAlta(esMostrador: boolean, conProyectos: boolean): OpcionDeAlta[];
+export function rolesParaAlta(esMostrador: boolean, conProyectos = false): OpcionDeAlta[] {
+  // MIA-229 · una productora da de alta por PUESTO: el servidor deriva el rol del ERP y la ficha (`validarAltaDeUsuario`).
+  if (conProyectos) return PUESTOS_DEL_ALTA.map(({ valor, etiqueta }) => ({ valor, etiqueta }));
   if (esMostrador) {
     return [
       { valor: "OWNER", etiqueta: "Dueño/a (todo)" },
@@ -34,8 +33,10 @@ export function rolesParaAlta(esMostrador: boolean, conProyectos = false): Opcio
   ];
 }
 
-/** El rol como se lee en la lista de usuarios. */
-export function etiquetaDeRol(role: string, esMostrador: boolean, conProyectos = false): string {
+/** El rol como se lee en la lista de usuarios. En una productora, por el puesto de su ficha (P4, MIA-229) si se pasa. */
+export function etiquetaDeRol(role: string, esMostrador: boolean, conProyectos = false, rolDeLaFicha?: string | null): string {
+  const porPuesto = conProyectos && rolDeLaFicha !== undefined ? etiquetaPorPuesto(role, rolDeLaFicha) : null;
+  if (porPuesto) return porPuesto;
   if (role === "OWNER") return "Dueño/a";
   if (conProyectos && role === "RECEPTION") return "Administración";
   if (conProyectos && role === "PROFESSIONAL") return "Equipo";

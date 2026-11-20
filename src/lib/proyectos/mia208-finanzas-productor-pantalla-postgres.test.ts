@@ -74,7 +74,8 @@ test("3 · Finanzas de la ficha: el productor no ve «Marcar cobrado» ni «Anul
     anularGasto: html.includes('aria-label="Anular gasto Flete"'),
   });
   assert.deepEqual(botones(deLaDuenia.html), { marcarCobrado: true, anularCobro: true, anularGasto: true }, "la dueña ve los tres");
-  assert.equal(delProductor.editaPagos, true, "el productor tiene «Pagos · editar» (el caso de la corrida)");
+  // MIA-229: Producción ya no puede tener «Pagos» (permisoFijo, gestion-core.ts); los botones siguen sin verse.
+  assert.equal(delProductor.editaPagos, false, "el productor no tiene «Pagos · editar» (MIA-229)");
   assert.deepEqual(botones(delProductor.html), { marcarCobrado: false, anularCobro: false, anularGasto: false }, "el productor no ve ninguno");
 
   const carpeta = process.env.MIA208_CAPTURAS;

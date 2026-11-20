@@ -17,7 +17,8 @@ const FABRICA: Record<RolGestion, { niveles: string[]; ocultas: string[]; laCamb
   ADMINISTRACION: { niveles: [V, V, V, E, V, N, E, E, E, N, N, N, E], ocultas: [], laCambia: "Dirección" },
   COMERCIAL: { niveles: [E, V, N, N, E, E, N, N, N, N, N, E, V], ocultas: OCULTAS_DE_COSTO, laCambia: "Dirección" },
   DISENO: { niveles: [V, V, N, N, V, E, N, N, N, N, N, E, N], ocultas: OCULTAS_DE_COSTO, laCambia: "Dirección" },
-  PRODUCCION: { niveles: [E, E, E, E, E, E, E, N, N, N, N, E, V], ocultas: [], laCambia: "Dirección" },
+  // MIA-229: «Pagos y cobros del evento» de Producción a sin acceso («Producción no», orden del dueño 20/11).
+  PRODUCCION: { niveles: [E, E, E, E, E, E, N, N, N, N, N, E, V], ocultas: [], laCambia: "Dirección" },
   // MIA-50 T11 (O47): Producción de campo ve el proyecto y la ficha (tareas, lista de control, agenda) y rinde lo suyo; nada de plata.
   PRODUCCION_CAMPO: { niveles: [V, V, N, N, N, N, N, N, N, N, N, N, V], ocultas: OCULTAS_DE_COSTO, laCambia: "Dirección" },
   SIN_FICHA: { niveles: [N, N, N, N, N, N, N, N, N, N, N, N, N], ocultas: OCULTAS_DE_COSTO, laCambia: "nadie (fija)" },

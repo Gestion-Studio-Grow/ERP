@@ -212,7 +212,9 @@ test("la barra muestra cada app sólo a quien puede abrirla", () => {
   assert.equal(appDeGestionVisible("gestion-diseno", "DISENO", []), true);
   assert.equal(appDeGestionVisible("gestion-mi-liquidacion", "DISENO", []), true);
   assert.equal(appDeGestionVisible("gestion-administracion", "DIRECCION", []), true);
-  assert.equal(appDeGestionVisible("gestion-administracion", "DISENO", [{ rol: "DISENO", modulo: "pagos", ver: true, editar: false }]), true);
+  // MIA-229: «Pagos» guardado a un puesto que no ve la plata no le abre Administración; a Administración, sí.
+  assert.equal(appDeGestionVisible("gestion-administracion", "DISENO", [{ rol: "DISENO", modulo: "pagos", ver: true, editar: false }]), false);
+  assert.equal(appDeGestionVisible("gestion-administracion", "ADMINISTRACION", []), true);
   assert.equal(appDeGestionVisible("clientes", "DISENO", []), false);
 });
 
@@ -466,4 +468,22 @@ test("MIA-194 · sin tipo de cambio, el aviso lleva a Monedas y gastos fijos (o 
     ok: false,
     error: "Falta el tipo de cambio de EUR: pedile a Administración que lo cargue en Monedas y gastos fijos.",
   });
+});
+
+test("MIA-229 · la plata (pagos, empresa, liquidaciones) sólo la abren Dirección y Administración, ni de fábrica ni guardada", async () => {
+  const { permisoDe, permisoFijo, MODULOS_DE_PLATA, ROLES_GESTION } = await import("./gestion-core");
+  const todoGuardado = ROLES_GESTION.flatMap((rol) => MODULOS_DE_PLATA.map((modulo) => ({ rol, modulo, ver: true, editar: true })));
+  for (const rol of [...ROLES_GESTION, "SIN_FICHA" as const]) {
+    const ve = rol === "DIRECCION" || rol === "ADMINISTRACION";
+    for (const modulo of MODULOS_DE_PLATA) {
+      assert.equal(permisoDe(rol, modulo, todoGuardado).ver, ve, `${rol} · ${modulo}`);
+      assert.equal(permisoFijo(rol, modulo), rol === "DIRECCION" || !ve, `${rol} · ${modulo} fijo`);
+    }
+  }
+  // P3 (decisiones-puestos.ts): los costos no son plata; Producción los sigue viendo y editando de fábrica.
+  assert.deepEqual([...MODULOS_DE_PLATA], ["pagos", "empresa", "liquidaciones"]);
+  assert.deepEqual(permisoDe("PRODUCCION", "costos", []), { ver: true, editar: true });
+  // Rendiciones no es plata del negocio: Producción y Campo rinden lo propio («ver»).
+  assert.equal(permisoDe("PRODUCCION", "rendiciones", []).ver, true);
+  assert.equal(permisoDe("PRODUCCION_CAMPO", "rendiciones", []).ver, true);
 });

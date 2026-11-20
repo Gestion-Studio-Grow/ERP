@@ -135,7 +135,9 @@ test("A1 · rol × ruta × acción, con la matriz de fábrica", () => {
     // MIA-50 T10 (ola 4, MIA-179): +3 acciones de la liquidación del proyecto. Revisar (E:liquidaciones) para Dirección y
     // Administración; declarar, sólo Administración; aprobar, sólo Dirección. Nadie más cambia.
     // MIA-50 T12: Dirección suma `aprobarAjusteTardio` (SOLO:DIRECCION) → 163; los demás roles no cambian.
-    { DIRECCION: [48, 163], ADMINISTRACION: [37, 67], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 122], PRODUCCION_CAMPO: [15, 12], SIN_FICHA: [10, 11] },
+    // MIA-229 («Producción no», orden del dueño 20/11): Producción pierde las 15 acciones que pedían «Pagos · editar»
+    // (122 → 107); las rutas no cambian (39). Los demás roles, igual.
+    { DIRECCION: [48, 163], ADMINISTRACION: [37, 67], COMERCIAL: [24, 89], DISENO: [23, 56], PRODUCCION: [39, 107], PRODUCCION_CAMPO: [15, 12], SIN_FICHA: [10, 11] },
   );
 });
 

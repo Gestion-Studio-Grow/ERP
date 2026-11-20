@@ -170,7 +170,8 @@ export const PUERTAS_DE_ACCIONES: Readonly<Record<string, string>> = {
   "acciones#registrarGasto": "E:pagos",
   "acciones#pagarGasto": "E:pagos",
   // MIA-50 T05: comprobantes de proveedor (los carga quien edita Proveedores o Pagos) y órdenes de pago (Pagos). Además piden
-  // ver la plata del negocio (`veLaPlata`), que es del rol ERP y queda fuera de esta matriz, como el techo de PLATA.
+  // ver la plata del negocio (`veLaPlata`, datos.server.ts): el rol de gestión (Dirección o Administración) y el techo
+  // del ERP («agenda:manage»). No es sólo del rol ERP: un puesto que no ve la plata no pasa aunque tenga «Pagos · editar».
   "acciones-comprobantes#cargarComprobante": "E:proveedores|pagos",
   "acciones-comprobantes#imputarComprobante": "E:proveedores|pagos",
   "acciones-comprobantes#enlazarCuota": "E:proveedores|pagos",

@@ -16,6 +16,8 @@ import ModoSimplePorPersona from "./ModoSimplePorPersona";
 import { prefiereModoSimple } from "@/lib/modo-simple";
 import { armarMatriz } from "./matriz-core";
 import { cargarDatosDeLaMatriz } from "./matriz.server";
+import { puestosDeLosUsuarios } from "@/lib/proyectos/ficha-del-alta.server";
+import { getCurrentTenantId } from "@/lib/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +66,9 @@ export default async function UsuariosPage({
   // Una productora no tiene agenda: «Recepción» y «Profesional» se dicen con sus palabras (roles.ts).
   const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
   const roles = rolesParaAlta(esMostrador, conProyectos);
+  // MIA-229 (P4): en una productora, cada usuario se lee por el puesto de su ficha.
+  const puestos = conProyectos ? await puestosDeLosUsuarios(await getCurrentTenantId()) : undefined;
+  const etiqueta = (u: { id: string; role: string }) => (puestos ? etiquetaDeRol(u.role, esMostrador, true, puestos.get(u.id) ?? null) : etiquetaDeRol(u.role, esMostrador, conProyectos));
 
   // «Qué puede hacer cada persona» (matriz de permisos, PLAN.md §9): sólo con `users:manage`, que es
   // también lo que exige `setUserPermission`. Las personas dadas de baja no aparecen.
@@ -86,7 +91,7 @@ export default async function UsuariosPage({
     // Modo simple por persona (src/lib/modo-simple.ts): la misma tabla, la clave `ui:modo-simple`.
     const personasSimple = users
       .filter((u) => u.active && !u.deletedAt)
-      .map((u) => ({ id: u.id, name: u.name, rol: etiquetaDeRol(u.role, esMostrador, conProyectos), simple: prefiereModoSimple({ overrides: datos.overrides.get(u.id) ?? [] }) }));
+      .map((u) => ({ id: u.id, name: u.name, rol: etiqueta(u), simple: prefiereModoSimple({ overrides: datos.overrides.get(u.id) ?? [] }) }));
     matriz = (
       <>
         <MatrizDePermisos matriz={tabla} conTabla={datos.conTabla} />
@@ -96,7 +101,7 @@ export default async function UsuariosPage({
   }
 
   // Diseño nuevo («Renglón»): las mismas acciones y los mismos campos. Apagado, igual que siempre.
-  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} stockDelEncargado={negocio.contexto?.origen === "piloto"} banner={banner} fichas={fichas} matriz={matriz} />;
+  if (nuevo) return <UsuariosRenglon users={users} roles={roles} esMostrador={esMostrador} stockDelEncargado={negocio.contexto?.origen === "piloto"} banner={banner} fichas={fichas} matriz={matriz} conProyectos={conProyectos} puestos={puestos} />;
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-8">
@@ -126,8 +131,10 @@ export default async function UsuariosPage({
           <Field label="Email" htmlFor="nu-email">
             <Input id="nu-email" type="email" name="email" required autoComplete="off" />
           </Field>
-          <Field label="Rol" htmlFor="nu-role">
-            <Select id="nu-role" name="role" required defaultValue="RECEPTION">
+          <Field label={conProyectos ? "Puesto" : "Rol"} htmlFor="nu-role">
+            {/* MIA-229: en una productora no hay «Recepción» ni un puesto preseleccionado: se elige a conciencia. */}
+            <Select id="nu-role" name="role" required defaultValue={conProyectos ? "" : "RECEPTION"}>
+              {conProyectos && <option value="" disabled>Elegí el puesto</option>}
               {roles.map((r) => (
                 <option key={r.valor} value={r.valor}>
                   {r.etiqueta}
@@ -176,7 +183,7 @@ export default async function UsuariosPage({
                   <p className="font-medium">
                     {u.name}{" "}
                     <span className="ml-1 inline-block rounded-full bg-surface-sunken px-2 py-0.5 text-xs text-muted">
-                      {etiquetaDeRol(u.role, esMostrador, conProyectos)}
+                      {etiqueta(u)}
                     </span>
                     {!u.active && (
                       <span className="ml-1 inline-block rounded-full bg-danger-soft px-2 py-0.5 text-xs text-danger">

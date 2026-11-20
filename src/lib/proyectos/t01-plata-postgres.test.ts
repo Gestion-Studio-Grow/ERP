@@ -215,7 +215,8 @@ test("C-O42 · `pagarGasto` exige ver el proyecto, el permiso de pagos y ver la 
   //    así que la frena eso antes que el proyecto; quien ve la plata ve todos los proyectos (`veTodosLosProyectos`).
   let r = await pagar();
   assert.equal(r?.ok, false, JSON.stringify(r));
-  assert.match(String((r as { error: string }).error), /no ve la plata/);
+  // MIA-229: Producción ya no tiene «Pagos» (permisoFijo, gestion-core.ts): la frena el permiso, antes que la plata.
+  assert.match(String((r as { error: string }).error), /no ve la plata|permiso de editar Pagos/);
   await sinCambios("Producción de otro proyecto");
   // 2) En el equipo, pero su rol tiene sólo «proveedores» (pagos apagado).
   await duenio.proyectoEquipo.create({ data: { tenantId: a.id, proyectoId: id, personaId: persona.id } });
@@ -224,8 +225,10 @@ test("C-O42 · `pagarGasto` exige ver el proyecto, el permiso de pagos y ver la 
   assert.equal(r?.ok, false, JSON.stringify(r));
   assert.match(String((r as { error: string }).error), /permiso de editar Pagos/);
   await sinCambios("sólo proveedores");
-  // 3) Con pagos, pero el usuario no ve la plata.
+  // 3) Con pagos, pero el usuario no ve la plata. MIA-229: Producción ya no puede tener «Pagos», así que el caso es una
+  //    ficha de Administración cuyo usuario perdió «agenda:manage».
   await duenio.proyectoPermiso.deleteMany({ where: { tenantId: a.id, rol: "PRODUCCION", modulo: "pagos" } });
+  await duenio.proyectoPersona.update({ where: { id: persona.id }, data: { rol: "ADMINISTRACION" } });
   await duenio.userPermissionOverride.create({ data: { tenantId: a.id, userId: a.recepcion.id, capability: "agenda:manage", allowed: false } });
   r = await pagar();
   assert.equal(r?.ok, false, JSON.stringify(r));

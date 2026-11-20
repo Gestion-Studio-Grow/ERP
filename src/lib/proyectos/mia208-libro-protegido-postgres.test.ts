@@ -291,8 +291,9 @@ test("3 · el productor (PRODUCCION, no ve la plata) no puede marcar cobrado, an
   // Todas las puertas en una corrida: las que no rechazan con el texto de la plata se listan juntas.
   const pasaron: string[] = [];
   for (const [que, fn] of Object.entries(intentos)) {
-    const r: { ok: boolean; error?: string } = await p.en("recepcion", fn);
-    if (r.ok || !/plata del negocio/.test(r.error ?? "")) pasaron.push(`${que}: ${JSON.stringify(r)}`);
+    // MIA-229: sin «Pagos» (permisoFijo), «Registrar cobro» ya lo frena el permiso del módulo, que tira antes de la regla de la plata.
+    const r: { ok: boolean; error?: string } = await p.en("recepcion", () => (fn() as Promise<{ ok: boolean; error?: string }>).catch((e: Error) => ({ ok: false, error: e.message })));
+    if (r.ok || !/plata del negocio|No tenés permiso/.test(r.error ?? "")) pasaron.push(`${que}: ${JSON.stringify(r)}`);
   }
   assert.deepEqual(pasaron, [], "cada acción rechaza y dice por qué");
   assert.deepEqual(await foto(), antes, "nada escrito");

@@ -22,6 +22,8 @@ import { grabarCambioDePermisoEnTx } from "@/lib/permisos/grabar-permiso";
 import { esPreferenciaUi } from "@/lib/modo-simple";
 import { hashPassword } from "@/lib/auth-password";
 import { getNegocioApps } from "@/apps/contexto.server";
+import { appDelPanelCerrado } from "@/apps/visibles";
+import { fichaDelAltaEnTx } from "@/lib/proyectos/ficha-del-alta.server";
 import { MIN_PASSWORD_LENGTH, validarAltaDeUsuario } from "@/app/admin/(dashboard)/usuarios/alta-usuario";
 import { decidirVinculoProfesional } from "@/app/admin/(dashboard)/usuarios/vinculo-profesional";
 import {
@@ -91,10 +93,13 @@ export async function createUser(formData: FormData) {
   // contraseña y, sobre todo, el rol — sólo los que la pantalla ofrece en ESTE negocio. Sin
   // agenda (mostrador) no hay Profesional, que entraría a una agenda vacía; tampoco por un POST
   // a mano. En servicios (CH) se admiten los tres, como siempre.
-  const { esMostrador } = await getNegocioApps(actor.role);
-  const alta = validarAltaDeUsuario(formData, esMostrador);
+  // MIA-229: en una productora se elige un puesto; de él salen el rol del ERP y la ficha del equipo.
+  const negocio = await getNegocioApps(actor.role);
+  const { esMostrador } = negocio;
+  const conProyectos = appDelPanelCerrado(negocio)?.id === "proyectos";
+  const alta = validarAltaDeUsuario(formData, esMostrador, conProyectos);
   if (!alta.ok) backWith(alta.status);
-  const { name, email, role, password } = alta;
+  const { name, email, role, password, puesto } = alta;
 
   // Email único por tenant (schema @@unique). Chequeo previo por UX + defensa
   // ante la carrera con try/catch del constraint.
@@ -111,6 +116,7 @@ export async function createUser(formData: FormData) {
   try {
     resultado = await crearUsuarioSiEntra({
       data: { tenantId, name, email, role, passwordHash, mustChangePassword: true },
+      luego: puesto ? (tx, userId) => fichaDelAltaEnTx(tx, { tenantId, userId, nombre: name, email, rol: puesto }) : undefined,
     });
   } catch (e) {
     if (esTablaAusente(e)) backWith("error_sin_cambio_obligatorio");
@@ -124,7 +130,7 @@ export async function createUser(formData: FormData) {
     action: "create",
     entity: "User",
     entityId: created.id,
-    changes: { name, email, role },
+    changes: { name, email, role, ...(puesto ? { puesto } : {}) },
   });
 
   revalidatePath(USERS_PATH);

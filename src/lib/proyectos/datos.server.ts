@@ -29,8 +29,10 @@ import { itemsParaElCliente, totalesDelNeto } from "./precio-proyecto-core";
  * MIA-223 · la plata de Proyectos (ver costos, márgenes y cobros; cobrar, pagar, órdenes, comprobantes) la ven y la mueven
  * Dirección y Administración, y nadie más: el rol de gestión (la ficha del equipo; la dueña sin ficha entra como
  * Dirección) además del techo del ERP («agenda:manage» fuera de la agenda). Producción no ve ni mueve plata aunque su
- * usuario del ERP sea RECEPTION u OWNER, ni un puesto al que se le guarde «Pagos · editar» (decisión de ORQ-007 con el
- * «avanzá» del dueño, 20/11; reversible). Un solo lugar: todas las pantallas y acciones de plata de Proyectos pasan por acá.
+ * usuario del ERP sea RECEPTION u OWNER (decisión de ORQ-007 con el «avanzá» del dueño, 20/11; reversible).
+ * No es el único lugar: las pantallas y acciones que piden un módulo de plata (`pagos`, `empresa`, `liquidaciones`) sin
+ * pasar por acá —proveedores, Finanzas de la ficha, calendario, Administración › Cuentas— frenan por `permisoDe`
+ * (`permisoFijo`, gestion-core.ts, MIA-229): esos módulos no se le dan a un rol que no ve la plata, ni guardados.
  */
 export async function veLaPlata(u: SessionUser): Promise<boolean> {
   if (!permisoFueraDeLaAgenda(u, "agenda:manage")) return false;

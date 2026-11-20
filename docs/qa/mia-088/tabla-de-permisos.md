@@ -20,13 +20,17 @@ entera: una página o una acción sin anotar, una puerta distinta de la anotada 
 | Proveedores (`proveedores`) | E | E | N | N | E | N |
 | Cotizaciones y planilla de venta (`cotizaciones`) | E | V | E | V | E | N |
 | Diseño (`diseno`) | E | N | E | E | E | N |
-| Pagos y cobros del evento (`pagos`) | E | E | N | N | E | N |
+| Pagos y cobros del evento (`pagos`) | E | E | N | N | N | N |
 | Cuentas, cashflow y bancos (`empresa`) | E | E | N | N | N | N |
 | Liquidaciones del equipo (`liquidaciones`) | E | E | N | N | N | N |
 | Tablero, reportes, Rentabilidad y Configuración (`direccion`) | E | N | N | N | N | N |
 | Equipo, roles y permisos (`equipo`) | E | N | N | N | N | N |
 | Estudio IA y agentes (`ia`) | E | N | E | E | E | N |
 | Rendiciones de gastos (`rendiciones`) | E | E | V | N | V | V |
+
+**MIA-229 · la plata (orden del dueño, 20/11: «Producción no»).** Pagos, Cuentas y Liquidaciones sólo los abren Dirección y
+Administración: a ningún otro rol se le pueden dar, ni Dirección guardándolos (`permisoFijo`, `gestion-core.ts`). Producción
+pasa de «E» a «N» en Pagos. Los costos de la ficha no cuentan como plata (P3, `decisiones-puestos.ts`).
 
 Columnas de costo de la ficha (costo unitario, costo total, recargo y margen): ocultas para Comercial, Diseño y Producción de campo; visibles para
 Dirección, Administración y Producción. Sin ficha (y sin ser la dueña): nada.

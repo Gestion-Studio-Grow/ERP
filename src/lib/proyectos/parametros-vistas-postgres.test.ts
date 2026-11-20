@@ -153,34 +153,30 @@ test("M7a · parámetros (C-O45) y vistas (C-O46) con app_rls: permisos, histori
   const vistaRol = await correr(dir, () => guardarVista(form({ lista: "a-pagar", nombre: "Comercial: lo que vence", alcance: "ROL", rol: "COMERCIAL", columnas: ["evento", "concepto", "monto", "enPesos"], estado: "pendientes", origen: "todos", moneda: "todas", venceEnDias: "0", agrupacion: "", orden: "monto:desc" })));
   assert.equal(vistaRol.ok, true);
   const idRol = (vistaRol as { id: string }).id;
+  // MIA-229: «Empresa» es de Dirección y Administración; el permiso guardado para Comercial no lo abre (permisoFijo,
+  // gestion-core.ts), así que tampoco la vista de su rol: no recibe ni la lista.
   const leida = await correr(en(a, com.id), async () => leerListaConVista(await actorActual(), "a-pagar", idRol));
-  assert.equal(leida.ok, true);
-  if (leida.ok) {
-    assert.equal(leida.vista.id, idRol, "la vista de su rol la ve");
-    assert.deepEqual(leida.columnas, ["vence", "evento", "concepto", "accion"], "la columna oculta no viaja");
-    const filas = leida.grupos.flatMap((g) => g.filas);
-    assert.equal(filas.length, 1);
-    assert.equal(filas[0].concepto, "Alquiler de depósito (ficticio)");
-    for (const k of ["monto", "enPesos", "moneda"]) assert.equal(k in filas[0], false, `${k} no está en la respuesta`);
-    assert.doesNotMatch(JSON.stringify(leida), /150000/, "el importe no aparece en ningún lado");
-  }
+  assert.equal(leida.ok, false);
+  assert.doesNotMatch(JSON.stringify(leida), /150000/, "el importe no aparece en ningún lado");
   const deDireccion = await correr(dir, async () => leerListaConVista(await actorActual(), "a-pagar", "sistema:todas"));
   assert.ok(deDireccion.ok && deDireccion.grupos[0].filas[0].monto === 150000, "Dirección sí lo ve");
 
-  // Personal: Comercial guarda la suya; Administración no la ve, no la lee por id y no la borra.
-  const propia = await correr(en(a, com.id), () => guardarVista(form({ lista: "a-pagar", nombre: "Mía", alcance: "PERSONA", columnas: ["concepto", "monto"] })));
+  // Personal: Administración guarda la suya; Comercial no la ve, no la lee por id y no la borra (MIA-229: Comercial ya no
+  // abre «a pagar», así que la vista personal se prueba al revés).
+  const propia = await correr(en(a, adm.id), () => guardarVista(form({ lista: "a-pagar", nombre: "Mía", alcance: "PERSONA", columnas: ["concepto", "monto"] })));
   assert.equal(propia.ok, true);
   const idPropia = (propia as { id: string }).id;
-  const deAdm = await correr(en(a, adm.id), async () => vistaAplicable(await actorActual(), "a-pagar", idPropia));
-  assert.equal(deAdm.vistas.some((v) => v.id === idPropia), false);
-  assert.notEqual(deAdm.actual.id, idPropia, "pedida por id, cae en la del sistema");
-  assert.equal((await correr(en(a, adm.id), () => borrarVista(form({ id: idPropia })))).ok, false);
+  const deCom = await correr(en(a, com.id), async () => vistaAplicable(await actorActual(), "a-pagar", idPropia));
+  assert.equal(deCom.vistas.some((v) => v.id === idPropia), false);
+  assert.notEqual(deCom.actual.id, idPropia, "pedida por id, cae en la del sistema");
+  assert.equal((await correr(en(a, com.id), () => borrarVista(form({ id: idPropia })))).ok, false);
   // Comercial no guarda vistas de rol; sin permiso de la lista, tampoco personales.
   assert.equal((await correr(en(a, com.id), () => guardarVista(form({ lista: "a-pagar", nombre: "De todos", alcance: "ROL", rol: "COMERCIAL", columnas: ["concepto"] })))).ok, false);
+  assert.equal((await correr(en(a, com.id), () => guardarVista(form({ lista: "a-pagar", nombre: "Mía", alcance: "PERSONA", columnas: ["concepto"] })))).ok, false);
   assert.equal((await correr(en(b, b.duenia.id), async () => vistaAplicable(await actorActual(), "a-pagar", idRol))).vistas.some((v) => v.id === idRol), false, "B no ve las de A");
   assert.equal((await contar(b.id)).vistas, 0);
   assert.equal((await contar(a.id)).vistas, 2);
-  assert.deepEqual(await correr(en(a, com.id), () => borrarVista(form({ id: idPropia }))), { ok: true });
+  assert.deepEqual(await correr(en(a, adm.id), () => borrarVista(form({ id: idPropia }))), { ok: true });
 
   // ── Sin la migración (vuelta atrás aplicada): el código lee el rubro y no rompe ──
   const rollback = await readFile(new URL("../../../prisma/migrations/20261117120000_mia_m7a_parametros_vistas/rollback.sql", import.meta.url), "utf8");

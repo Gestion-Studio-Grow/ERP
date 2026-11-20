@@ -4,6 +4,7 @@
 
 import { anticipoDeLaLinea, DIAS_POR_DEFECTO, type DiasDelPlan } from "./presupuesto-core";
 import { pesos, porcentaje, redondear, yaVencio } from "./core";
+import { DECISIONES_DE_PUESTOS } from "./decisiones-puestos";
 
 const DIA = 86_400_000;
 
@@ -711,7 +712,8 @@ const E: Permiso = { ver: true, editar: true };
 const N: Permiso = { ver: false, editar: false };
 
 export const PERMISOS_BASE: Record<Exclude<RolGestion, "DIRECCION">, Record<ModuloGestion, Permiso>> = {
-  PRODUCCION: { pipeline: E, ficha: E, costos: E, proveedores: E, cotizaciones: E, diseno: E, pagos: E, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
+  // MIA-229 · «Producción no» (orden del dueño, 20/11): no paga órdenes ni ve plata. `pagos` a N; igual lo traba `permisoDe`.
+  PRODUCCION: { pipeline: E, ficha: E, costos: E, proveedores: E, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
   DISENO: { pipeline: V, ficha: V, costos: N, proveedores: N, cotizaciones: V, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: N },
   ADMINISTRACION: { pipeline: V, ficha: V, costos: V, proveedores: E, cotizaciones: V, diseno: N, pagos: E, empresa: E, liquidaciones: E, direccion: N, equipo: N, ia: N, rendiciones: E },
   COMERCIAL: { pipeline: E, ficha: V, costos: N, proveedores: N, cotizaciones: E, diseno: E, pagos: N, empresa: N, liquidaciones: N, direccion: N, equipo: N, ia: E, rendiciones: V },
@@ -807,8 +809,20 @@ export const COLUMNAS_OCULTAS_BASE: Record<Exclude<RolGestion, "DIRECCION">, rea
   SIN_FICHA: ["costoUnit", "costoTotal", "recargo", "margen"],
 };
 
+/**
+ * MIA-229 · los módulos que son la plata del negocio. Sólo los abre el rol que la ve (`rolVeLaPlata`: Dirección y
+ * Administración), ni de fábrica ni guardado por Dirección: así las lecturas (proveedores, Finanzas de la ficha, calendario)
+ * y las acciones (`exigirEditar("empresa" | "liquidaciones")`) que no pasan por `veLaPlata` frenan igual. Los costos de la
+ * ficha no entran mientras `costosSonPlata` sea false (P3, `decisiones-puestos.ts`). PURA.
+ */
+export const MODULOS_DE_PLATA: readonly ModuloGestion[] = ["pagos", "empresa", "liquidaciones", ...(DECISIONES_DE_PUESTOS.costosSonPlata ? (["costos"] as const) : [])];
+
+/** La casilla rol × módulo no se puede cambiar: Dirección ve todo, y la plata no se le da a quien no la ve. PURA. */
+export const permisoFijo = (rol: RolGestion, modulo: ModuloGestion): boolean => rol === "DIRECCION" || (!rolVeLaPlata(rol) && MODULOS_DE_PLATA.includes(modulo));
+
 export function permisoDe(rol: RolGestion, modulo: ModuloGestion, guardados: readonly { rol: string; modulo: string; ver: boolean; editar: boolean }[]): Permiso {
   if (rol === "DIRECCION") return E;
+  if (permisoFijo(rol, modulo)) return N;
   const g = guardados.find((p) => p.rol === rol && p.modulo === modulo);
   return g ? { ver: g.ver, editar: g.editar } : PERMISOS_BASE[rol][modulo];
 }

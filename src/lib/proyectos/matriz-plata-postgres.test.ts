@@ -321,18 +321,20 @@ async function probarLecturasDePlata(m: Mundo) {
   const { vistaDe } = await import("./ficha.server");
   const empresa = await import("./acciones-empresa");
   // Una deuda con el proveedor en un proyecto donde está todo el equipo: cuota de pago pendiente de $ 1.234.
+  // Proveedor propio: en la corrida completa, las filas de arriba le cargan comprobantes al proveedor del mundo.
+  const supplierId = (await m.duenio.supplier.create({ data: { tenantId: m.a.id, name: "Proveedor MIA-229" }, select: { id: true } })).id;
   const p = await m.proyecto();
-  await m.duenio.proyectoCuota.create({ data: { tenantId: m.a.id, proyectoId: p.id, tipo: "PAGO", concepto: unico("Pago proveedor"), monto: 1234, moneda: "ARS", venceEl: EVENTO, supplierId: m.supplierId, prevista: false, auto: false } });
+  await m.duenio.proyectoCuota.create({ data: { tenantId: m.a.id, proyectoId: p.id, tipo: "PAGO", concepto: unico("Pago proveedor"), monto: 1234, moneda: "ARS", venceEl: EVENTO, supplierId, prevista: false, auto: false } });
   // Dirección le guarda «Empresa · editar» y «Liquidaciones · editar» a Producción: no tiene que servir.
   for (const modulo of ["empresa", "liquidaciones"]) await m.duenio.proyectoPermiso.create({ data: { tenantId: m.a.id, rol: "PRODUCCION", modulo, ver: true, editar: true } });
   const leer = async (clave: string) => {
     const r = await m.como(clave, async () => {
       const a = await gestion.actorActual();
       const lista = await lecturas.listaDeProveedores(a, {});
-      const detalle = await lecturas.detalleDeProveedor(a, m.supplierId);
+      const detalle = await lecturas.detalleDeProveedor(a, supplierId);
       const v = vistaDe(a);
       return {
-        lista: { verPlata: lista.verPlata, debe: lista.proveedores.find((x) => x.id === m.supplierId)?.debe ?? 0, porPagarCuotas: lista.porPagarCuotas },
+        lista: { verPlata: lista.verPlata, debe: lista.proveedores.find((x) => x.id === supplierId)?.debe ?? 0, porPagarCuotas: lista.porPagarCuotas },
         detalle: { verPlata: detalle?.verPlata, debe: detalle?.debe },
         finanzas: { pagos: v.pagos, editaPagos: v.editaPagos, costos: v.costos },
         empresa: { ver: gestion.puede(a, "empresa", "ver"), editar: gestion.puede(a, "empresa", "editar"), liquidaciones: gestion.puede(a, "liquidaciones", "editar") },
