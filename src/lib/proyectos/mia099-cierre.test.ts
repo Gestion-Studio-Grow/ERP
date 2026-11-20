@@ -1,5 +1,6 @@
 // GSG-MIA-099 · reglas puras del cierre del NO CUMPLE de MIA-094: Rentabilidad sin el perdido (decisión 1) y la ficha de un
-// perdido sin «Avance de cobro» (decisión 3). Las dos, opción A, provisionales a confirmar por el dueño.
+// perdido con «Avance de cobro» contra la venta original (decisión 3). Decidió el dueño el 20/11 (MIA-224): D1 = A; D3 = B,
+// provisional a confirmar con Ale.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { totalesDeRentabilidad } from "./empresa-core";
@@ -17,8 +18,10 @@ test("decisión 1 · un perdido no suma en «Vendido» ni en «Ganancia presupue
   assert.deepEqual({ neto: r.neto, ganancia: r.ganancia, porCobrar: r.porCobrar }, { neto: 1000, ganancia: 300, porCobrar: 605 });
 });
 
-test("decisión 3 · la ficha de un perdido no muestra «Avance de cobro»; uno vivo sí", () => {
-  assert.equal(avanceDeCobro({ cobrado: 605, aCobrar: 0 }, true), null);
+test("decisión 3 = B (MIA-224) · la ficha de un perdido muestra lo cobrado contra la venta original; sin venta, nada", () => {
+  assert.equal(avanceDeCobro({ cobrado: 605, aCobrar: 0, ventaOriginal: 1210 }, true), 50, "605 de 1.210, no 100 %");
+  assert.equal(avanceDeCobro({ cobrado: 0, aCobrar: 0, ventaOriginal: 1210 }, true), 0);
+  assert.equal(avanceDeCobro({ cobrado: 605, aCobrar: 0 }, true), null, "un perdido sin venta aprobada no tiene contra qué medir");
   assert.equal(avanceDeCobro({ cobrado: 605, aCobrar: 605 }, false), 50);
   assert.equal(avanceDeCobro(null, false), 0);
 });
